@@ -1,0 +1,53 @@
+[Unit]
+Description=IQM Quantum Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=qaas_user
+Group=qaas_user
+
+# Working directory
+WorkingDirectory=/home/qaas_user
+
+# Python script location
+ExecStart=/usr/bin/python3.11 /home/qaas_user/backend_scripts/backend_service.py
+
+# Environment variables - IQM connection
+Environment="IQM_SERVER_URL=https://cocos.resonance.meetiqm.com/deneb"
+Environment="IQM_QUANTUM_COMPUTER=star24"
+# Environment="IQM_BACKEND_NAME=Deneb"
+# Environment="IQM_CALIBRATION_SET_ID=xxx"
+
+# Environment variables - Service configuration
+Environment="IQM_SERVICE_SOCKET=/var/run/iqm/backend.sock"
+Environment="IQM_WORK_DIR=/var/lib/iqm/tasks"
+
+# Authentication token (if needed)
+# Environment="IQM_AUTH_TOKEN=your_token_here"
+
+# Or load from file for sensitive data
+# EnvironmentFile=/etc/iqm/backend.env
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+
+# Resource limits
+LimitNOFILE=65536
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=iqm-backend
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Runtime directory for socket (creates /var/run/iqm owned by qaas_user)
+RuntimeDirectory=iqm
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target

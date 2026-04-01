@@ -1,0 +1,32 @@
+h q[0]; h q[1]; h q[2]; h q[3]; h q[4];
+h q[5]; h q[6]; h q[7]; h q[8]; h q[9];
+x q[0]; x q[1]; x q[2]; x q[3]; x q[4];
+x q[5]; x q[6]; x q[7]; x q[8]; x q[9];
+
+h q[9];
+ccx q[0], q[1], anc[0];
+ccx anc[0], q[2], anc[1];
+ccx anc[1], q[3], anc[2];
+ccx anc[2], q[4], anc[3];
+ccx anc[3], q[5], anc[4];
+ccx anc[4], q[6], anc[5];
+ccx anc[5], q[7], anc[6];
+ccx anc[6], q[8], q[9];
+ccx anc[5], q[7], anc[6];
+ccx anc[4], q[6], anc[5];
+ccx anc[3], q[5], anc[4];
+ccx anc[2], q[4], anc[3];
+ccx anc[1], q[3], anc[2];
+ccx anc[0], q[2], anc[1];
+ccx q[0], q[1], anc[0];
+h q[9];
+
+x q[0]; x q[1]; x q[2]; x q[3]; x q[4];
+x q[5]; x q[6]; x q[7]; x q[8]; x q[9];
+h q[0]; h q[1]; h q[2]; h q[3]; h q[4];
+h q[5]; h q[6]; h q[7]; h q[8]; h q[9];
+
+// ===================== End iterations =====================
+
+// 4) Measure
+measure q -> c;
