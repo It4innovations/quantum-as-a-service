@@ -24,7 +24,7 @@ The `py4lexis` package (for LEXIS authentication) must be installed first.
 **Install QaaS:**
 .. code-block:: bash
 
-   pip3.11 install git+https://opencode.it4i.eu/adas-private/hpc-q-integration/qaas.git@main
+   pip3.11 install git+https://github.com/It4innovations/quantum-as-a-service.git@main
 
 *For development purposes:*
 .. code-block:: bash
