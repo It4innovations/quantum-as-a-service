@@ -250,7 +250,7 @@ class IQMBackendService:
             if command_params.command in ACCOUNTED_COMMANDS:
                 # Try to get submitter info from cache, otherwise fetch from HEAppE and cache it. If not found, return error
                 accounting_info = IQMBackendService.get_accounting_info(command_params)
-                print("accountinfo: "+str(accounting_info), file=sys.stderr)
+                print(f"accountinfo: {accounting_info.aggregation_name}, {accounting_info.resource_name}", file=sys.stderr)
                 if isinstance(accounting_info, str) or accounting_info is None:
                     conn.sendall(f"ERROR: Unable to get job submitter info -- {accounting_info if isinstance(accounting_info, str) else 'Unknown error'}\n".encode())
                     return
@@ -458,19 +458,15 @@ class IQMBackendService:
         
         # Run job
         run_input = circuits[0] if len(circuits) == 1 else circuits
-        run_params = {
-            'shots': run_kwargs.pop('shots', 1024),
-            **run_kwargs.get('run_options', {})
-        }
         
         backend_run_transpilation_ended = time.time()
         backend_run_transpilation_runtime = backend_run_transpilation_ended - backend_run_transpilation_started
         
         iqm_client_run_started = backend_run_transpilation_ended
-        job:IQMJob = backend.run(run_input, **run_params)
+        job:IQMJob = backend.run(run_input, **run_kwargs)
         iqm_client_run_ended = time.time()
         
-        print(f"Job submitted: {job.job_id}")
+        print(f"Job submitted: {job.job_id()}")
         iqm_client_results_fetching_started = time.time()
         result = job.result(timeout=1740) # 29 minutes to add safe margin
         iqm_client_run_results_fetching_ended = time.time()

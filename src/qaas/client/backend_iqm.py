@@ -210,7 +210,7 @@ class QBackendIQM(QBackend,IQMBackend):
         _, heappe_job_id = QBackend.run(self,
                      run_input,
                      shots=shots,
-                    run_options=kwargs
+                    **kwargs
                 )
         return QJob(self,heappe_job_id)
 

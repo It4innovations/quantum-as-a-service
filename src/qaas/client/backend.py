@@ -233,7 +233,7 @@ class QBackend():
         run_kwargs = {
             'shots': shots,
             # Pass through other runtime parameters
-            'run_options': {
+            **{
                 k: v for k, v in run_options.items()
                 if k not in ['walltime_limit', 'template_id', 'min_cores', 'max_cores']
             }
