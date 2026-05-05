@@ -19,6 +19,8 @@ from qiskit.transpiler.layout import Layout
 from qiskit.result import Result as QiskitResult
 from iqm.qiskit_iqm import IQMJob
 
+from qiskit.qasm3 import dumps as qasm3dumps
+
 from iqm.station_control.interface.models import CircuitMeasurementResultsBatch
 
 from py4heappe.heappe_v6.core.models import (
@@ -151,7 +153,6 @@ class QBackend():
                                     )
             )
 
-        log.debug("INIT - HEAppE - init - init data: '%s'", str(init_job_data))
         self.init_job_id = self._qclient.submit_quantum_job(init_job_data)
 
         # Wait for initialization to complete using QClient
@@ -160,7 +161,6 @@ class QBackend():
             time.sleep(QClient.DEFAULT_POLL_TIME)
             self._init_job_status, _, _ = self._qclient.get_job_status(self.init_job_id)
 
-        log.debug("INIT - HEAppE - status: '%s'", str(self._init_job_status))
         results = self._qclient.get_job_results(
             self.init_job_id, [f"/{self.init_job_id}/{self.init_task_ids[0]}/backend.pkl"],
             use_dill=[False],
@@ -172,22 +172,8 @@ class QBackend():
         else:
             raise RuntimeError("Failed to initialize backend via QClient")
 
-    def run(self, run_input: QuantumCircuit | list[QuantumCircuit],
-            do_transpile=False,
+    def run(self, run_input: QuantumCircuit | list[QuantumCircuit] | str | list[str],
             shots=1000,
-            init_params=None,
-            # Qiskit tranpilation parameters,
-            initial_layout: Layout | dict | list | None = None,
-            basis_gates=None,
-            coupling_map=None,
-            instruction_durations=None,
-            inst_map=None,
-            dt=None,
-            timing_constraints=None,
-            optimization_level=None,
-            optimization_method=None,
-            # Provider specific transpilation args
-            transpilation_options=None,
             # everything else is run parameter
             **run_options):
         """
@@ -197,21 +183,10 @@ class QBackend():
         infrastructure. Handles both single circuits and lists of circuits.
 
         :param run_input: Quantum circuit(s) to execute
-        :type run_input: QuantumCircuit or List[QuantumCircuit]
-        :param do_transpile: Whether is QuantumCircuit transpiled. NOTE:Currently not supported!!! Every circuit is transpiled before execution.
+        :type run_input: QuantumCircuit or List[QuantumCircuit] or str or List[str] (OpenQASM)
         :param shots: Number of measurement shots to perform
         :type shots: int
-        :param init_params: Provider specific backend initialization parameters
-        :param initial_layout: The initial layout to use for the transpilation,
-            same as :func:`~qiskit.compiler.transpile`.
-        :param basis_gates: :func:`~qiskit.compiler.transpile`
-        :param coupling_map: :func:`~qiskit.compiler.transpile`
-        :param instruction_durations: :func:`~qiskit.compiler.transpile`
-        :param inst_map: :func:`~qiskit.compiler.transpile`
-        :param dt: :func:`~qiskit.compiler.transpile`
-        :param timing_constraints: :func:`~qiskit.compiler.transpile`
-        :param optimization_level: :func:`~qiskit.compiler.transpile`
-        :param optimization_method: :func:`~qiskit.compiler.transpile`
+        
         :param run_options: Additional runtime parameters including:
 
             * walltime_limit (int): Maximum job execution time in seconds (default: 3600)
@@ -236,25 +211,27 @@ class QBackend():
 
         # Handle both single circuit and list of circuits
         run_circuits = run_input if isinstance(run_input, list) else [run_input]
-
+        # All should be OpenQASM
+        run_circuits_qasm = []
+        for c in run_circuits:
+            if isinstance(c, QuantumCircuit):
+                if self.backend_name == "VLQ":
+                    # We must give 'move' a definition so the exporter accepts it.
+                    # We use an 'opaque' definition (empty circuit) to keep it as a single block.
+                    for instr in c.data:
+                        if instr.operation.name == 'move':
+                            if not hasattr(instr.operation, 'definition') or instr.operation.definition is None:
+                                # IQM 'move' usually involves 2 qubits (or a qubit and a resonator)
+                                dummy_circ = QuantumCircuit(instr.operation.num_qubits)
+                                instr.operation.definition = dummy_circ
+                # Export to OpenQASM3 with mapping aware transpilation
+                run_circuits_qasm.append(qasm3dumps(c))
+            else:
+                run_circuits_qasm.append(c)
+        
         # Prepare RUN_KWARGS environment variable
         run_kwargs = {
-            'do_transpile': do_transpile,
             'shots': shots,
-            # Provider specific parameters
-            'init_params': init_params,
-            # Qiskit transpilation specific arguments
-            'initial_layout': initial_layout,
-            'basis_gates': basis_gates,
-            'coupling_map': coupling_map,
-            'instruction_durations': instruction_durations,
-            'inst_map': inst_map,
-            'dt': dt,
-            'timing_constraints': timing_constraints,
-            'optimization_level': optimization_level,
-            'optimization_method': optimization_method,
-            # other transpilation params specific for providers
-            'transpilation_options': transpilation_options,
             # Pass through other runtime parameters
             'run_options': {
                 k: v for k, v in run_options.items()
@@ -265,7 +242,8 @@ class QBackend():
         # NOTE: currently are 'template_id', 'min_cores', 'max_cores' unused
 
         log.debug("run_kwargs: %s", str(run_kwargs))
-        log.debug("len(circuit): %d", len(run_circuits))
+        log.debug("len(circuit): %d", len(run_circuits_qasm))
+        # log.debug("Circuit IS string: %s", "yes" if isinstance(run_circuits_qasm[0], str) else "no")
 
         # Prepare job data for HEAppE submission
 
@@ -291,7 +269,10 @@ class QBackend():
             job_data['environment_variables'] = EnvironmentVariableExt(name=token_var_name, value=self._qclient.provider_token)
 
         # Submit job using QClient
-        heappe_job_id = self._qclient.submit_quantum_job(job_data, backend=self.remote_backend, circuits=run_circuits,run_options=run_kwargs)
+        heappe_job_id = self._qclient.submit_quantum_job(job_data,
+                                                         backend=self.remote_backend,
+                                                         circuits=run_circuits_qasm,
+                                                         run_options=run_kwargs)
         return [self, heappe_job_id]
 
     def retrieve_job(self, job_id: str) -> 'QJob':
@@ -610,7 +591,7 @@ class QJob():
                         self.remote_job._errors,
                     )
                 if hasattr(self.remote_job, 'data') and self.remote_job.data.messages:
-                    log.debug("Job messages:\n%s", "\n".join(f"  {msg.source}: {msg.message}" for msg in self.data.messages))
+                    log.debug("Job messages:\n%s", "\n".join(f"  {msg.source}: {msg.message}" for msg in self.remote_job.data.messages))
             
             if self._type == "circuit":
                 self._result = self.remote_job.result()

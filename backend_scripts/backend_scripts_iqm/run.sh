@@ -80,14 +80,20 @@ if [ ! -S "$SOCKET_PATH" ]; then
     exit 1
 fi
 
+# Get User JWT
+USER_JWT=$(cat $(pwd)/user_token.enc | bash /home/qaas_user/backend_scripts/decrypt.sh  "$USER_JWT_PWD")
+
+# Remove token after reading
+rm $(pwd)/user_token.enc
+
 # Start timing
 START_TIME=$(date +%s.%N)
 START_TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
-echo "Sending: $Q_COMMAND $FULL_TASK_ID $Q_OPTIONAL_ARG"
+echo "Sending: $Q_COMMAND $FULL_TASK_ID <user_jwt> $LEXIS_PROJECT $LEXIS_PROJECT_RESOURCE_ID $Q_OPTIONAL_ARG"
 
 # 60s timeout for socket communication
-RESPONSE=$(echo "$Q_COMMAND $FULL_TASK_ID $Q_OPTIONAL_ARG" | nc -U -w 60 "$SOCKET_PATH")
+RESPONSE=$(echo "$Q_COMMAND $FULL_TASK_ID $USER_JWT $LEXIS_PROJECT $LEXIS_PROJECT_RESOURCE_ID $Q_OPTIONAL_ARG" | nc -U -w 60 "$SOCKET_PATH")
 EXIT_CODE=$?
 
 # End timing

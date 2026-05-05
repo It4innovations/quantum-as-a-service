@@ -38,18 +38,20 @@ class LexisProject:
 
 class LexisResource:
     """Information about LEXIS Resource entity"""
-    def __init__(self, resource_name:str, allocated_units:int, resource_validity_start:str, resource_validity_end:str, heappe_url:str):
+    def __init__(self, resource_name:str, allocated_units:int, project_resource_id:str, resource_validity_start:str, resource_validity_end:str, heappe_url:str):
         """
         Initializes a LexisResource object.
 
         :param resource_name: The name of the resource.
         :param allocated_units: The number of units allocated.
+        :param project_resource_id: The ID of the resource assignment in LEXIS
         :param resource_validity_start: The start date of the resource.
         :param resource_validity_end: The end date of the resource.
         :param heappe_url: HTTP address of HEAppE url managing concrete instance of QC
         """
         self._resource_name = resource_name
         self._allocated_units = allocated_units
+        self._project_resource_id = project_resource_id
         self._resource_validity_start = resource_validity_start
         self._resource_validity_end = resource_validity_end
         self._heappe_url = heappe_url
@@ -67,6 +69,12 @@ class LexisResource:
         The number of units allocated.
         """
         return self._allocated_units
+    @property
+    def project_resource_id(self):
+        """
+        The ID of the resource assignment in LEXIS
+        """
+        return self._project_resource_id
 
     @property
     def resource_validity_start(self):

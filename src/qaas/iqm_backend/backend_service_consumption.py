@@ -1,0 +1,234 @@
+import threading
+import sys
+from datetime import datetime, timedelta, timezone
+import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import requests
+
+from kafka import KafkaProducer
+
+from qaas.iqm_backend.backend_env_variables import (
+    CYCLOPS_API_URL,
+    CYCLOPS_API_KEY,
+    CYCLOPS_DEFAULT_TOPIC,
+    CYCLOPS_DEFAULT_TIMEOUT,
+    CYCLOPS_DEFAULT_RETRIES,
+    CYCLOPS_KAFKA_SERVER,
+    CYCLOPS_DEFAULT_UNIT
+)
+from qaas.iqm_backend.backend_service_accounting_info import AccountingInfo
+
+def initializeKafkaProducer() -> KafkaProducer:
+    """Initializes Kafka producer for CYCLOPS billing records
+
+    :return: KafkaProducer instance
+    """
+    return KafkaProducer(
+            bootstrap_servers=CYCLOPS_KAFKA_SERVER,
+            value_serializer=lambda v: kafka_value_serializer(
+                cyclops_resource_id=v["cyclops_resource_id"],
+                usage=v["usage"],
+                usage_timestamp=v["usage_timestamp"],
+                lexis_project_resource_id=v["lexis_project_resource_id"],
+                customer_id=v["customer_id"],
+                resource_type=v["resource_type"]
+                ),
+            request_timeout_ms=CYCLOPS_DEFAULT_TIMEOUT,
+            retries=CYCLOPS_DEFAULT_RETRIES,
+        )
+
+def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp:float, lexis_project_resource_id:str, customer_id:str, resource_type:str)->bytes:
+    """Serializer for accounting record for Kafka (part of Cyclops billing system)
+    
+    https://cyclops-for-hpc.readthedocs.io/en/latest/metric.html
+
+
+    :param usage: Accounted usage
+    :param usage_timestamp: datetime now in utc when the usage was recorded
+    :param lexis_project: LEXIS Project short name
+    :param resource_type: CYCLOPS SKU Name -- LEXIS Resources.Assigments.AggregationName
+    :param customer_id: CYCLOPS customer identifier
+    :return: Serialized value
+        {
+            "Account": "string",
+            "Metadata": "JSON",
+            "ResourceType": "string",
+            "ResourceId": "string",
+            "Time": "int",
+            "Unit": "string",
+            "Usage": "float"
+        }
+    """
+    return json.dumps({
+    "Account": customer_id, # currently equal to lexis project and its identifier in CYCLOPS system -- uuid, e.g. "ccc4dea0-d1d6-4a4c-bc71-3a46f1961c2a"
+    "Metadata": {
+                "LexisProjectResourceId": lexis_project_resource_id,
+                # "lexisProject": lexis_project, # short name of the LEXIS project, e.g. "test_project_1"
+                "UDRMode": "sum"
+                },
+    "ResourceType": resource_type, # SKU name
+    "ResourceId": cyclops_resource_id, # LEXIS Resource identifier in CYCLOPS system -- uuid, e.g. "d290f1ee-6c54-4b01-90e6-d701748f0851" (plan id in cyclops)
+    "Time": int(usage_timestamp),
+    "Unit": CYCLOPS_DEFAULT_UNIT,
+    "Usage": usage
+    }).encode("utf-8")
+
+def check_current_resource_consumption_and_allocation(accounting_info: AccountingInfo) -> bool|float|str:
+    """
+    Check if current resource consumption is within allocation limits by processing each month in a separate thread
+    
+    :returns: True if consumption is within limits or if an error occurs, otherwise returns the total usage which exceeds the allocation
+    """
+    try:
+        start_date = datetime.fromisoformat(accounting_info.resource_start_date)
+        end_date = datetime.now(datetime.now().astimezone().tzinfo)  # Current time with timezone
+        
+        # Generate list of month intervals
+        month_intervals = _generate_month_intervals(start_date, end_date)
+        
+        if not month_intervals:
+            return True
+        
+        current_usage_sum = 0.0
+        lock = threading.Lock()
+        
+        # Process each month in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(len(month_intervals), 10)) as executor:
+            futures = {
+                executor.submit(
+                    _fetch_and_calculate_usage,
+                    month_start,
+                    month_end,
+                    accounting_info.cyclops_resource_id,
+                    accounting_info.aggregation_name
+                ): (month_start, month_end)
+                for month_start, month_end in month_intervals
+            }
+            
+            for future in as_completed(futures):
+                month_start, month_end = futures[future]
+                try:
+                    usage = future.result()
+                    if usage is None:  # API error occurred
+                        return "Unable to fetch usage data"  # Allow job if we cannot fetch data
+                    
+                    with lock:
+                        current_usage_sum += usage
+                
+                except Exception as e:
+                    print(f"Error processing month {month_start} to {month_end}: {e}", file=sys.stderr)
+                    return f"Error processing month {month_start} to {month_end}"  # Deny job on error
+        
+        #FIXME:
+        print(f"Consumption: {current_usage_sum} -- { current_usage_sum <= accounting_info.allocation_amount }; Allocation: {accounting_info.allocation_amount}", file=sys.stderr, flush=True)
+        # Check if usage exceeds allocation
+        return True if current_usage_sum <= accounting_info.allocation_amount else current_usage_sum
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        print(f"Error checking resource consumption: {e}", file=sys.stderr)
+        return "Error checking resource consumption"  # Deny job on unexpected error
+
+def _generate_month_intervals(start_date: datetime, end_date: datetime) -> list[tuple[datetime, datetime]]:
+    """Generate list of month intervals from start_date to end_date"""
+    
+    # 1. Normalize: If a date is naive, assume it's UTC. 
+    # If it's already aware, keep it as is (or convert to UTC).
+    if start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
+    if end_date.tzinfo is None:
+        end_date = end_date.replace(tzinfo=timezone.utc)
+
+    intervals = []
+    
+    # .replace() preserves the tzinfo of the original object
+    current = start_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    while current < end_date:
+        # Calculate first day of next month
+        if current.month == 12:
+            next_month = current.replace(year=current.year + 1, month=1)
+        else:
+            next_month = current.replace(month=current.month + 1)
+        
+        # 2. Both current and end_date are now Aware, so min() will work
+        month_end = min(next_month - timedelta(seconds=1), end_date)
+        
+        intervals.append((current, month_end))
+        current = next_month
+    
+    return intervals
+
+def _fetch_and_calculate_usage(
+    time_from: datetime,
+    time_to: datetime,
+    resource_id: str,
+    aggregation_name: str
+) -> float | None:
+    """Fetch usage data for a specific time period and calculate total usage"""
+    try:
+        time_from_iso = _format_iso_date(time_from)
+        time_to_iso = _format_iso_date(time_to)
+        
+        if not time_from_iso or not time_to_iso:
+            return None
+        
+        response = requests.get(
+            f"{CYCLOPS_API_URL}/udrAPI/api/v1.0/usage",
+            headers={'X-API-KEY': CYCLOPS_API_KEY},
+            params={"from": time_from_iso, "to": time_to_iso},
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            print(f"Warning: Failed to fetch usage for {time_from_iso} to {time_to_iso}. Status code: {response.status_code}", file=sys.stderr)
+            return None
+        
+        usage_data = response.json()
+        return _calculate_resource_usage(usage_data, resource_id, aggregation_name)
+    
+    except Exception as e:
+        print(f"Error fetching usage data for {time_from} to {time_to}: {e}", file=sys.stderr)
+        return None
+
+def _format_iso_date(date: datetime) -> str | None:
+    """Convert datetime to ISO format with milliseconds and Z suffix"""
+    try:
+        return date.isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+    except (ValueError, AttributeError):
+        return None
+
+def _calculate_resource_usage(usage_data: list, resource_id: str, aggregation_name: str) -> float:
+    """Calculate total resource usage for specific resource and aggregation"""
+    current_usage_sum = 0.0
+    
+    for usage_aggregation in usage_data:
+        usage_data = usage_aggregation.get('Usage', None)
+        if not usage_data:
+            continue
+        for usage_record in usage_data:
+            if (usage_record.get('ResourceId') == resource_id and 
+                usage_record.get('ResourceType') == aggregation_name):
+                current_usage_sum += usage_record.get('UsageBreakup', {}).get('used', 0.0)
+    
+    return current_usage_sum
+
+def record_consumption_usage(kafka_producer: KafkaProducer, accounting_info: AccountingInfo, usage: float):
+    """Records usage on CYCLOPS's Kafka (see function kafka_value_serializer)
+
+    :param task_id: HEAppE Task identifier
+    """
+    
+    # Inputs for serializing function (kafka_value_serializer)
+    record = {
+        "customer_id": accounting_info.cyclops_customer_id,
+        "lexis_project_resource_id": accounting_info.lexis_project_resource_id,
+        "resource_type": "VLQ",
+        "cyclops_resource_id": accounting_info.cyclops_resource_id,
+        "usage_timestamp": datetime.now(timezone.utc).timestamp(),
+        "usage": usage
+    }
+    
+    
+    kafka_producer.send(CYCLOPS_DEFAULT_TOPIC,record)

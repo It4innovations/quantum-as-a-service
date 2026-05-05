@@ -1,2 +1,0 @@
-include local_dependencies/*.whl
-include local_dependencies/*.tar.gz

@@ -14,6 +14,7 @@ WorkingDirectory=/home/qaas_user
 ExecStart=/usr/bin/python3.11 /home/qaas_user/backend_scripts/backend_service.py
 
 # Environment variables - IQM connection
+Environment="PYTHONPATH=/home/qaas_user/.local/lib/python3.11/site-packages"
 Environment="IQM_SERVER_URL=https://cocos.resonance.meetiqm.com/deneb"
 Environment="IQM_QUANTUM_COMPUTER=star24"
 # Environment="IQM_BACKEND_NAME=Deneb"

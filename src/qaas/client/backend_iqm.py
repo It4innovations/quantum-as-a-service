@@ -14,7 +14,6 @@ from iqm.iqm_client.transpile import ExistingMoveHandlingOptions
 
 from qiskit import QuantumCircuit
 from qiskit.transpiler.layout import Layout
-from qiskit.qasm2 import dumps as qasm2_dumps
 
 from py4heappe.heappe_v6.core.models import (
     EnvironmentVariableExt,
@@ -162,73 +161,22 @@ class QBackendIQM(QBackend,IQMBackend):
         return iqm_backend_copy
 
     def run(self, run_input:QuantumCircuit|list[QuantumCircuit],
-            # Transpilation parameters (IQM specific)
-            target: IQMTarget | None = None,
-            perform_move_routing: bool = True,
-            optimize_single_qubits: bool = True,
-            ignore_barriers: bool = False,
-            remove_final_rzs: bool = True,
-            existing_moves_handling: ExistingMoveHandlingOptions | None = None,
-            restrict_to_qubits: list[int] | list[str] | None = None,
-            circuit_compilation_options=None,
-            circuit_callback=None,
-            qubit_mapping=None,
             # QBackend.run arguments
             shots=1000,
-            # Qiskit tranpilation parameters,
-            initial_layout: Layout | dict | list | None = None,
-            basis_gates = None,
-            coupling_map = None,
-            instruction_durations = None,
-            inst_map = None,
-            dt = None,
-            timing_constraints = None,
-            optimization_level = None,
-            optimization_method = None,
             **kwargs) -> "QJob":
         """
         Execute quantum circuit(s) by submitting HEAppE job via QClient.
 
         Submits quantum circuits for execution on IQM hardware through HEAppE
         infrastructure. Handles both single circuits and lists of circuits,
-        serializing them to QASM3 format for remote execution.
-
-        :param target: An alternative target to compile to than the backend, using 
-            this option requires intimate knowledge
-            of the transpiler and thus it is not recommended to use.
-        :param perform_move_routing: Whether to perform MOVE gate routing.
-        :param optimize_single_qubits: Whether to optimize single qubit gates away.
-        :param ignore_barriers: Whether to ignore barriers when optimizing single qubit gates away.
-        :param remove_final_rzs: Whether to remove the final z rotations. It is recommended always
-            to set this to true as the final RZ gates do no change 
-            the measurement outcomes of the circuit.
-        :param existing_moves_handling: How to handle existing MOVE gates in the circuit,
-            required if the circuit contains MOVE gates.
-        :param restrict_to_qubits: Restrict the transpilation to only use these specific
-                physical qubits. Note that you will have to pass this 
-                information to the ``backend.run`` method as well as a dictionary.
-        :param circuit_compilation_options: IQM-specific compilation options
-        :type circuit_compilation_options: dict, optional
-        :param circuit_callback: Callback function for circuit processing
-        :type circuit_callback: callable, optional  
-        :param qubit_mapping: Custom qubit mapping for circuit execution
-        :type qubit_mapping: dict, optional
+        serializing them to QASM2 format for remote execution.
         
         
         :param run_input: Quantum circuit(s) to execute
         :type run_input: QuantumCircuit or List[QuantumCircuit]
         :param shots: Number of measurement shots to perform
         :type shots: int
-        :param initial_layout: The initial layout to use for the transpilation,
-            same as :func:`~qiskit.compiler.transpile`.
-        :param basis_gates: :func:`~qiskit.compiler.transpile`
-        :param coupling_map: :func:`~qiskit.compiler.transpile`
-        :param instruction_durations: :func:`~qiskit.compiler.transpile`
-        :param inst_map: :func:`~qiskit.compiler.transpile`
-        :param dt: :func:`~qiskit.compiler.transpile`
-        :param timing_constraints: :func:`~qiskit.compiler.transpile`
-        :param optimization_level: :func:`~qiskit.compiler.transpile`
-        :param optimization_method: :func:`~qiskit.compiler.transpile`
+
         :param kwargs: Additional runtime parameters including:
 
             * walltime_limit (int): Maximum job execution time in seconds (default: 3600)
@@ -262,28 +210,6 @@ class QBackendIQM(QBackend,IQMBackend):
         _, heappe_job_id = QBackend.run(self,
                      run_input,
                      shots=shots,
-                     transpilation_options={
-                        'target': target,
-                        'perform_move_routing': perform_move_routing,
-                        'optimize_single_qubits': optimize_single_qubits,
-                        'ignore_barriers': ignore_barriers,
-                        'remove_final_rzs': remove_final_rzs,
-                        'existing_moves_handling': existing_moves_handling,
-                        'restrict_to_qubits': restrict_to_qubits,
-                        'circuit_compilation_options': circuit_compilation_options,
-                        'circuit_callback': circuit_callback,
-                        'qubit_mapping': qubit_mapping,
-                        'calibration_id': self._calibration_set_id
-                     },
-                    initial_layout=initial_layout,
-                    basis_gates=basis_gates,
-                    coupling_map=coupling_map,
-                    instruction_durations=instruction_durations,
-                    inst_map=inst_map,
-                    dt=dt,
-                    timing_constraints=timing_constraints,
-                    optimization_level=optimization_level,
-                    optimization_method=optimization_method,
                     run_options=kwargs
                 )
         return QJob(self,heappe_job_id)

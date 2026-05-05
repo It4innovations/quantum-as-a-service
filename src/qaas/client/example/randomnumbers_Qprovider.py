@@ -2,7 +2,7 @@ from py4lexis.session import LexisSession
 from qiskit import QuantumCircuit
 from qiskit.visualization import plot_histogram
 from qaas import QProvider
-from qaas.backend import transpile
+from qaas.client.backend import transpile
 
 #---------------------
 # Setup LEXIS Session

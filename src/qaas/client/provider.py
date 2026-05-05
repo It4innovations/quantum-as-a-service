@@ -26,17 +26,31 @@ class QProvider:
     
     @classmethod
     def list_available_backends(cls, token:str, lexis_project:str, provider_access_token=None)->list[QBackendMetadata]:
-        # FIXME:
-        return NotImplemented
-
-    def get_backend_info(self, lexis_resource:str)->QBackendMetadata:
+        """List available quantum backends for given LEXIS project and provider access token
         
-        client = QClient(self._token, self._lexis_project, lexis_resource, self._provider_token)
+        :param token: LEXIS access token
+        :param lexis_project: LEXIS project short name, e.g. "vlq_demo_project"
+        :param provider_access_token: Access token If Quantum provider request another layer of auth
+        :return: List of QBackendMetadata instances with available backends information
+        """
+
+        client = QClient(token, lexis_project, provider_token=provider_access_token)
+        
+        return client.get_available_backends()
+
+    def get_backend_info(self, lexis_resource:str, quantum_computer_name:str)->QBackendMetadata:
+        """Get backend information about quantum computer based on resource and assignment name (quantum computer name)
+        :param lexis_resource: LEXIS resource name, e.g. "VLQ-CZ"
+        :param quantum_computer_name: Quantum computer name, e.g. "VLQ", its equal to AggregationName in LEXIS Resources.Assigments
+        
+        :return: QBackendMetadata instance with backend information
+        """
+        client = QClient(self._token, self._lexis_project, lexis_resource, quantum_computer_name, self._provider_token)
         return client.get_quantum_backend_info()
     
     def get_backend(
         self, lexis_resource: str | QBackendMetadata, backend_name: str | None = None, calibration_set_id: UUID | None = None, *, use_metrics: bool = False
-    ) -> QBackendIQM:
+    ) -> QBackendIQM :
         """An IQMBackend instance associated with this provider.
 
         
@@ -65,7 +79,7 @@ class QProvider:
             return QBackendIQM(client,
                                calibration_set_id=calibration_set_id,
                                use_metrics=use_metrics, backend_metadata=backend_metadata)
-        return None
+        return NotImplemented
 
     def get_pulla(self, lexis_resource: str | QBackendMetadata) -> QPulla:
         if isinstance(lexis_resource, QBackendMetadata):

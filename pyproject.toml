@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qaas"
-version = "0.1.0"
-description = "Quantum-as-a-Service utilizes IQMProvider, IQMBackend, IQMJob and HEAppE to provider access to quantum machine"
+version = "0.2.0"
+description = "Quantum-as-a-Service utilizing IQMProvider, IQMBackend, IQMJob and HEAppE. Developed by IT4Innovations."
 authors = [
     { name="Jan Swiatkowski", email="jan.swiatkowski@vsb.cz" },
     { name="Jakub Konvička", email="jakub.konvicka@vsb.cz" },
@@ -14,31 +14,37 @@ authors = [
 ]
 readme = "README.rst"
 requires-python = ">=3.11, <3.12"
-license = { text = "MIT" }
+
+# --- Base Dependencies (Client Always installed) ---
 dependencies = [
-    "qiskit==1.2.4", # its just compatible
+    "qiskit==1.2.4",
     "iqm-client[qiskit]==33.0.*",
     "iqm-exa-common==27.4.*",
     "iqm-station-control-client==12.0.*",
     "iqm-data-definitions==2.19",
     "iqm-pulla==12.0.*",
     "qiskit_aer>=0.15.0,<1.0.0",
-    "Py4HEAppE>=2.5.1",
+    "Py4HEAppE>=2.5.0",
     "cryptography>=43.0.0",
     "bcrypt>=4.2.0",
     "cffi>=1.17.1",
     "click>=8.1.7",
     "jwcrypto==1.5.*",
     "PyJWT[crypto]==2.10.*",
-    "numpy==2.3.3",
+    "numpy>2.0.0",
     "truststore"
 ]
 
-#[project.urls]
-#Homepage = ""
+# --- Optional Subpackages (Extras) ---
+[project.optional-dependencies]
+iqm_backend = [
+    "kafka-python==2.3.*",
+    "cachetools",
+    "aiohttp"
+]
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 
 [tool.uv.sources]
 python-http-irods-client = { git = "https://opencode.it4i.eu/lexis-platform/data/python-http-irods-client.git", rev = "1.1.4" }

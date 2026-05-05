@@ -3,37 +3,146 @@
 import os
 import sys
 import pickle
-import dill
 import time
 import socket
-import json
 from copy import deepcopy
 from pathlib import Path
-from typing import Optional
+from datetime import timezone, datetime
 from uuid import UUID
+import dill
+import jwt
 from cachetools import TTLCache
 from qiskit import QuantumCircuit
+from qiskit.qasm3 import load as qasm3load
 from iqm.qiskit_iqm import transpile_to_IQM, IQMBackend, IQMProvider
 from iqm.qiskit_iqm.iqm_job import IQMJob
 from iqm.iqm_client import JobStatus as IQMJobStatus
-from iqm.iqm_server_client.models import TimelineEntry
-from iqm.pulla.pulla import SweepJob, Pulla, CalibrationDataProvider
+# from iqm.iqm_server_client.models import TimelineEntry
+from iqm.pulla.pulla import SweepJob, Pulla
 from iqm.iqm_client import IQMClient
 
+from qaas.iqm_backend.backend_env_variables import (
+    QAAS_ALLOWED_CLIENT_COUNT,
+)
+from qaas.iqm_backend.backend_service_accounting_info import AccountingInfo
+from qaas.iqm_backend.backend_service_consumption import (
+    initializeKafkaProducer,
+    check_current_resource_consumption_and_allocation,
+    record_consumption_usage
+)
 print("Dependencies loaded...")
-QAAS_ALLOWED_CLIENT_COUNT = os.getenv('QAAS_ALLOWED_CLIENT_COUNT',100)
-print(f"Will accept {QAAS_ALLOWED_CLIENT_COUNT} client at max")
+
+class CommandParams:
+    """Parse incoming command and parameters
+    """
+    MAX_NUMBER_OF_PARAMS=6
+    MIN_NUMBER_OF_PARAMS=5
+    
+    def __init__(self, command, work_dir):
+        
+        self._parsing_error_message = None
+        
+        parts = command.split(maxsplit=CommandParams.MAX_NUMBER_OF_PARAMS)
+        if len(parts) < CommandParams.MIN_NUMBER_OF_PARAMS or len(parts) > CommandParams.MAX_NUMBER_OF_PARAMS:
+            self._parsing_error_message = f"ERROR: Invalid command format. Expected: <command> <task_id> <user_jwt> <lexis_project> <lexis_project_resource_id> or <command> <task_id> <user_jwt> <lexis_project> <lexis_project_resource_id> <optional_args>\nGot {parts}".encode('utf-8')
+        
+        self._optional_args = None
+        if len(parts) == CommandParams.MAX_NUMBER_OF_PARAMS:
+            self._command, self._full_id, self._user_jwt, self._lexis_project, self._lexis_resource_id, self._optional_args = parts
+        else:
+            self._command, self._full_id, self._user_jwt, self._lexis_project, self._lexis_project_resource_id = parts
+        self._task_dir = work_dir / self._full_id
+    
+    @property
+    def parsing_error_message(self):
+        """When parsing error occures, thense message is set and should be returned to client, otherwise None is returned
+
+        :return: Parsing error message if parsing error occurs, otherwise None
+        """
+        return self._parsing_error_message
+    @property
+    def optional_args(self):
+        """If number of parameters are larger then MIN_NUMBER_OF_PARAMS, then optional_args are set
+
+        :return: Optional args if provided, otherwise None
+        """
+        return self._optional_args
+    @property
+    def command(self):
+        """Command string
+
+        :return: Command string
+        """
+        return self._command
+    @property
+    def full_id(self):
+        """HEAppE Job Full Id
+
+        :return: HEAppE Job Full Id
+        """
+        return self._full_id
+    @property
+    def lexis_project(self):
+        """LEXIS Project short name
+
+        :return: LEXIS Project short name
+        """
+        return self._lexis_project
+    @property
+    def lexis_project_resource_id(self):
+        """LEXIS Resource ID, currently expected to be UUID, but kept generic in case of future changes
+        :return: LEXIS Resource ID
+        """
+        return self._lexis_project_resource_id
+    @property
+    def task_dir(self):
+        """Path to directory where all files related to the job execution are stored, e.g. backend.pkl, run_kwargs.pkl, circuit_1.qasm, etc.
+        :return: Task directory path
+        """
+        return self._task_dir
+    @property
+    def user_jwt(self):
+        """JWT token of the job submitter, expected to be HEAppE user JWT, but kept generic in case of future changes
+
+        :return: User JWT token
+        """
+        return self._user_jwt
+    
+    def parsing_error(self):
+        """Check if parsing error occurs during initialization of CommandParams object
+        :return: Is parsing error
+        """
+        return bool(self._parsing_error_message)
+    
+    def verify_user_jwt(self)->bool:
+        """Verify whether given jwt is valid
+
+        :return: Is Valid (not expired and correctly decodable)
+        """
+        try:
+            decoded = jwt.decode(self._user_jwt, options={"verify_signature": False})
+            exp_timestamp = decoded.get('exp')
+            if exp_timestamp and datetime.fromtimestamp(exp_timestamp, tz=timezone.utc) < datetime.now(timezone.utc):
+                return False
+            return True
+        except Exception as e:
+            print(f"Error decoding JWT: {e}", file=sys.stderr)
+            return False
+        
 
 class IQMBackendService:
     def __init__(self, socket_path: str, work_dir: str):
         self.socket_path = socket_path
         self.work_dir = Path(work_dir)
 
-        self.backend_cache = TTLCache(maxsize=1024, ttl=3600)
-        self.pulla_cache = TTLCache(maxsize=1024, ttl=3600)
-        self.calibration_set_cache = TTLCache(maxsize=1024, ttl=3600)
-        self.dynamic_quantum_architecture_cache = TTLCache(maxsize=1024, ttl=3600)
-    
+        self._backend_cache = TTLCache(maxsize=1024, ttl=3600)
+        self._consumption_cache = TTLCache(maxsize=8000, ttl=24*3600) # keeping consumption info for 24h, as it is needed for checking consumption of past jobs when new job is submitted
+        self._pulla_cache = TTLCache(maxsize=1024, ttl=3600)
+        self._calibration_set_cache = TTLCache(maxsize=1024, ttl=3600)
+        self._dynamic_quantum_architecture_cache = TTLCache(maxsize=1024, ttl=3600)
+
+        self._kafka_producer = initializeKafkaProducer()
+        
     @staticmethod
     def save_python_obj(path, obj, use_dill=False):
         with open(path, 'wb') as f:
@@ -48,6 +157,46 @@ class IQMBackendService:
             if use_dill:
                 return dill.load(f, encoding='utf-8')
             return pickle.load(f, encoding='utf-8')
+
+    @staticmethod
+    def get_accounting_info(command_params: CommandParams)->AccountingInfo|str:
+        """Get all AccountingInfo for submitter
+
+        :param command_params: _description_
+        :return: Returns AccountingInfo object or error message string if submitter info cannot be obtained for any reason (invalid user JWT, failure to fetch info from HEAppE, etc.)
+        """
+        try:
+            accounting_info = AccountingInfo(
+                user_jwt=command_params.user_jwt,
+                submitter_email=None, # will be loaded by fetch_submitter_info_from_heappe method
+                lexis_project=command_params.lexis_project,
+                lexis_project_resource_id=command_params.lexis_project_resource_id
+            )
+            
+            email = accounting_info.decode_user_jwt_and_verify()
+            if not email:
+                print("User JWT is invalid or expired", file=sys.stderr)
+                return None
+            
+            if not accounting_info.fetch_all_accounting_info(command_params.full_id):
+                print("Failed to fetch all accounting info for submitter", file=sys.stderr)
+                return None
+            
+            # FIXME: fix after HEAppE /heappe/JobReporting/JobsDetailedReport will be ready
+            # if email != accounting_info.submitter_email:
+            #     print(f"Email in JWT ({email}) does not match submitter email ({accounting_info.submitter_email})", file=sys.stderr)
+            #     return False
+            
+            
+            return accounting_info
+        
+        except Exception as e:
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            print(f"Error getting accounting info: {e}", file=sys.stderr)
+            return None
+    
+    
     
     def start(self):
         # Remove socket file if it exists
@@ -81,50 +230,88 @@ class IQMBackendService:
     
     def handle_connection(self, conn):
         try:
-            data = conn.recv(4096).decode().strip()
+            data = conn.recv(5*4096).decode().strip()
             if not data:
                 return
             
-            parts = data.split(maxsplit=3)
-            if len(parts) < 2 or len(parts) > 3:
-                conn.sendall(f"ERROR: Invalid command format. Expected: <command> <task_id> or <command> <task_id> <optional_args>\nGot {parts}".encode('utf-8'))
+            command_params = CommandParams(data, self.work_dir)
+            if command_params.parsing_error():
+                conn.sendall(command_params.parsing_error_message)
                 return
             
-            optional_args = None
-            if len(parts) == 3:
-                command, full_id, optional_args = parts
-            else:
-                command, full_id = parts
-            task_dir = self.work_dir / full_id
+            ACCOUNTED_COMMANDS = ["backend_run", "pulla_submit_playlist"]
             
-            if command == "backend_init":
-                if len(parts) < 3:
-                    conn.sendall("ERROR: Missing backend name.")
+            # Disabled commands
+            if command_params.command in ["pulla_submit_playlist"]:
+                conn.sendall(b"COMMAND DISABLED")
+                return
+            
+            # Get submitter, otherwise stop and fail
+            if command_params.command in ACCOUNTED_COMMANDS:
+                # Try to get submitter info from cache, otherwise fetch from HEAppE and cache it. If not found, return error
+                accounting_info = IQMBackendService.get_accounting_info(command_params)
+                print("accountinfo: "+str(accounting_info), file=sys.stderr)
+                if isinstance(accounting_info, str) or accounting_info is None:
+                    conn.sendall(f"ERROR: Unable to get job submitter info -- {accounting_info if isinstance(accounting_info, str) else 'Unknown error'}\n".encode())
+                    return
+                self._consumption_cache[command_params.full_id] = accounting_info # submitter and accounting_string
+
+                consumption_status = check_current_resource_consumption_and_allocation(accounting_info)
+                
+                if consumption_status is True:
+                    pass  # Consumption is within limits, allow job
+                
+                elif isinstance(consumption_status, str):
+                    conn.sendall(f"ERROR: {consumption_status}\n".encode())
+                    return
+                elif isinstance(consumption_status, float):
+                    conn.sendall(f"ERROR: Current resource consumption {consumption_status:.2f} exceeds allocation {accounting_info.allocation_amount:.2f}\n".encode())
+                    return
                 else:
-                    opt_args_splitted = optional_args.split(",")
-                    self.backend_init(task_dir, full_id,  *opt_args_splitted)
+                    conn.sendall("Unknown error during resource consumption check\n".encode())
+                    return
+                
+            # Handle command
+            if command_params.command == "backend_init":
+                # Not accounted
+                if command_params.optional_args is None:
+                    conn.sendall(b"ERROR: Missing backend name.")
+                else:
+                    opt_args_splitted = command_params.optional_args.split(",")
+                    self.backend_init(command_params.task_dir, command_params.full_id,  *opt_args_splitted)
                     conn.sendall(b"DONE\n")
-            elif command == "backend_run":
-                self.backend_run(task_dir, full_id)
+            elif command_params.command == "backend_run":
+                # Accounted
+                self.backend_run(command_params.task_dir, command_params.full_id)
                 conn.sendall(b"DONE\n")
-            elif command == "pulla_init":
-                self.pulla_init(task_dir, full_id)
+            elif command_params.command == "pulla_init":
+                # Not accounted
+                self.pulla_init(command_params.task_dir, command_params.full_id)
                 conn.sendall(b"DONE\n")
-            elif command == "pulla_submit_playlist":
-                self.pulla_submit_playlist(task_dir, full_id)
+            elif command_params.command == "pulla_submit_playlist":
+                # Accounted
+                self.pulla_submit_playlist(command_params.task_dir, command_params.full_id)
                 conn.sendall(b"DONE\n")
-            elif command == "get_calibration_set":
-                self.get_calibration_set(task_dir, full_id, None if len(parts) == 2 else (UUID(optional_args) if optional_args and optional_args != "None" and optional_args != "default" else None))
+            elif command_params.command == "get_calibration_set":
+                # Not accounted
+                self.get_calibration_set(command_params.task_dir, command_params.full_id, None if not command_params.optional_args else (UUID(command_params.optional_args) if command_params.optional_args and command_params.optional_args != "None" and command_params.optional_args != "default" else None))
                 conn.sendall(b"DONE\n")
-            elif command == "get_dynamic_quantum_architecture":
-                self.get_dynamic_quantum_architecture(task_dir, full_id, None if len(parts) == 2 else (UUID(optional_args) if optional_args and optional_args != "None" and optional_args != "default" else None))
+            elif command_params.command == "get_dynamic_quantum_architecture":
+                # Not accounted
+                self.get_dynamic_quantum_architecture(command_params.task_dir, command_params.full_id, None if not command_params.optional_args else (UUID(command_params.optional_args) if command_params.optional_args and command_params.optional_args != "None" and command_params.optional_args != "default" else None))
                 conn.sendall(b"DONE\n")
             else:
-                conn.sendall(f"ERROR: Unknown command '{command}'. Valid commands: backend_init, backend_run, pulla_init, pulla_submit_playlist, get_calibration_set, get_dynamic_quantum_architecture\n".encode())
+                # Unknown command
+                conn.sendall(f"ERROR: Unknown command '{command_params.command}'. Valid commands: backend_init, backend_run, pulla_init, pulla_submit_playlist, get_calibration_set, get_dynamic_quantum_architecture\n".encode())
+                
+            if command_params.command in ACCOUNTED_COMMANDS:
+                record_consumption_usage(self._kafka_producer, accounting_info, self._consumption_cache.get(command_params.full_id, 0.0))
         
         except UnicodeDecodeError as e:
             error_msg = f"ERROR: Failed to decode message: {str(e)}\n"
             print(error_msg, file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
             try:
                 conn.sendall(error_msg.encode())
             except Exception:
@@ -133,6 +320,8 @@ class IQMBackendService:
         except FileNotFoundError as e:
             error_msg = f"ERROR: File not found: {str(e)}\n"
             print(error_msg, file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
             try:
                 conn.sendall(error_msg.encode())
             except Exception:
@@ -141,6 +330,8 @@ class IQMBackendService:
         except ValueError as e:
             error_msg = f"ERROR: Invalid value: {str(e)}\n"
             print(error_msg, file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
             try:
                 conn.sendall(error_msg.encode())
             except Exception:
@@ -158,7 +349,7 @@ class IQMBackendService:
     
     def get_calibration_set(self, task_dir: Path, task_id: str, calibration_set_id: UUID|None):
         _calibration_set_id="default" if calibration_set_id is None else calibration_set_id
-        calibration_set = self.calibration_set_cache.get(calibration_set_id, None)
+        calibration_set = self._calibration_set_cache.get(calibration_set_id, None)
         
         if not calibration_set:
             server_url = os.getenv('IQM_SERVER_URL')
@@ -166,15 +357,15 @@ class IQMBackendService:
                 raise ValueError("IQM_SERVER_URL environment variable is required")
             
             c = IQMClient(server_url)
-            self.calibration_set_cache[_calibration_set_id] = c.get_calibration_set(_calibration_set_id)
+            self._calibration_set_cache[_calibration_set_id] = c.get_calibration_set(_calibration_set_id)
         
-        IQMBackendService.save_python_obj(task_dir / "calibration_set.pkl", self.calibration_set_cache[_calibration_set_id], use_dill=True)
+        IQMBackendService.save_python_obj(task_dir / "calibration_set.pkl", self._calibration_set_cache[_calibration_set_id], use_dill=True)
             
         print(f"Calibration set get and saved for task {task_id}")
     
     def get_dynamic_quantum_architecture(self, task_dir: Path, task_id: str, calibration_set_id: UUID|None):
         _calibration_set_id="default" if calibration_set_id is None else calibration_set_id
-        calibration_set = self.dynamic_quantum_architecture_cache.get(_calibration_set_id, None)
+        calibration_set = self._dynamic_quantum_architecture_cache.get(_calibration_set_id, None)
         
         if not calibration_set:
             server_url = os.getenv('IQM_SERVER_URL')
@@ -182,9 +373,9 @@ class IQMBackendService:
                 raise ValueError("IQM_SERVER_URL environment variable is required")
             
             c = IQMClient(server_url)
-            self.dynamic_quantum_architecture_cache[_calibration_set_id] = c.get_dynamic_quantum_architecture(_calibration_set_id)
+            self._dynamic_quantum_architecture_cache[_calibration_set_id] = c.get_dynamic_quantum_architecture(_calibration_set_id)
         
-        IQMBackendService.save_python_obj(task_dir / "dynamic_quantum_architecture.pkl", self.dynamic_quantum_architecture_cache[_calibration_set_id], use_dill=True)
+        IQMBackendService.save_python_obj(task_dir / "dynamic_quantum_architecture.pkl", self._dynamic_quantum_architecture_cache[_calibration_set_id], use_dill=True)
             
         print(f"Dynamic architecture retrieved and saved for task {task_id}")
         
@@ -205,7 +396,7 @@ class IQMBackendService:
         )
         
         # Cache backend
-        self.backend_cache[task_id] = backend
+        self._backend_cache[task_id] = backend
         
         # Covering fix, that iqm_ attributes are not mentioned in class definition of IQMTarget, so pickling does not save them
         iqm_attrs = {
@@ -233,7 +424,7 @@ class IQMBackendService:
         run_kwargs = IQMBackendService.load_python_obj(run_kwargs_path, use_dill=True)
         
         # Load or get cached backend
-        backend = self.backend_cache.get(task_id)
+        backend = self._backend_cache.get(task_id)
         if backend is None:
             backend_path = task_dir / "backend.pkl"
             if not backend_path.exists():
@@ -245,51 +436,25 @@ class IQMBackendService:
             for attr, value in iqm_target_attrs.items():
                 setattr(backend.target, attr, value)
             
-            self.backend_cache[task_id] = backend
+            self._backend_cache[task_id] = backend
         
         # Load circuits
-        circuits_qasm = []
-        circuits_qiskit = []
+        circuits_qasm:list[QuantumCircuit] = []
         
         for file_path in sorted(task_dir.glob('circuit_*.qasm')):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                circuits_qasm.append(QuantumCircuit.from_qasm_str(f.read()))
+            circuits_qasm.append(qasm3load(file_path))
         
-        for file_path in sorted(task_dir.glob('circuit_*.pkl')):
-            circuits_qiskit.append(IQMBackendService.load_python_obj(file_path, use_dill=True))
+        # for file_path in sorted(task_dir.glob('circuit_*.pkl')):
+        #     circuits_qiskit.append(IQMBackendService.load_python_obj(file_path, use_dill=True))
         
-        circuits = [*circuits_qiskit, *circuits_qasm]
+        # circuits = [*circuits_qiskit, *circuits_qasm]
+        circuits = circuits_qasm
         
         backend_run_initialization_ended = time.time()
         backend_run_initialization_runtime = backend_run_initialization_ended - backend_run_initialization_started
         
-        # Transpilation
+        # Transpilation - DISABLED FEATURE
         backend_run_transpilation_started = backend_run_initialization_ended
-        do_transpile = run_kwargs.pop('do_transpile', False)
-        
-        if do_transpile:
-            transpile_args = {
-                'target': run_kwargs.pop('target', None),
-                'perform_move_routing': run_kwargs.pop('perform_move_routing', True),
-                'optimize_single_qubits': run_kwargs.pop('optimize_single_qubits', True),
-                'ignore_barriers': run_kwargs.pop('ignore_barriers', False),
-                'remove_final_rzs': run_kwargs.pop('remove_final_rzs', True),
-                'existing_moves_handling': run_kwargs.pop('existing_moves_handling', None),
-                'restrict_to_qubits': run_kwargs.pop('restrict_to_qubits', None),
-                'initial_layout': run_kwargs.pop('initial_layout', None),
-                'basis_gates': run_kwargs.pop('basis_gates', None),
-                'coupling_map': run_kwargs.pop('coupling_map', True),
-                'instruction_durations': run_kwargs.pop('instruction_durations', True),
-                'inst_map': run_kwargs.pop('inst_map', False),
-                'dt': run_kwargs.pop('dt', True),
-                'timing_constraints': run_kwargs.pop('timing_constraints', None),
-                'optimization_level': run_kwargs.pop('optimization_level', None),
-                'optimization_method': run_kwargs.pop('optimization_method', None),
-            }
-            
-            circuits = [transpile_to_IQM(circuit, backend, **transpile_args) 
-                       for circuit in circuits]
-        
         
         # Run job
         run_input = circuits[0] if len(circuits) == 1 else circuits
@@ -347,7 +512,10 @@ class IQMBackendService:
         if exec_started_timeline and exec_ended_timeline:
             job.remote_hw_runtime = (exec_ended_timeline.timestamp - 
                                     exec_started_timeline.timestamp).total_seconds()
-        
+            #########################################
+            # RECORD USAGE INFO IN ACCOUNTING CACHE #
+            #########################################
+            self._consumption_cache[task_id] = job.remote_hw_runtime
         # Check status
         if job.status() == IQMJobStatus.FAILED or not result.success:
             raise Exception(f"Job failed: {job.error_message() or 'None'}")
@@ -404,7 +572,7 @@ class IQMBackendService:
             'duts':p._iqm_server_client.get_duts()
         }
         # Cache backend
-        self.pulla_cache[task_id] = p
+        self._pulla_cache[task_id] = p
         
         # Save to task directory
         IQMBackendService.save_python_obj(task_dir / "pulla_data.pkl", pulla_data, use_dill=True)
@@ -432,14 +600,14 @@ class IQMBackendService:
         context = IQMBackendService.load_python_obj(context_path, use_dill=True)
         
         # Load or get cached pulla
-        pulla:Pulla = self.pulla_cache.get(task_id)
+        pulla:Pulla = self._pulla_cache.get(task_id)
         if pulla is None:
             pulla_path = task_dir / "pulla.pkl"
             if not pulla_path.exists():
                 raise FileNotFoundError(f"pulla.pkl not found in {task_dir}")
             
             pulla = IQMBackendService.load_python_obj(pulla_path, use_dill=True)
-            self.pulla_cache[task_id] = pulla
+            self._pulla_cache[task_id] = pulla
 
         pulla_submit_pl_initialization_ended = time.time()
         pulla_submit_pl_initialization_runtime = pulla_submit_pl_initialization_ended - pulla_submit_pl_initialization_started
@@ -493,12 +661,16 @@ class IQMBackendService:
                 break
         
         if exec_started_timeline and exec_ended_timeline:
-            sw_job.remote_hw_runtime = (exec_ended_timeline.timestamp - 
+            sw_job.remote_hw_runtime = (exec_ended_timeline.timestamp -
                                     exec_started_timeline.timestamp).total_seconds()
+            #########################################
+            # RECORD USAGE INFO IN ACCOUNTING CACHE #
+            #########################################
+            self._consumption_cache[task_id] = sw_job.remote_hw_runtime
         
         # Check status
         if sw_job.status == IQMJobStatus.FAILED or not result.success:
-            raise Exception(f"Job failed: {sw_job.error_message() or 'None'}")
+            raise Exception(f"Job failed: {sw_job._errors[0] if sw_job._errors else 'Unknown sweep job error'}")
         
         # Save results
         pulla_submit_pl_postprocessing_started = time.time()
@@ -512,17 +684,3 @@ class IQMBackendService:
         sw_job.events['backend_run_postprocessing_started'] = pulla_submit_pl_postprocessing_started
         sw_job.events['backend_run_postprocessing_ended'] = pulla_submit_pl_postprocessing_ended
         IQMBackendService.save_python_obj(task_dir / 'job.pkl', sw_job, use_dill=True)
-        
-        
-
-def main():
-    socket_path = os.getenv('IQM_SERVICE_SOCKET', '/tmp/iqm_backend.sock')
-    work_dir = os.getenv('IQM_WORK_DIR', '/tmp/iqm_tasks')
-    
-    print("Starting server...")
-    service = IQMBackendService(socket_path, work_dir)
-    service.start()
-
-
-if __name__ == "__main__":
-    main()
