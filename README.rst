@@ -7,9 +7,9 @@ Overview
 The ``qaas`` package provides access to quantum computing resources through the LEXIS platform via HEAppE. It interfaces with IQM quantum hardware using the :class:`IQMProvider`, :class:`IQMBackend`, and :class:`IQMJob` classes to execute quantum circuits remotely. Aims to provide a general interface for accessing quantum computing resources from multiple vendors to support academic quantum infrastructure access.
 
 **Authors:**
-- Jan Swiatkowski (jan.swiatkowski@vsb.cz)
-- Jakub Konvička (jakub.konvicka@vsb.cz)
-- Jan Martinovič (jan.martinovic@vsb.cz)
+* Jan Swiatkowski (jan.swiatkowski@vsb.cz)
+* Jakub Konvička (jakub.konvicka@vsb.cz)
+* Jan Martinovič (jan.martinovic@vsb.cz)
 Installation
 ------------
 
@@ -32,14 +32,14 @@ The `py4lexis` package (for LEXIS authentication) must be installed first.
    pip3.11 install -e .
 
 **Requirements:**
-- Python 3.11
-- `pip>=26.0`
-- Git
-- Valid LEXIS platform credentials
-- Access to LEXIS quantum resources
+* Python 3.11
+* `pip>=26.0`
+* Git
+* Valid LEXIS platform credentials
+* Access to LEXIS quantum resources
 
 **Recommendations:**
-- Use virtual environment (e.g. `venv` or `uv`)
+* Use virtual environment (e.g. `venv` or `uv`)
 
 Core Interface
 ---------------
@@ -55,9 +55,9 @@ The main entry point for quantum resource access through LEXIS.
    backend = provider.get_backend(resource_name)
 
 **Parameters:**
-- ``token`` (str): LEXIS access token
-- ``project_name`` (str): LEXIS project identifier
-- ``resource_name`` (str): Accounting string (typically ``"EQE1-CZ-P0001"``). Depending of selected resource name a backend for submission will be selected.
+* ``token`` (str): LEXIS access token
+* ``project_name`` (str): LEXIS project identifier
+* ``resource_name`` (str): Accounting string (typically ``"EQE1-CZ-P0001"``). Depending of selected resource name a backend for submission will be selected.
 
 **QBackend**  
 Represents quantum hardware interface with capabilities for circuit execution.
@@ -156,8 +156,8 @@ Quantum circuits must be transpiled for IQM hardware before execution:
    )
 
 **Parameters:**
-- ``quantum_circuit``: Qiskit :class:`QuantumCircuit` object
-- ``optimize_single_qubits`` (bool): Enable single-qubit gate optimization (default: ``False``)
+* ``quantum_circuit``: Qiskit :class:`QuantumCircuit` object
+* ``optimize_single_qubits`` (bool): Enable single-qubit gate optimization (default: ``False``)
 
 Hardware Information
 ---------------------
@@ -208,11 +208,11 @@ QaaS raises :class:`QException` for errors:
        print(f"Unexpected error: {e}")
 
 **Common scenarios:**
-- LEXIS authentication failures
-- Invalid project/resource specifications
-- Backend connectivity issues
-- Circuit transpilation errors
-- Job execution failures
+* LEXIS authentication failures
+* Invalid project/resource specifications
+* Backend connectivity issues
+* Circuit transpilation errors
+* Job execution failures
 
 Dependencies
 -------------
@@ -236,7 +236,9 @@ Dependencies
    cffi             >=1.17.1     Foreign Function Interface
    click            >=8.1.7      Command-line interface toolkit
    jwcrypto         1.5.*        JSON Web Cryptography
-   PyJWT[crypto]    2.10.*      JSON Web Token library
+   PyJWT[crypto]    2.10.*       JSON Web Token library
+   numpy            >2.0.0       Data Processing
+   truststore       -            SSL certificate handling
 
 
 Technical Architecture
@@ -254,9 +256,9 @@ QaaS implements a 3-layer architecture:
    Creates IQM-specific quantum backends with circuit compilation.
 
 **Key features:**
-- Pulse-level quantum optimization via QPulla
-- Hardware-specific circuit transpilation
-- Real-time hardware calibration
+* :strike:`Pulse-level quantum optimization via QPulla`
+* Hardware-specific circuit transpilation
+* Real-time hardware calibration
 
 Execution Flow
 ---------------
