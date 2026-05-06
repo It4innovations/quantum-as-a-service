@@ -11,7 +11,7 @@ class QProvider:
     """
     
     def __init__(self, token: str, lexis_project:str, provider_access_token=None):
-        """Initalize QProvider wrapper
+        """Initialize QProvider wrapper
 
         :param token: LEXIS access token
         :param lexis_project: LEXIS project aggregating users and resources for computation and storing
@@ -41,7 +41,7 @@ class QProvider:
     def get_backend_info(self, lexis_resource:str, quantum_computer_name:str)->QBackendMetadata:
         """Get backend information about quantum computer based on resource and assignment name (quantum computer name)
         :param lexis_resource: LEXIS resource name, e.g. "VLQ-CZ"
-        :param quantum_computer_name: Quantum computer name, e.g. "VLQ", its equal to AggregationName in LEXIS Resources.Assigments
+        :param quantum_computer_name: Quantum computer name, e.g. "VLQ", its equal to AggregationName in LEXIS Resources.Assignments
         
         :return: QBackendMetadata instance with backend information
         """

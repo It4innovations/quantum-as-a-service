@@ -142,7 +142,7 @@ class AccountingInfo:
         verifying the signature and returns the email claim from the decoded token.
 
         :return: The user identifier is extracted from the JWT token, or None if not present.
-        :rtype: str or "UNKONWN"
+        :rtype: str or "UNKNOWN"
         """
         decoded = jwt.decode(self._user_jwt, options={"verify_signature": False})
         return decoded.get('sub', "UNKNOWN")
