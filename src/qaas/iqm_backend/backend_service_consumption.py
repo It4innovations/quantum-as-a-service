@@ -73,62 +73,59 @@ def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp
     "Usage": usage
     }).encode("utf-8")
 
-def check_current_resource_consumption_and_allocation(accounting_info: AccountingInfo) -> bool|float|str:
+def fetch_current_resource_consumption(accounting_info: AccountingInfo) -> bool|float|str:
     """
-    Check if current resource consumption is within allocation limits by processing each month in a separate thread
+    Fetch current resource consumption by processing each month in a separate threads from CYCLOPS's UDR api.
     
-    :returns: True if consumption is within limits or if an error occurs, otherwise returns the total usage which exceeds the allocation
+    :returns: Returns consumption (consumption>=0.0)
+    :raises RuntimeError: On any error
     """
-    try:
-        start_date = datetime.fromisoformat(accounting_info.resource_start_date)
-        end_date = datetime.now(datetime.now().astimezone().tzinfo)  # Current time with timezone
+    
+    start_date = datetime.fromisoformat(accounting_info.resource_start_date)
+    end_date = datetime.now(datetime.now().astimezone().tzinfo)  # Current time with timezone
+    
+    # Generate list of month intervals
+    month_intervals = _generate_month_intervals(start_date, end_date)
+    
+    if not month_intervals:
+        return 0.0
+    
+    current_usage_sum = 0.0
+    lock = threading.Lock()
+    
+    # Process each month in parallel using ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(len(month_intervals), 10)) as executor:
+        futures = {
+            executor.submit(
+                _fetch_and_calculate_usage,
+                month_start,
+                month_end,
+                accounting_info.cyclops_resource_id,
+                accounting_info.aggregation_name
+            ): (month_start, month_end)
+            for month_start, month_end in month_intervals
+        }
         
-        # Generate list of month intervals
-        month_intervals = _generate_month_intervals(start_date, end_date)
-        
-        if not month_intervals:
-            return True
-        
-        current_usage_sum = 0.0
-        lock = threading.Lock()
-        
-        # Process each month in parallel using ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=min(len(month_intervals), 10)) as executor:
-            futures = {
-                executor.submit(
-                    _fetch_and_calculate_usage,
-                    month_start,
-                    month_end,
-                    accounting_info.cyclops_resource_id,
-                    accounting_info.aggregation_name
-                ): (month_start, month_end)
-                for month_start, month_end in month_intervals
-            }
-            
-            for future in as_completed(futures):
-                month_start, month_end = futures[future]
-                try:
-                    usage = future.result()
-                    if usage is None:  # API error occurred
-                        return "Unable to fetch usage data"  # Allow job if we cannot fetch data
-                    
-                    with lock:
-                        current_usage_sum += usage
+        for future in as_completed(futures):
+            month_start, month_end = futures[future]
+            try:
+                usage = future.result()
+                if usage is None:  # API error occurred
+                    print(f"Unable to fetch usage data for month {month_start} - {month_end} for cyclops resource {accounting_info.cyclops_resource_id}", file=sys.stderr, flush=True)
+                    raise RuntimeError(f"Unable to fetch usage data for month {month_start} - {month_end}")   # Allow job if we cannot fetch data
                 
-                except Exception as e:
-                    print(f"Error processing month {month_start} to {month_end}: {e}", file=sys.stderr)
-                    return f"Error processing month {month_start} to {month_end}"  # Deny job on error
-        
-        #FIXME:
-        print(f"Consumption: {current_usage_sum} -- { current_usage_sum <= accounting_info.allocation_amount }; Allocation: {accounting_info.allocation_amount}", file=sys.stderr, flush=True)
-        # Check if usage exceeds allocation
-        return True if current_usage_sum <= accounting_info.allocation_amount else current_usage_sum
+                with lock:
+                    current_usage_sum += usage
+            
+            except Exception as e:
+                import traceback
+                traceback.print_exc(file=sys.stderr)
+                print(f"Error processing month {month_start} to {month_end}: {e}", file=sys.stderr)
+                raise RuntimeError(f"Error processing month {month_start} to {month_end}") from e  # Deny job on error
     
-    except Exception as e:
-        import traceback
-        traceback.print_exc(file=sys.stderr)
-        print(f"Error checking resource consumption: {e}", file=sys.stderr)
-        return "Error checking resource consumption"  # Deny job on unexpected error
+    print(f"Consumption: {current_usage_sum} -- { current_usage_sum <= accounting_info.allocation_amount }; Allocation: {accounting_info.allocation_amount}", file=sys.stderr, flush=True)
+    # Check if usage exceeds allocation
+    return current_usage_sum
 
 def _generate_month_intervals(start_date: datetime, end_date: datetime) -> list[tuple[datetime, datetime]]:
     """Generate list of month intervals from start_date to end_date"""

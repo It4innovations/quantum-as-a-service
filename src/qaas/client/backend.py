@@ -175,7 +175,7 @@ class QBackend():
     def run(self, run_input: QuantumCircuit | list[QuantumCircuit] | str | list[str],
             shots=1000,
             # everything else is run parameter
-            **run_options):
+            **run_options)->tuple["QJob",str]:
         """
         Execute quantum circuit(s) by submitting HEAppE job via QClient.
 
@@ -193,8 +193,11 @@ class QBackend():
 
         :type run_options: dict
 
-        :returns: QJob instance for monitoring execution and retrieving results
-        :rtype: QJob
+        :returns: A tuple where:
+          - First element (QJob): Instance for monitoring execution and retrieving results
+          - Second element (str): String identifier
+        :rtype: tuple[QJob, str]
+
 
         :raises QException: When job submission fails or parameters are invalid
         :raises QAuthException: When authentication fails during job submission

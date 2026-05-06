@@ -27,7 +27,7 @@ from qaas.iqm_backend.backend_env_variables import (
 from qaas.iqm_backend.backend_service_accounting_info import AccountingInfo
 from qaas.iqm_backend.backend_service_consumption import (
     initializeKafkaProducer,
-    check_current_resource_consumption_and_allocation,
+    fetch_current_resource_consumption,
     record_consumption_usage
 )
 print("Dependencies loaded...")
@@ -255,21 +255,23 @@ class IQMBackendService:
                     conn.sendall(f"ERROR: Unable to get job submitter info -- {accounting_info if isinstance(accounting_info, str) else 'Unknown error'}\n".encode())
                     return
                 self._consumption_cache[command_params.full_id] = accounting_info # submitter and accounting_string
-
-                consumption_status = check_current_resource_consumption_and_allocation(accounting_info)
+              
+                try:
+                    consumption = fetch_current_resource_consumption(accounting_info)
+                except RuntimeError as e:
+                    import traceback
+                    traceback.print_exc(file=sys.stderr)
+                    print(f"Error checking resource consumption: {e}", file=sys.stderr)
+                    conn.sendall("ERROR: Error while fetching consumption of selected resouurce!\n".encode())
+                    return
                 
-                if consumption_status is True:
-                    pass  # Consumption is within limits, allow job
+                if consumption > accounting_info.allocation_amount:
+                    # Consumption exceeded limits, allow job
+                    conn.sendall(f"ERROR: Current resource consumption {consumption:.2f} exceeds allocation {accounting_info.allocation_amount:.2f}\n".encode())
+                    return
                 
-                elif isinstance(consumption_status, str):
-                    conn.sendall(f"ERROR: {consumption_status}\n".encode())
-                    return
-                elif isinstance(consumption_status, float):
-                    conn.sendall(f"ERROR: Current resource consumption {consumption_status:.2f} exceeds allocation {accounting_info.allocation_amount:.2f}\n".encode())
-                    return
-                else:
-                    conn.sendall("Unknown error during resource consumption check\n".encode())
-                    return
+                # Consumption is within limits, allow job
+                
                 
             # Handle command
             if command_params.command == "backend_init":

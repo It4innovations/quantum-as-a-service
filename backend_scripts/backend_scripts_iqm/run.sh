@@ -4,6 +4,10 @@
 
 set -e  # Exit on any error
 
+# Remove token in any situation
+trap "rm -f $(pwd)/user_token.enc" EXIT
+
+
 # Log file for execution times
 LOG_FILE="execution_time_log.txt"
 
