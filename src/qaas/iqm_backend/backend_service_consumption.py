@@ -29,41 +29,46 @@ def initializeKafkaProducer() -> KafkaProducer:
                 cyclops_resource_id=v["cyclops_resource_id"],
                 usage=v["usage"],
                 usage_timestamp=v["usage_timestamp"],
-                lexis_project_resource_id=v["lexis_project_resource_id"],
+                lexis_resource_name=v["lexis_resource_name"],
+                lexis_project=v["lexis_project"],
                 customer_id=v["customer_id"],
-                resource_type=v["resource_type"]
+                resource_type=v["resource_type"],
+                submitter_email=v["submitter_email"]
                 ),
             request_timeout_ms=CYCLOPS_DEFAULT_TIMEOUT,
             retries=CYCLOPS_DEFAULT_RETRIES,
         )
 
-def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp:float, lexis_project_resource_id:str, customer_id:str, resource_type:str)->bytes:
-    """Serializer for accounting record for Kafka (part of Cyclops billing system)
+def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp:float, lexis_project:str, lexis_resource_name:str, customer_id:str, resource_type:str, submitter_email:str)->bytes:
+    """Serializer for accounting record for Kafka (part of Cyclops billing system).
     
-    https://cyclops-for-hpc.readthedocs.io/en/latest/metric.html
+    See `Cyclops Metric Documentation <https://cyclops-for-hpc.readthedocs.io/en/latest/metric.html>`_.
 
-
-    :param usage: Accounted usage
-    :param usage_timestamp: datetime now in utc when the usage was recorded
-    :param lexis_project: LEXIS Project short name
-    :param resource_type: CYCLOPS SKU Name -- LEXIS Resources.Assigments.AggregationName
-    :param customer_id: CYCLOPS customer identifier
-    :return: Serialized value
-        {
-            "Account": "string",
-            "Metadata": "JSON",
-            "ResourceType": "string",
-            "ResourceId": "string",
-            "Time": "int",
-            "Unit": "string",
-            "Usage": "float"
-        }
+    :param cyclops_resource_id: LEXIS Resource identifier in CYCLOPS system (UUID, e.g., "d290f1ee-6c54-4b01-90e6-d701748f0851")
+    :param usage: Accounted usage value
+    :param usage_timestamp: UTC timestamp when the usage was recorded (datetime as float)
+    :param lexis_project: LEXIS Project short name (e.g., "test_project_1")
+    :param lexis_resource_name: LEXIS resource name (e.g., "VLQ-CZ")
+    :param customer_id: CYCLOPS customer identifier (UUID, e.g., "ccc4dea0-d1d6-4a4c-bc71-3a46f1961c2a")
+    :param resource_type: CYCLOPS SKU name (LEXIS Resources.Assignments.AggregationName)
+    :param submitter_email: Email of the user submitting the usage record
+    :return: Serialized JSON value as bytes with the following structure:
+        
+        * Account: Customer identifier
+        * Metadata: JSON object containing LexisProject, LexisResourceName, Submitter, and UDRMode
+        * ResourceType: SKU name
+        * ResourceId: CYCLOPS resource identifier
+        * Time: Unix timestamp (integer)
+        * Unit: Measurement unit
+        * Usage: Usage value (float)
     """
+
     return json.dumps({
     "Account": customer_id, # currently equal to lexis project and its identifier in CYCLOPS system -- uuid, e.g. "ccc4dea0-d1d6-4a4c-bc71-3a46f1961c2a"
     "Metadata": {
-                "LexisProjectResourceId": lexis_project_resource_id,
-                # "lexisProject": lexis_project, # short name of the LEXIS project, e.g. "test_project_1"
+                "LexisProject": lexis_project, # short name of the LEXIS project, e.g. "test_project_1"
+                "LexisResourceName": lexis_resource_name, # e.g. VLQ-CZ
+                "Submitter": submitter_email,
                 "UDRMode": "sum"
                 },
     "ResourceType": resource_type, # SKU name
@@ -111,7 +116,7 @@ def fetch_current_resource_consumption(accounting_info: AccountingInfo) -> bool|
             try:
                 usage = future.result()
                 if usage is None:  # API error occurred
-                    print(f"Unable to fetch usage data for month {month_start} - {month_end} for cyclops resource {accounting_info.cyclops_resource_id}", file=sys.stderr, flush=True)
+                    print(f"Unable to fetch usage data for month {month_start} - {month_end} for cyclops plan (resource) {accounting_info.cyclops_resource_id}", file=sys.stderr, flush=True)
                     raise RuntimeError(f"Unable to fetch usage data for month {month_start} - {month_end}")   # Allow job if we cannot fetch data
                 
                 with lock:
@@ -205,9 +210,11 @@ def _calculate_resource_usage(usage_data: list, resource_id: str, aggregation_na
         if not usage_data:
             continue
         for usage_record in usage_data:
-            if (usage_record.get('ResourceId') == resource_id and 
-                usage_record.get('ResourceType') == aggregation_name):
-                current_usage_sum += usage_record.get('UsageBreakup', {}).get('used', 0.0)
+            if usage_record.get('ResourceId') == resource_id:
+                metadata = usage_record.get('Metadata', {})
+                lexis_resource_name = metadata.get("LexisResourceName")
+                if lexis_resource_name and lexis_resource_name == aggregation_name:
+                    current_usage_sum += usage_record.get('UsageBreakup', {}).get('used', 0.0)
     
     return current_usage_sum
 
@@ -219,8 +226,10 @@ def record_consumption_usage(kafka_producer: KafkaProducer, accounting_info: Acc
     
     # Inputs for serializing function (kafka_value_serializer)
     record = {
+        "submitter_email": accounting_info.submitter_email,
         "customer_id": accounting_info.cyclops_customer_id,
-        "lexis_project_resource_id": accounting_info.lexis_project_resource_id,
+        "lexis_project": accounting_info.lexis_project,
+        "lexis_resource_name": accounting_info.resource_name,
         "resource_type": "VLQ",
         "cyclops_resource_id": accounting_info.cyclops_resource_id,
         "usage_timestamp": datetime.now(timezone.utc).timestamp(),
