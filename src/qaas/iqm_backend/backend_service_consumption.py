@@ -33,14 +33,13 @@ def initializeKafkaProducer() -> KafkaProducer:
                 lexis_location_name=v["lexis_location_name"],
                 lexis_project=v["lexis_project"],
                 customer_id=v["customer_id"],
-                resource_type=v["resource_type"],
                 submitter_email=v["submitter_email"]
                 ),
             request_timeout_ms=CYCLOPS_DEFAULT_TIMEOUT,
             retries=CYCLOPS_DEFAULT_RETRIES,
         )
 
-def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp:float, lexis_project:str, lexis_resource_name:str, lexis_location_name:str, customer_id:str, resource_type:str, submitter_email:str)->bytes:
+def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp:float, lexis_project:str, lexis_resource_name:str, lexis_location_name:str, customer_id:str, submitter_email:str)->bytes:
     """Serializer for accounting record for Kafka (part of Cyclops billing system).
     
     See `Cyclops Metric Documentation <https://cyclops-for-hpc.readthedocs.io/en/latest/metric.html>`_.
@@ -52,7 +51,6 @@ def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp
     :param lexis_resource_name: LEXIS resource name (e.g., "VLQ-CZ")
     :param lexis_location_name: To address uniqueness of LEXIS resource name, location name should be present
     :param customer_id: CYCLOPS customer identifier (UUID, e.g., "ccc4dea0-d1d6-4a4c-bc71-3a46f1961c2a")
-    :param resource_type: CYCLOPS SKU name (LEXIS Resources.Assignments.AggregationName)
     :param submitter_email: Email of the user submitting the usage record
     :return: Serialized JSON value as bytes with the following structure:
         
@@ -74,7 +72,7 @@ def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp
                 "Submitter": submitter_email,
                 "UDRMode": "sum"
                 },
-    "ResourceType": resource_type, # SKU name
+    "ResourceType": lexis_location_name, # SKU name
     "ResourceId": cyclops_resource_id, # LEXIS Resource identifier in CYCLOPS system -- uuid, e.g. "d290f1ee-6c54-4b01-90e6-d701748f0851" (plan id in cyclops)
     "Time": int(usage_timestamp),
     "Unit": CYCLOPS_DEFAULT_UNIT,
@@ -237,7 +235,6 @@ def record_consumption_usage(kafka_producer: KafkaProducer, accounting_info: Acc
         "lexis_project": accounting_info.lexis_project,
         "lexis_resource_name": accounting_info.resource_name,
         "lexis_location_name": accounting_info.location_name,
-        "resource_type": "VLQ", #FIXME: should be aligned with LEXIS and CYCLOPS
         "cyclops_resource_id": accounting_info.cyclops_resource_id,
         "usage_timestamp": datetime.now(timezone.utc).timestamp(),
         "usage": usage

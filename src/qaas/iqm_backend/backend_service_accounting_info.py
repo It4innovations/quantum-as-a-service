@@ -438,7 +438,7 @@ class AccountingInfo:
                 # print("plans: "+str(plans), file=sys.stderr, flush=True)
                 
                 for plan in plans:
-                    if plan.get('Name') == self._resource_name:
+                    if plan.get('Name') == self._location_name+'_'+self._resource_name:
                         cyclops_resource_id = plan.get('ID')
                         return cyclops_resource_id
                 
