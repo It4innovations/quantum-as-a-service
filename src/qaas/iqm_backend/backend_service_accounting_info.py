@@ -37,6 +37,7 @@ class AccountingInfo:
         self._allocation_amount = None
         self._aggregation_name = None
         self._cluster_name = None
+        self._location_name = None
         
         self._resource_start_date = None
         self._resource_end_date = None
@@ -47,29 +48,32 @@ class AccountingInfo:
         
         
     @property
-    def submitter_email(self):
+    def submitter_email(self)->str:
         return self._submitter_email
     @property
-    def lexis_project(self):
+    def lexis_project(self)->str:
         return self._lexis_project
     @property
-    def accounting_string(self):
+    def accounting_string(self)->str:
         return self._accounting_string
     @property
-    def cluster_id(self):
+    def cluster_id(self)->int:
         return self._cluster_id
     @property
-    def cluster_name(self):
+    def cluster_name(self)->str:
         return self._cluster_name
     @property
-    def node_type_id(self):
+    def node_type_id(self)->int:
         return self._node_type_id
     @property
-    def node_type_name(self):
+    def node_type_name(self)->str:
         return self._node_type_name
     @property
-    def resource_name(self):
+    def resource_name(self)->str:
         return self._resource_name
+    @property
+    def location_name(self)->str:
+        return self._location_name
     
     @property
     def heappe_url(self):
@@ -160,7 +164,7 @@ class AccountingInfo:
             print(f"Error decoding JWT: {e}", file=sys.stderr)
             return False
 
-    async def _internal_fetch_logic(self, job_id: str) -> bool:
+    async def _internal_fetch_accounting_info_logic(self, job_id: str) -> bool:
         """Internal coroutine to handle the sequence logic."""
         # 1. Sequential Call (The Dependency)
         # Ensure this finishes first so self._heappe_url is populated
@@ -184,7 +188,7 @@ class AccountingInfo:
     def fetch_all_accounting_info(self, job_id: str) -> bool:
         """The clean public synchronous wrapper."""
         try:
-            return asyncio.run(self._internal_fetch_logic(job_id))
+            return asyncio.run(self._internal_fetch_accounting_info_logic(job_id))
         except Exception as e:
             import traceback
             traceback.print_exc(file=sys.stderr)
@@ -311,6 +315,7 @@ class AccountingInfo:
                 self._heappe_url = heappe_url
                 self._allocation_amount = assignment_data.get('AllocationAmount')
                 self._aggregation_name = assignment_data.get('AggregationName')
+                self._location_name = assignment_data.get('LocationName')
                 
                 # Extract and cache resource details
                 if not self._allocation_amount or not self._aggregation_name:

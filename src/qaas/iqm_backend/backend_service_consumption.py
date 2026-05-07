@@ -30,6 +30,7 @@ def initializeKafkaProducer() -> KafkaProducer:
                 usage=v["usage"],
                 usage_timestamp=v["usage_timestamp"],
                 lexis_resource_name=v["lexis_resource_name"],
+                lexis_location_name=v["lexis_location_name"],
                 lexis_project=v["lexis_project"],
                 customer_id=v["customer_id"],
                 resource_type=v["resource_type"],
@@ -39,7 +40,7 @@ def initializeKafkaProducer() -> KafkaProducer:
             retries=CYCLOPS_DEFAULT_RETRIES,
         )
 
-def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp:float, lexis_project:str, lexis_resource_name:str, customer_id:str, resource_type:str, submitter_email:str)->bytes:
+def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp:float, lexis_project:str, lexis_resource_name:str, lexis_location_name:str, customer_id:str, resource_type:str, submitter_email:str)->bytes:
     """Serializer for accounting record for Kafka (part of Cyclops billing system).
     
     See `Cyclops Metric Documentation <https://cyclops-for-hpc.readthedocs.io/en/latest/metric.html>`_.
@@ -49,6 +50,7 @@ def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp
     :param usage_timestamp: UTC timestamp when the usage was recorded (datetime as float)
     :param lexis_project: LEXIS Project short name (e.g., "test_project_1")
     :param lexis_resource_name: LEXIS resource name (e.g., "VLQ-CZ")
+    :param lexis_location_name: To address uniqueness of LEXIS resource name, location name should be present
     :param customer_id: CYCLOPS customer identifier (UUID, e.g., "ccc4dea0-d1d6-4a4c-bc71-3a46f1961c2a")
     :param resource_type: CYCLOPS SKU name (LEXIS Resources.Assignments.AggregationName)
     :param submitter_email: Email of the user submitting the usage record
@@ -67,6 +69,7 @@ def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp
     "Account": customer_id, # currently equal to lexis project and its identifier in CYCLOPS system -- uuid, e.g. "ccc4dea0-d1d6-4a4c-bc71-3a46f1961c2a"
     "Metadata": {
                 "LexisProject": lexis_project, # short name of the LEXIS project, e.g. "test_project_1"
+                "LexisLocationName": lexis_location_name, # e.g. VLQ, Karolina
                 "LexisResourceName": lexis_resource_name, # e.g. VLQ-CZ
                 "Submitter": submitter_email,
                 "UDRMode": "sum"
@@ -106,7 +109,8 @@ def fetch_current_resource_consumption(accounting_info: AccountingInfo) -> bool|
                 month_start,
                 month_end,
                 accounting_info.cyclops_resource_id,
-                accounting_info.aggregation_name
+                accounting_info.resource_name,
+                accounting_info.location_name
             ): (month_start, month_end)
             for month_start, month_end in month_intervals
         }
@@ -166,7 +170,8 @@ def _fetch_and_calculate_usage(
     time_from: datetime,
     time_to: datetime,
     resource_id: str,
-    aggregation_name: str
+    lexis_resource_name: str,
+    lexis_location_name: str
 ) -> float | None:
     """Fetch usage data for a specific time period and calculate total usage"""
     try:
@@ -188,7 +193,7 @@ def _fetch_and_calculate_usage(
             return None
         
         usage_data = response.json()
-        return _calculate_resource_usage(usage_data, resource_id, aggregation_name)
+        return _calculate_resource_usage(usage_data, resource_id, lexis_resource_name, lexis_location_name)
     
     except Exception as e:
         print(f"Error fetching usage data for {time_from} to {time_to}: {e}", file=sys.stderr)
@@ -201,7 +206,7 @@ def _format_iso_date(date: datetime) -> str | None:
     except (ValueError, AttributeError):
         return None
 
-def _calculate_resource_usage(usage_data: list, resource_id: str, aggregation_name: str) -> float:
+def _calculate_resource_usage(usage_data: list, resource_id: str, lexis_resource_name: str, lexis_location_name: str) -> float:
     """Calculate total resource usage for specific resource and aggregation"""
     current_usage_sum = 0.0
     
@@ -212,8 +217,9 @@ def _calculate_resource_usage(usage_data: list, resource_id: str, aggregation_na
         for usage_record in usage_data:
             if usage_record.get('ResourceId') == resource_id:
                 metadata = usage_record.get('Metadata', {})
-                lexis_resource_name = metadata.get("LexisResourceName")
-                if lexis_resource_name and lexis_resource_name == aggregation_name:
+                lexis_resource_name_meta = metadata.get("LexisResourceName")
+                lexis_location_name_meta = metadata.get("LexisLocationName")
+                if lexis_resource_name and lexis_resource_name == lexis_resource_name_meta and lexis_location_name == lexis_location_name_meta:
                     current_usage_sum += usage_record.get('UsageBreakup', {}).get('used', 0.0)
     
     return current_usage_sum
@@ -230,7 +236,8 @@ def record_consumption_usage(kafka_producer: KafkaProducer, accounting_info: Acc
         "customer_id": accounting_info.cyclops_customer_id,
         "lexis_project": accounting_info.lexis_project,
         "lexis_resource_name": accounting_info.resource_name,
-        "resource_type": "VLQ",
+        "lexis_location_name": accounting_info.location_name,
+        "resource_type": "VLQ", #FIXME: should be aligned with LEXIS and CYCLOPS
         "cyclops_resource_id": accounting_info.cyclops_resource_id,
         "usage_timestamp": datetime.now(timezone.utc).timestamp(),
         "usage": usage
