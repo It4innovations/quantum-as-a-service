@@ -226,7 +226,7 @@ def record_consumption_usage(kafka_producer: KafkaProducer, accounting_info: Acc
     
     # Inputs for serializing function (kafka_value_serializer)
     record = {
-        "submitter_email": accounting_info.submitter_email,
+        "submitter_email": accounting_info.decode_user_jwt_email(),
         "customer_id": accounting_info.cyclops_customer_id,
         "lexis_project": accounting_info.lexis_project,
         "lexis_resource_name": accounting_info.resource_name,

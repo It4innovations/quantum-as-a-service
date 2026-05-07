@@ -130,6 +130,19 @@ class AccountingInfo:
         """
         return self._cyclops_resource_id
     
+    def decode_user_jwt_email(self)->str:
+        """
+        Decode the user JWT token and extract the email address.
+
+        This method decodes the JWT token stored in ``self._user_jwt`` without
+        verifying the signature and returns the email claim from the decoded token.
+
+        :return: The user identifier is extracted from the JWT token, or None if not present.
+        :rtype: str or "UNKONWN"
+        """
+        decoded = jwt.decode(self._user_jwt, options={"verify_signature": False})
+        return decoded.get('sub', "UNKNOWN")
+    
     def decode_user_jwt_and_verify(self)->str|bool:
         """Should decode given user JWT and compare sub attribute email inside JWT to submitter_email
 
@@ -140,7 +153,7 @@ class AccountingInfo:
             exp_timestamp = decoded.get('exp')
             email = decoded.get('email')
             if exp_timestamp and datetime.fromtimestamp(exp_timestamp, tz=timezone.utc) < datetime.now(timezone.utc):
-                print(f"JWT of user {self._submitter_email} is expired", file=sys.stderr)
+                print(f"JWT of user {email} is expired", file=sys.stderr)
                 return False
             return email
         except Exception as e:
