@@ -17,7 +17,7 @@ requires-python = ">=3.11, <3.12"
 
 # --- Base Dependencies (Client Always installed) ---
 dependencies = [
-    "qiskit==1.2.4",
+    "qiskit==1.4.5",
     "iqm-client[qiskit]==33.0.*",
     "iqm-exa-common==27.4.*",
     "iqm-station-control-client==12.0.*",
