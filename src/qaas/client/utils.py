@@ -5,6 +5,7 @@ import jwt
 # Exceptions
 # ------------
 
+
 class QException(Exception):
     """
     Base exception for QVAS.
@@ -53,11 +54,11 @@ class QAuthException(QException):
             self.reason = reason or QAuthException.DEFAULT_ERR_MSG
             self.user_id = user_id
             self.resource = resource
-        
+
             # If no reason provided, try to extract from the chained exception
             if reason is None and self.__cause__ is not None:
                 reason = self._extract_reason_from_cause(self.__cause__)
-        
+
         msg = self.reason
         if user_id:
             msg += f" (user_id={user_id})"
@@ -65,15 +66,15 @@ class QAuthException(QException):
             msg += f", resource={resource}"
 
         super().__init__(msg)
-    
+
     def _extract_reason_from_cause(self, cause) -> str:
         reason = self.reason
-        
+
         # Handle JWT-related exceptions (python-jwt library)
         if isinstance(cause, jwt.ExpiredSignatureError):
             reason = "JWT token has expired"
         elif isinstance(cause, jwt.InvalidSignatureError):
-            reason = "JWT token has invalid signature" 
+            reason = "JWT token has invalid signature"
         elif isinstance(cause, jwt.InvalidAudienceError):
             reason = "JWT token has invalid audience"
         elif isinstance(cause, jwt.InvalidIssuerError):
@@ -88,29 +89,31 @@ class QAuthException(QException):
             reason = f"JWT token decode error: {str(cause)}"
         elif isinstance(cause, jwt.InvalidTokenError):
             reason = f"JWT token validation failed: {str(cause)}"
-        
+
         # Handle requests-related exceptions
         elif isinstance(cause, requests.RequestException):
-            if hasattr(cause, 'response') and cause.response is not None:
+            if hasattr(cause, "response") and cause.response is not None:
                 if cause.response.status_code == 401:
                     reason = "Token is not authorized to access UserOrg API"
                 elif cause.response.status_code == 403:
-                    reason = "Insufficient permissions to access user project information"
+                    reason = (
+                        "Insufficient permissions to access user project information"
+                    )
                 elif cause.response.status_code == 404:
                     reason = "User or project information not found in UserOrg service"
                 else:
                     reason = f"UserOrg API error ({cause.response.status_code}): {cause.response.text}"
             else:
                 reason = f"Failed to connect to UserOrg API: {str(cause)}"
-        
+
         return reason
-    
-    
+
+
 class QResultsFailed(QException):
-    def __init__(self, heappe_job_id:int, message=None, **context):
+    def __init__(self, heappe_job_id: int, message=None, **context):
         msg = f"HEAppE job '{heappe_job_id}'in background failed. "
         if message:
-            msg+=str(message)
+            msg += str(message)
         super().__init__(msg, **context)
 
 
@@ -118,13 +121,16 @@ class QPullaExceeption(QException):
     def __init__(self, message=None, **context):
         super().__init__(message, **context)
 
+
 class QPullaFetchError(QPullaExceeption):
     def __init__(self, message=None, **context):
         super().__init__(message, **context)
 
+
 #############
 # Utilities #
 #############
+
 
 class JobState(Enum):
     Configuring: int = 1

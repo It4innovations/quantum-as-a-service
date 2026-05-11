@@ -46,5 +46,8 @@ iqm_backend = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402"]
+
 [tool.uv.sources]
 python-http-irods-client = { git = "https://opencode.it4i.eu/lexis-platform/data/python-http-irods-client.git", rev = "1.1.4" }

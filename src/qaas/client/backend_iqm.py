@@ -1,36 +1,23 @@
-import json
-import time
 import os
 import sys
 import logging
 import copy
 from uuid import UUID
-from iqm.qiskit_iqm import (
-    IQMBackend,
-    transpile_to_IQM as transpile_to_IQM_orig,
-    IQMTarget
-)
-from iqm.iqm_client.transpile import ExistingMoveHandlingOptions
+from iqm.qiskit_iqm import IQMBackend, transpile_to_IQM as transpile_to_IQM_orig
 
 from qiskit import QuantumCircuit
-from qiskit.transpiler.layout import Layout
 
-from py4heappe.heappe_v6.core.models import (
-    EnvironmentVariableExt,
-    CommandTemplateParameterValueExt
-)
-from .backend import QBackend,QJob
-from .utils import QException
+from .backend import QBackend, QJob
 from .client import QClient
 from .backend_metadata import QBackendMetadata
 
 
-log = logging.getLoggerClass()(__name__, os.environ.get(
-    'QPROVIDER_LOGLEVEL', 'INFO').upper())
+log = logging.getLoggerClass()(
+    __name__, os.environ.get("QPROVIDER_LOGLEVEL", "INFO").upper()
+)
 
 # Formatter for consistent output
-formatter = logging.Formatter(
-    "%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
 
 # Decide handler: file or stderr
 logfile = os.environ.get("QPROVIDER_LOGFILE")
@@ -43,7 +30,7 @@ handler.setFormatter(formatter)
 log.addHandler(handler)
 
 
-class QBackendIQM(QBackend,IQMBackend):
+class QBackendIQM(QBackend, IQMBackend):
     """
     QaaS wrapper around IQMBackend for quantum job execution through HEAppE.
 
@@ -76,8 +63,14 @@ class QBackendIQM(QBackend,IQMBackend):
 
     DEFAULT_POLL_TIME = 0.5
 
-    #pylint: disable=W0231
-    def __init__(self, client: QClient, backend_metadata: QBackendMetadata, calibration_set_id:UUID=None,**kwargs):
+    # pylint: disable=W0231
+    def __init__(
+        self,
+        client: QClient,
+        backend_metadata: QBackendMetadata,
+        calibration_set_id: UUID = None,
+        **kwargs,
+    ):
         """
         Initialize QBackend with QClient for HEAppE communication.
 
@@ -99,35 +92,39 @@ class QBackendIQM(QBackend,IQMBackend):
             The initialization process may take several minutes as it involves
             remote job submission and execution through HEAppE infrastructure.
         """
-        QBackend.__init__(self, client, backend_metadata=backend_metadata,calibration_set_id=calibration_set_id, **kwargs)
-        
-        
+        QBackend.__init__(
+            self,
+            client,
+            backend_metadata=backend_metadata,
+            calibration_set_id=calibration_set_id,
+            **kwargs,
+        )
+
         # FIXes loading of iqm_ attrs of IQMTarget
         results = self._qclient.get_job_results(
             self.init_job_id,
-            [
-                f"/{self.init_job_id}/{self.init_task_ids[0]}/iqm_target_attrs.pkl"
-            ],
+            [f"/{self.init_job_id}/{self.init_task_ids[0]}/iqm_target_attrs.pkl"],
             use_dill=[False],
-            job_status=self._init_job_status, task_ids=self.init_task_ids)
+            job_status=self._init_job_status,
+            task_ids=self.init_task_ids,
+        )
         log.debug("INIT - HEAppE - results: '%s'", str(results))
-        
+
         # Covering fix, that iqm_ attributes are not mentioned in class definition of IQMTarget, so pickling does not save them
-        iqm_attrs = results['iqm_target_attrs']
-        
+        iqm_attrs = results["iqm_target_attrs"]
+
         for attr, value in iqm_attrs.items():
             setattr(self.target, attr, value)
             setattr(self.remote_backend.target, attr, value)
 
         self.name = "QBackendIQM"
 
-        
     def _get_iqm_target_attrs(self):
         # Covering fix, that iqm_ attributes are not mentioned in class definition of IQMTarget, so pickling does not save them
         return {
             attr: getattr(self.target, attr)
             for attr in dir(self.target)
-            if attr.startswith('iqm_') and not attr.startswith('__')
+            if attr.startswith("iqm_") and not attr.startswith("__")
         }
 
     def get_iqm_backend(self) -> IQMBackend:
@@ -155,23 +152,26 @@ class QBackendIQM(QBackend,IQMBackend):
         """
 
         qclient = self._qclient
-        delattr(self, '_qclient')
+        delattr(self, "_qclient")
         iqm_backend_copy = copy.deepcopy(self)
         self._qclient = qclient
         return iqm_backend_copy
 
-    def run(self, run_input:QuantumCircuit|list[QuantumCircuit],
-            # QBackend.run arguments
-            shots=1000,
-            **kwargs) -> "QJob":
+    def run(
+        self,
+        run_input: QuantumCircuit | list[QuantumCircuit],
+        # QBackend.run arguments
+        shots=1000,
+        **kwargs,
+    ) -> "QJob":
         """
         Execute quantum circuit(s) by submitting HEAppE job via QClient.
 
         Submits quantum circuits for execution on IQM hardware through HEAppE
         infrastructure. Handles both single circuits and lists of circuits,
         serializing them to QASM2 format for remote execution.
-        
-        
+
+
         :param run_input: Quantum circuit(s) to execute
         :type run_input: QuantumCircuit or List[QuantumCircuit]
         :param shots: Number of measurement shots to perform
@@ -202,19 +202,15 @@ class QBackendIQM(QBackend,IQMBackend):
         Example:
             >>> circuit = QuantumCircuit(2, 2)
             >>> circuit.h(0)
-            >>> circuit.cx(0, 1)  
+            >>> circuit.cx(0, 1)
             >>> circuit.measure_all()
             >>> job = backend.run(circuit, shots=1000, walltime_limit=1800)
         """
 
-        _, heappe_job_id = QBackend.run(self,
-                     run_input,
-                     shots=shots,
-                    **kwargs
-                )
-        return QJob(self,heappe_job_id)
+        _, heappe_job_id = QBackend.run(self, run_input, shots=shots, **kwargs)
+        return QJob(self, heappe_job_id)
 
-    def retrieve_job(self, job_id: str) -> 'QJob':
+    def retrieve_job(self, job_id: str) -> "QJob":
         """
         Retrieve existing QJob by HEAppE job identifier.
 
@@ -285,13 +281,13 @@ class QBackendIQM(QBackend,IQMBackend):
 
         :param circuit: The circuit to be transpiled without MOVE gates.
         :param backend: QBackend instance
-        :param remote: If True, run transpilation on a remote cluster; 
+        :param remote: If True, run transpilation on a remote cluster;
                 otherwise, run locally on your machine. Defaults to False.
 
 
 
 
-        :param initial_layout: The initial layout to use for the transpilation, 
+        :param initial_layout: The initial layout to use for the transpilation,
         same as :func:`~qiskit.compiler.transpile`.
         :param perform_move_routing: Whether to perform MOVE gate routing.
         :param optimize_single_qubits: Whether to optimize single qubit gates away.
@@ -303,7 +299,7 @@ class QBackendIQM(QBackend,IQMBackend):
                 required if the circuit contains
                 MOVE gates.
         :param restrict_to_qubits: Restrict the transpilation to only use these specific
-                physical qubits. Note that you will have to pass this 
+                physical qubits. Note that you will have to pass this
                 information to the ``backend.run`` method as well as a dictionary.
         :param qiskit_transpiler_kwargs: Arguments to be passed to the Qiskit transpiler.
 
@@ -316,11 +312,16 @@ class QBackendIQM(QBackend,IQMBackend):
         :raises QAuthException: If authentication with the remote cluster fails.
         """
         # Transpile locally
-        return transpile_to_IQM_orig(circuit=circuit, backend=self.remote_backend, **kwargs)
+        return transpile_to_IQM_orig(
+            circuit=circuit, backend=self.remote_backend, **kwargs
+        )
 
 
-def transpile_to_IQM(circuit: QuantumCircuit, backend: QBackend,  # pylint: disable=c0103
-                     **kwargs) -> QuantumCircuit:
+def transpile_to_IQM(
+    circuit: QuantumCircuit,
+    backend: QBackend,  # pylint: disable=c0103
+    **kwargs,
+) -> QuantumCircuit:
     """Customized transpilation to IQM backends.
 
     Works with both the Crystal and Star architectures.
@@ -341,8 +342,8 @@ def transpile_to_IQM(circuit: QuantumCircuit, backend: QBackend,  # pylint: disa
         the final RZ gates do no change the measurement outcomes of the circuit.
     :param existing_moves_handling: How to handle existing MOVE gates in the circuit,
         required if the circuit contains MOVE gates.
-    :param restrict_to_qubits: Restrict the transpilation to only use these specific 
-            physical qubits. Note that you will have to pass this 
+    :param restrict_to_qubits: Restrict the transpilation to only use these specific
+            physical qubits. Note that you will have to pass this
             information to the ``backend.run`` method as well as a dictionary.
     :param qiskit_transpiler_kwargs: Arguments to be passed to the Qiskit transpiler.
 
@@ -355,4 +356,3 @@ def transpile_to_IQM(circuit: QuantumCircuit, backend: QBackend,  # pylint: disa
     :raises QAuthException: If authentication with the remote cluster fails.
     """
     return backend.transpile(circuit=circuit, **kwargs)
-
