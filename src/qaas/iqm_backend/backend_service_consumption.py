@@ -53,7 +53,7 @@ def kafka_value_serializer(cyclops_resource_id:int, usage:float, usage_timestamp
     :param customer_id: CYCLOPS customer identifier (UUID, e.g., "ccc4dea0-d1d6-4a4c-bc71-3a46f1961c2a")
     :param submitter_email: Email of the user submitting the usage record
     :return: Serialized JSON value as bytes with the following structure:
-        
+
         * Account: Customer identifier
         * Metadata: JSON object containing LexisProject, LexisResourceName, Submitter, and UDRMode
         * ResourceType: SKU name

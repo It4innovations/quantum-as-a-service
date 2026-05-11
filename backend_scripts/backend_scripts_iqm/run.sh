@@ -14,7 +14,7 @@ LOG_FILE="execution_time_log.txt"
 # Check if Q_COMMAND is set
 if [ -z "$Q_COMMAND" ]; then
     echo "Error: Q_COMMAND environment variable is required"
-    echo "Valid values: backend_init, backend_run, pulla_init, pulla_submit_playlist, get_callibration_set"
+    echo "Valid values: backend_init, backend_run, pulla_init, pulla_submit_playlist, get_calibration_set"
     exit 1
 fi
 

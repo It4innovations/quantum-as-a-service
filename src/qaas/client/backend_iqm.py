@@ -315,7 +315,7 @@ class QBackendIQM(QBackend,IQMBackend):
         :raises QResultsFailed: When failed to execute HEAppE job or retrieve results of a job
         :raises QAuthException: If authentication with the remote cluster fails.
         """
-        # Transpile localy
+        # Transpile locally
         return transpile_to_IQM_orig(circuit=circuit, backend=self.remote_backend, **kwargs)
 
 

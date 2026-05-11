@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# run_standalone.sh - Script dispatcher of standalone circuit run. Executed by HEAppE direclty
+# run_standalone.sh - Script dispatcher of standalone circuit run. Executed by HEAppE directly
 
 set -e  # Exit on any error
 

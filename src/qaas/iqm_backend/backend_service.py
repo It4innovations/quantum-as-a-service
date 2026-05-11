@@ -55,7 +55,7 @@ class CommandParams:
     
     @property
     def parsing_error_message(self):
-        """When parsing error occures, thense message is set and should be returned to client, otherwise None is returned
+        """When parsing error occurs, thense message is set and should be returned to client, otherwise None is returned
 
         :return: Parsing error message if parsing error occurs, otherwise None
         """
@@ -279,8 +279,8 @@ class IQMBackendService:
                 if command_params.optional_args is None:
                     conn.sendall(b"ERROR: Missing backend name.")
                 else:
-                    opt_args_splitted = command_params.optional_args.split(",")
-                    self.backend_init(command_params.task_dir, command_params.full_id,  *opt_args_splitted)
+                    opt_args_split = command_params.optional_args.split(",")
+                    self.backend_init(command_params.task_dir, command_params.full_id,  *opt_args_split)
                     conn.sendall(b"DONE\n")
             elif command_params.command == "backend_run":
                 # Accounted
