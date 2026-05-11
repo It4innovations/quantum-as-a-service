@@ -24,7 +24,10 @@ from iqm.pulla.pulla import Pulla
 from iqm.qiskit_iqm import IQMBackend
 from iqm.station_control.interface.models import DynamicQuantumArchitecture
 
-from py4heappe.heappe_v6.core import ApiClient as HEAppEApi, Configuration as HEAppEConfiguration
+from py4heappe.heappe_v6.core import (
+    ApiClient as HEAppEApi,
+    Configuration as HEAppEConfiguration,
+)
 from py4heappe.heappe_v6.core.models import (
     CreateJobByProjectModel,
     SubmitJobModel,
@@ -36,15 +39,13 @@ from py4heappe.heappe_v6.core.models import (
     ClusterNodeTypeExt,
     ProjectExt,
     CommandTemplateExt,
-    SubmittedJobInfoExt
+    SubmittedJobInfoExt,
 )
-from py4heappe.heappe_v6.core.models import (
-    EnvironmentVariableExt
-)
+from py4heappe.heappe_v6.core.models import EnvironmentVariableExt
 from py4heappe.heappe_v6.core.api import (
     JobManagementApi,
     FileTransferApi,
-    ClusterInformationApi
+    ClusterInformationApi,
 )
 from py4heappe.heappe_v6.core.rest import ApiException
 
@@ -57,12 +58,12 @@ from .cryption_control import encrypt_string, generate_password
 # Set Logging
 # -----------
 
-log = logging.getLoggerClass()(__name__, os.environ.get(
-    'QPROVIDER_LOGLEVEL', 'INFO').upper())
+log = logging.getLoggerClass()(
+    __name__, os.environ.get("QPROVIDER_LOGLEVEL", "INFO").upper()
+)
 
 # Formatter for consistent output
-formatter = logging.Formatter(
-    "%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
 
 # Decide handler: file or stderr
 logfile = os.environ.get("QPROVIDER_LOGFILE")
@@ -95,7 +96,7 @@ class QClient:
     :type lexis_project: str
     :param lexis_resource_name: Optional specific resource name within project
     :type lexis_resource_name: str or None
-    :param quantum_computer_name: 
+    :param quantum_computer_name:
     :param backend_url: Optional custom backend URL override
     :type backend_url: str or None
 
@@ -105,7 +106,7 @@ class QClient:
 
     :cvar DEFAULT_LEXIS_ASSIGNMENT_LOCATION_NAME: Default quantum location name
     :vartype DEFAULT_LEXIS_ASSIGNMENT_LOCATION_NAME: str
-    :cvar DEFAULT_TEMPLATE_NAME: Default HEAppE command template name  
+    :cvar DEFAULT_TEMPLATE_NAME: Default HEAppE command template name
     :vartype DEFAULT_TEMPLATE_NAME: str
     :cvar USERORG_BASE_URL: Base URL for LEXIS UserOrg API
     :vartype USERORG_BASE_URL: str
@@ -135,11 +136,21 @@ class QClient:
     DEFAULT_QUANTUM_LOCATION_TYPE = 7
 
     # HEAppE 6.2 endpoints (not yet in client)
-    UPLOAD_FILE_TO_EXECUTION_DIR_ENDPOINT = "/heappe/FileTransfer/UploadFilesToJobExecutionDir"
-    
+    UPLOAD_FILE_TO_EXECUTION_DIR_ENDPOINT = (
+        "/heappe/FileTransfer/UploadFilesToJobExecutionDir"
+    )
+
     DEFAULT_POLL_TIME = 0.5
 
-    def __init__(self, token: str, lexis_project: str, lexis_resource_name: str | None = None, quantum_computer_name: str | None = None, provider_token:str=None, **kwargs):
+    def __init__(
+        self,
+        token: str,
+        lexis_project: str,
+        lexis_resource_name: str | None = None,
+        quantum_computer_name: str | None = None,
+        provider_token: str = None,
+        **kwargs,
+    ):
         """
         Initialize QClient with LEXIS authentication and project configuration.
 
@@ -175,33 +186,44 @@ class QClient:
         self.provider_token = provider_token
         self._heappe_client: Optional[HEAppEApi] = None
         # Caution, this attribute is changed by all authentication functions during initialization
-        self._authenticated = False  # FIXME: check that all login flows are correctly handled
+        self._authenticated = (
+            False  # FIXME: check that all login flows are correctly handled
+        )
 
         # These will be populated during resource authorization
         self._project_id = None
         self._cluster_id = None
 
-        
         # Operational kwargs
-        self._lexis_userorg_api_url = kwargs.get("lexis_userorg_api_url", self.DEFAULT_USERORG_BASE_URL)
-        
-        
+        self._lexis_userorg_api_url = kwargs.get(
+            "lexis_userorg_api_url", self.DEFAULT_USERORG_BASE_URL
+        )
+
         # Authenticate on initialization
         self._username, self._lexis_project_info = self._authenticate_authorize_lexis()
         self._authenticated = True
 
-        self._backend_metadata = self._authorize_lexis_resource(lexis_resource_name, quantum_computer_name)
+        self._backend_metadata = self._authorize_lexis_resource(
+            lexis_resource_name, quantum_computer_name
+        )
         self._heappe_client = self._authenticate_heappe()
         self._command_template_infos = self._get_command_template_ids(
-            template_name_qinit=kwargs.get("qinit_command_template_name", self.DEFAULT_QINIT_TEMPLATE_NAME),
-            template_name_qexecute=kwargs.get("qexecute_command_template_name", self.DEFAULT_QEXECUTE_TEMPLATE_NAME),
-            qinit_queue_name=kwargs.get("qinit_queue_name", self.DEFAULT_QINIT_QUEUE_NAME),
-            qexecute_queue_name=kwargs.get("qexecute_queue_name", self.DEFAULT_QEXECUTE_QUEUE_NAME)
-            )
+            template_name_qinit=kwargs.get(
+                "qinit_command_template_name", self.DEFAULT_QINIT_TEMPLATE_NAME
+            ),
+            template_name_qexecute=kwargs.get(
+                "qexecute_command_template_name", self.DEFAULT_QEXECUTE_TEMPLATE_NAME
+            ),
+            qinit_queue_name=kwargs.get(
+                "qinit_queue_name", self.DEFAULT_QINIT_QUEUE_NAME
+            ),
+            qexecute_queue_name=kwargs.get(
+                "qexecute_queue_name", self.DEFAULT_QEXECUTE_QUEUE_NAME
+            ),
+        )
 
         # Architecture
         self._dynamic_quantum_architectures = {}
-        
 
     def _authenticate_authorize_lexis(self) -> Tuple[str, Dict[str, Any]]:
         """
@@ -239,8 +261,9 @@ class QClient:
             ############################################################
             # This allows us to get the Keycloak base URL dynamically
             unverified_token = jwt.decode(
-                self._token, options={"verify_signature": False})
-            keycloak_base_url = unverified_token.get('iss')
+                self._token, options={"verify_signature": False}
+            )
+            keycloak_base_url = unverified_token.get("iss")
 
             if not keycloak_base_url:
                 raise ValueError("JWT token missing issuer (iss) claim")
@@ -257,7 +280,7 @@ class QClient:
                 ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             else:
                 ctx = ssl.create_default_context()
-            jwks_client = PyJWKClient(jwks_url,ssl_context=ctx)
+            jwks_client = PyJWKClient(jwks_url, ssl_context=ctx)
 
             # Get signing key from JWT header
             signing_key = jwks_client.get_signing_key_from_jwt(self._token)
@@ -271,37 +294,35 @@ class QClient:
                 issuer=keycloak_base_url,
                 audience="portal",
                 # Removed verify_aud for flexibility
-                options={"verify_exp": True, "verify_iss": True}
+                options={"verify_exp": True, "verify_iss": True},
             )
 
             # Extract user information from token
-            user_id = decoded_token.get(
-                'preferred_username') or decoded_token.get('sub')
+            user_id = decoded_token.get("preferred_username") or decoded_token.get(
+                "sub"
+            )
 
             if not user_id:
                 raise QAuthException(
                     reason="Invalid token: missing user information",
                     user_id=user_id,
-                    resource=self._lexis_project
+                    resource=self._lexis_project,
                 )
 
             # Check token expiration
-            exp_timestamp = decoded_token.get('exp')
+            exp_timestamp = decoded_token.get("exp")
             if exp_timestamp and exp_timestamp < time.time():
                 raise QAuthException(
                     reason="Token has expired",
                     user_id=user_id,
-                    resource=self._lexis_project
+                    resource=self._lexis_project,
                 )
 
-            log.debug("JWT token validated successfully for user: %s",
-                      user_id)
+            log.debug("JWT token validated successfully for user: %s", user_id)
 
         except Exception as e:
             log.error(e)
-            raise QAuthException(
-                resource=self._lexis_project
-            ) from e
+            raise QAuthException(resource=self._lexis_project) from e
 
         try:
             ##############################################
@@ -309,15 +330,19 @@ class QClient:
             ##############################################
 
             headers = {
-                'Authorization': f'Bearer {self._token}',
-                'Content-Type': 'application/json'
+                "Authorization": f"Bearer {self._token}",
+                "Content-Type": "application/json",
             }
 
             # Get user's project memberships
             user_projects_url = f"{self._lexis_userorg_api_url}/api/Project"
 
             response = requests.get(
-                user_projects_url, headers=headers, params={'ProjectShortName': self._lexis_project}, timeout=30)
+                user_projects_url,
+                headers=headers,
+                params={"ProjectShortName": self._lexis_project},
+                timeout=30,
+            )
             response.raise_for_status()
 
             projects_data = response.json()
@@ -328,7 +353,7 @@ class QClient:
 
             for project in projects_data:
                 # Check both 'id' and 'name' fields for project identification
-                project_shortname = project.get('ShortName')
+                project_shortname = project.get("ShortName")
 
                 if project_shortname == self._lexis_project:
                     project_found = True
@@ -338,14 +363,14 @@ class QClient:
             if not project_found:
                 available_projects = set()
                 for proj in projects_data:
-                    proj_identifier = proj.get('ShortName')
+                    proj_identifier = proj.get("ShortName")
                     if proj_identifier:
                         available_projects.add(proj_identifier)
 
                 raise QAuthException(
                     reason=f"User does not have access to LEXIS project '{self._lexis_project}'. Available projects: {available_projects}",
                     user_id=user_id,
-                    resource=self._lexis_project
+                    resource=self._lexis_project,
                 )
 
             log.debug("Project access verified: %s", self._lexis_project)
@@ -353,54 +378,55 @@ class QClient:
                 log.debug("Project details: %s ", str(project_info))
 
         except Exception as e:
-            raise QAuthException(
-                user_id=user_id,
-                resource=self._lexis_project
-            ) from e
+            raise QAuthException(user_id=user_id, resource=self._lexis_project) from e
 
         ###############################################
         # Verify project is active/enabled #
         ###############################################
-        project_start_date = project_info.get(
-            'StartDate', None)
-        project_end_date = project_info.get(
-            'EndDate', None)
+        project_start_date = project_info.get("StartDate", None)
+        project_end_date = project_info.get("EndDate", None)
 
         if project_start_date and project_end_date:
             try:
-
                 # Parse ISO format dates
                 start_dt = datetime.fromisoformat(
-                    project_start_date.replace('Z', '+00:00'))
-                end_dt = datetime.fromisoformat(
-                    project_end_date.replace('Z', '+00:00'))
-                current_dt = datetime.now(
-                    start_dt.tzinfo) if start_dt.tzinfo else datetime.now()
+                    project_start_date.replace("Z", "+00:00")
+                )
+                end_dt = datetime.fromisoformat(project_end_date.replace("Z", "+00:00"))
+                current_dt = (
+                    datetime.now(start_dt.tzinfo) if start_dt.tzinfo else datetime.now()
+                )
 
                 if current_dt < start_dt:
                     raise QAuthException(
                         reason=f"Project '{self._lexis_project}' has not started yet. Start date: {project_start_date}",
                         user_id=user_id,
-                        resource=self._lexis_project
+                        resource=self._lexis_project,
                     )
                 elif current_dt > end_dt:
                     raise QAuthException(
                         reason=f"Project '{self._lexis_project}' has expired. End date: {project_end_date}",
                         user_id=user_id,
-                        resource=self._lexis_project
+                        resource=self._lexis_project,
                     )
                 else:
-                    log.debug("Project is active from %s to %s",
-                              project_start_date, project_end_date)
+                    log.debug(
+                        "Project is active from %s to %s",
+                        project_start_date,
+                        project_end_date,
+                    )
 
             except ValueError as date_error:
                 log.warning("Could not parse project dates: %s", date_error)
-                raise QAuthException(
-                    "Could not parse project dates") from date_error
+                raise QAuthException("Could not parse project dates") from date_error
 
         return user_id, project_info
 
-    def _authorize_lexis_resource(self, lexis_resource_name: str | None = None, quantum_computer_name: str | None = None) -> QBackendMetadata:
+    def _authorize_lexis_resource(
+        self,
+        lexis_resource_name: str | None = None,
+        quantum_computer_name: str | None = None,
+    ) -> QBackendMetadata:
         """
         Authorize access to quantum resources within LEXIS project.
 
@@ -430,7 +456,7 @@ class QClient:
         The method validates:
 
         * Resource existence within project
-        * VLQ assignment availability  
+        * VLQ assignment availability
         * Resource active status (start/end dates)
         * HEAppE URL presence in specifications
         """
@@ -440,14 +466,18 @@ class QClient:
 
         try:
             headers = {
-                'Authorization': f'Bearer {self._token}',
-                'Content-Type': 'application/json'
+                "Authorization": f"Bearer {self._token}",
+                "Content-Type": "application/json",
             }
 
             # Get project resources
             project_resources_url = f"{self._lexis_userorg_api_url}/api/ProjectResource"
-            response = requests.get(project_resources_url, headers=headers, params={
-                                    'ProjectShortName': self._lexis_project}, timeout=30)
+            response = requests.get(
+                project_resources_url,
+                headers=headers,
+                params={"ProjectShortName": self._lexis_project},
+                timeout=30,
+            )
             response.raise_for_status()
 
             project_resources = response.json()
@@ -459,11 +489,16 @@ class QClient:
             assignment_info = None
             if lexis_resource_name is None:  # Try to find automatically
                 for resource in project_resources:
-                    for assignment in resource.get('Assignments', []):
-                        location_type_id = resource.get('LocationTypeId')
-                        if location_type_id == QClient.DEFAULT_QUANTUM_LOCATION_TYPE:  # LocationTypeId 7 corresponds to locations in LEXIS, which we use for quantum backends
-                            aggregation_name = resource.get('AggregationName')
-                            if aggregation_name in QClient.DEFAULT_LEXIS_AGGREGATION_NAME:
+                    for assignment in resource.get("Assignments", []):
+                        location_type_id = resource.get("LocationTypeId")
+                        if (
+                            location_type_id == QClient.DEFAULT_QUANTUM_LOCATION_TYPE
+                        ):  # LocationTypeId 7 corresponds to locations in LEXIS, which we use for quantum backends
+                            aggregation_name = resource.get("AggregationName")
+                            if (
+                                aggregation_name
+                                in QClient.DEFAULT_LEXIS_AGGREGATION_NAME
+                            ):
                                 if quantum_computer_name is None:
                                     assignment_info = assignment
                                     project_resource_info = resource
@@ -478,15 +513,15 @@ class QClient:
                 if not project_resource_info:
                     raise QAuthException(
                         reason=f"No resource with VLQ found for LEXIS project '{self._lexis_project}', please verify you have assigned one!",
-                        user_id=self._username
+                        user_id=self._username,
                     )
             else:
                 for resource in project_resources:
-                    resource_name = resource.get('Name')
+                    resource_name = resource.get("Name")
                     if resource_name == lexis_resource_name:
                         project_resource_info = resource
-                        for assignment in resource.get('Assignments', []):
-                            location_name = assignment.get('LocationName')
+                        for assignment in resource.get("Assignments", []):
+                            location_name = assignment.get("LocationName")
                             if location_name in QClient.DEFAULT_LEXIS_AGGREGATION_NAME:
                                 assignment_info = assignment
                                 break
@@ -496,86 +531,95 @@ class QClient:
                 raise QAuthException(
                     reason=f"Resource or assignment of type {QClient.DEFAULT_LEXIS_AGGREGATION_NAME} not found in available resources for project '{self._lexis_project}'",
                     user_id=self._username,
-                    resource=lexis_resource_name
+                    resource=lexis_resource_name,
                 )
 
             ###############################################
             # Verify resource is active/enabled #
             ###############################################
-            resource_start_date = project_resource_info.get(
-                'StartDate', None)
-            resource_end_date = project_resource_info.get(
-                'EndDate', None)
+            resource_start_date = project_resource_info.get("StartDate", None)
+            resource_end_date = project_resource_info.get("EndDate", None)
 
             if resource_start_date and resource_end_date:
                 try:
-
                     # Parse ISO format dates
                     start_dt = datetime.fromisoformat(
-                        resource_start_date.replace('Z', '+00:00'))
+                        resource_start_date.replace("Z", "+00:00")
+                    )
                     end_dt = datetime.fromisoformat(
-                        resource_end_date.replace('Z', '+00:00'))
-                    current_dt = datetime.now(
-                        start_dt.tzinfo) if start_dt.tzinfo else datetime.now()
+                        resource_end_date.replace("Z", "+00:00")
+                    )
+                    current_dt = (
+                        datetime.now(start_dt.tzinfo)
+                        if start_dt.tzinfo
+                        else datetime.now()
+                    )
 
                     if current_dt < start_dt:
                         raise QAuthException(
                             reason=f"Project '{self._lexis_project}' has not started yet. Start date: {resource_start_date}",
                             user_id=self._username,
-                            resource=self._lexis_project
+                            resource=self._lexis_project,
                         )
                     elif current_dt > end_dt:
                         raise QAuthException(
                             reason=f"Project '{self._lexis_project}' has expired. End date: {resource_end_date}",
                             user_id=self._username,
-                            resource=self._lexis_project
+                            resource=self._lexis_project,
                         )
                     else:
-                        log.debug("Project is active from %s to %s",
-                                  resource_start_date, resource_end_date)
+                        log.debug(
+                            "Project is active from %s to %s",
+                            resource_start_date,
+                            resource_end_date,
+                        )
 
                 except ValueError as date_error:
-                    log.warning(
-                        "Could not parse project dates: %s", date_error)
+                    log.warning("Could not parse project dates: %s", date_error)
 
                 # Extract HEAppE URL, SW_STACK, QUANTUM_TECHNOLOGY from specifications
                 heappe_url = None
                 sw_stack = None
                 quantum_technology = None
-                for spec in assignment_info.get('Specifications', []):
-                    if spec.get('Key') == 'HEAPPE_URL':
-                        heappe_url = spec.get('Value')
-                    elif spec.get('Key') == 'SW_STACK':
-                        sw_stack = spec.get('Value')
-                    elif spec.get('Key') == 'QUANTUM_TECHNOLOGY':
-                        quantum_technology = spec.get('Value')
+                for spec in assignment_info.get("Specifications", []):
+                    if spec.get("Key") == "HEAPPE_URL":
+                        heappe_url = spec.get("Value")
+                    elif spec.get("Key") == "SW_STACK":
+                        sw_stack = spec.get("Value")
+                    elif spec.get("Key") == "QUANTUM_TECHNOLOGY":
+                        quantum_technology = spec.get("Value")
                     # stop searching when all keys was found
                     if heappe_url and sw_stack and quantum_technology:
                         break
-                        
+
                 # Check whether all required keys was found
                 if not heappe_url:
                     raise QAuthException(
                         reason="HEAPPE_URL not found in resource specifications",
                         user_id=self._username,
-                        resource=self._lexis_project
+                        resource=self._lexis_project,
                     )
                 if not sw_stack:
                     raise QAuthException(
                         reason="SW_STACK not found in resource specifications",
                         user_id=self._username,
-                        resource=self._lexis_project
+                        resource=self._lexis_project,
                     )
-                
+
                 # quantum technology is optional
 
-                log.debug("Found SW_STACK: %s, QUANTUM_TECHNOLOGY: %s, HEAppE URL: %s for resource: %s",
-                          sw_stack, "-" if not quantum_technology else quantum_technology, heappe_url, lexis_resource_name)
+                log.debug(
+                    "Found SW_STACK: %s, QUANTUM_TECHNOLOGY: %s, HEAppE URL: %s for resource: %s",
+                    sw_stack,
+                    "-" if not quantum_technology else quantum_technology,
+                    heappe_url,
+                    lexis_resource_name,
+                )
 
                 backend_info = QBackendMetadata(
                     backend_name=assignment_info["AggregationName"],
                     swstack=sw_stack,
-                    available="UNKNOWN", #FIXME: get this information
+                    available="UNKNOWN",  # FIXME: get this information
                     quantum_technology=quantum_technology,
                     lexis_resource=LexisResource(
                         project_resource_info["Name"],
@@ -583,10 +627,10 @@ class QClient:
                         assignment_info["ProjectResourceId"],
                         project_resource_info["StartDate"],
                         project_resource_info["EndDate"],
-                        heappe_url
-                        ),
+                        heappe_url,
+                    ),
                     lexis_project=LexisProject(self._lexis_project),
-                    host_entity=assignment_info["LocationName"]
+                    host_entity=assignment_info["LocationName"],
                 )
 
                 return backend_info
@@ -597,10 +641,10 @@ class QClient:
             raise QAuthException(
                 reason=f"Failed to authorize LEXIS resource: {str(e)}",
                 user_id=self._username,
-                resource=self._lexis_project
+                resource=self._lexis_project,
             ) from e
 
-    def _authenticate_heappe(self)->HEAppEApi:
+    def _authenticate_heappe(self) -> HEAppEApi:
         """
         Prepares HEAppE client for communication with HEAppE instances connected to QCs.
 
@@ -611,7 +655,7 @@ class QClient:
 
         try:
             # Setup file with trusted public certificate
-            ca_file = NamedTemporaryFile('w', encoding='utf-8', delete=False)
+            ca_file = NamedTemporaryFile("w", encoding="utf-8", delete=False)
 
             ca_file.write(
                 """-----BEGIN CERTIFICATE-----
@@ -687,43 +731,59 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             conf: HEAppEConfiguration = HEAppEConfiguration()
             conf.host = self._backend_metadata.lexis_resource.heappe_url
             conf.ssl_ca_cert = ca_file.name
-            
+
             heappe_client: HEAppEApi = HEAppEApi(
-                conf,
-                header_name='Authorization',
-                header_value=f"Bearer {self._token}"
+                conf, header_name="Authorization", header_value=f"Bearer {self._token}"
             )
             return heappe_client
 
         except Exception as e:
             raise QAuthException(
-                f"HEAppE authentication failed: {str(e)}", self._username, f"{self._lexis_project}") from e
+                f"HEAppE authentication failed: {str(e)}",
+                self._username,
+                f"{self._lexis_project}",
+            ) from e
 
-    def _python_object_upload_to_cluster(self, python_object, target_file_name:str, job_info:SubmittedJobInfoExt, use_dill=False):
-        """Uploads python 
-        
+    def _python_object_upload_to_cluster(
+        self,
+        python_object,
+        target_file_name: str,
+        job_info: SubmittedJobInfoExt,
+        use_dill=False,
+    ):
+        """Uploads python
+
         :param python_object: Python object to pickle and send to HEAppE job (job should be already created)
         :param target_file_name: Target file name without extension. (.pkl will be appended)
         :param use_dill: Dill can serialize lambda funcs,defaults to False
         :raises QException: on upload failure
         """
-        files = {'files': (target_file_name+".pkl",
-                                pickle.dumps(python_object,protocol=pickle.HIGHEST_PROTOCOL) if not use_dill else dill.dumps(python_object, protocol=dill.HIGHEST_PROTOCOL),
-                                'application/octet-stream')}
+        files = {
+            "files": (
+                target_file_name + ".pkl",
+                pickle.dumps(python_object, protocol=pickle.HIGHEST_PROTOCOL)
+                if not use_dill
+                else dill.dumps(python_object, protocol=dill.HIGHEST_PROTOCOL),
+                "application/octet-stream",
+            )
+        }
 
-        full_upload_file_url = self._backend_metadata.lexis_resource.heappe_url + \
-                QClient.UPLOAD_FILE_TO_EXECUTION_DIR_ENDPOINT
+        full_upload_file_url = (
+            self._backend_metadata.lexis_resource.heappe_url
+            + QClient.UPLOAD_FILE_TO_EXECUTION_DIR_ENDPOINT
+        )
         upload_resp = requests.post(
             url=full_upload_file_url,
             files=files,
-            headers={'Authorization': f"Bearer {self._token}"},
+            headers={"Authorization": f"Bearer {self._token}"},
             timeout=120,
-            params={'JobId': job_info.id, 'TaskId': job_info.tasks[0].id})
+            params={"JobId": job_info.id, "TaskId": job_info.tasks[0].id},
+        )
 
         if upload_resp.status_code != 200:
             raise QException("Failed to upload quantum job backend!!!")
 
-        #pylint: disable=W0105
+        # pylint: disable=W0105
         """
         [
             {
@@ -736,17 +796,18 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         uploaded_files = upload_resp.json()
         # check if succeeded
         for _, f in enumerate(uploaded_files):
-            if f['Succeeded'] and target_file_name+'.pkl' == f['FileName']:
+            if f["Succeeded"] and target_file_name + ".pkl" == f["FileName"]:
                 return
-             
-             
+
         raise QException(
-        f"Job meta files failed to be uploaded. Assigned file name is '{target_file_name}'"
+            f"Job meta files failed to be uploaded. Assigned file name is '{target_file_name}'"
         )
-    
-    def _circuit_upload_to_cluster(self, circuit:str, target_file_name:str, job_info:SubmittedJobInfoExt):
-        """Uploads python 
-        
+
+    def _circuit_upload_to_cluster(
+        self, circuit: str, target_file_name: str, job_info: SubmittedJobInfoExt
+    ):
+        """Uploads python
+
         :param circuit: OpenQASM circuit
         :param target_file_name: Target file name without extension. (.qasm will be appended)
         :param job_info: Submitted job info
@@ -754,27 +815,26 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         :raises QException: on upload failure
 
         """
-        
-        
-        
-        file_name = target_file_name+".qasm"
-        files = {'files': (file_name,
-                                circuit,
-                                'text/plain')}
 
-        full_upload_file_url = self._backend_metadata.lexis_resource.heappe_url + \
-                QClient.UPLOAD_FILE_TO_EXECUTION_DIR_ENDPOINT
+        file_name = target_file_name + ".qasm"
+        files = {"files": (file_name, circuit, "text/plain")}
+
+        full_upload_file_url = (
+            self._backend_metadata.lexis_resource.heappe_url
+            + QClient.UPLOAD_FILE_TO_EXECUTION_DIR_ENDPOINT
+        )
         upload_resp = requests.post(
             url=full_upload_file_url,
             files=files,
-            headers={'Authorization': f"Bearer {self._token}"},
+            headers={"Authorization": f"Bearer {self._token}"},
             timeout=120,
-            params={'JobId': job_info.id, 'TaskId': job_info.tasks[0].id})
+            params={"JobId": job_info.id, "TaskId": job_info.tasks[0].id},
+        )
 
         if upload_resp.status_code != 200:
             raise QException("Failed to upload quantum job backend!!!")
 
-        #pylint: disable=W0105
+        # pylint: disable=W0105
         """
         [
             {
@@ -787,17 +847,18 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         uploaded_files = upload_resp.json()
         # check if succeeded
         for _, f in enumerate(uploaded_files):
-            if f['Succeeded'] and file_name == f['FileName']:
+            if f["Succeeded"] and file_name == f["FileName"]:
                 return
-             
-             
+
         raise QException(
-        f"Job meta files failed to be uploaded. Assigned file name is '{file_name}'"
+            f"Job meta files failed to be uploaded. Assigned file name is '{file_name}'"
         )
-    
-    def _token_upload_to_cluster(self, encryption_password:str, job_info:SubmittedJobInfoExt):
-        """Uploads python 
-        
+
+    def _token_upload_to_cluster(
+        self, encryption_password: str, job_info: SubmittedJobInfoExt
+    ):
+        """Uploads python
+
         :param enc_passw: Password to encrypt token with (original password, not encoded)
         :param job_info: Submitted job info
         :type SubmittedJobInfoExt:
@@ -805,26 +866,26 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
         """
         encrypted_token = encrypt_string(self._token, encryption_password)
-        
-        
-        file_name = "user_token.enc"
-        files = {'files': (file_name,
-                                encrypted_token,
-                                'text/plain')}
 
-        full_upload_file_url = self._backend_metadata.lexis_resource.heappe_url + \
-                QClient.UPLOAD_FILE_TO_EXECUTION_DIR_ENDPOINT
+        file_name = "user_token.enc"
+        files = {"files": (file_name, encrypted_token, "text/plain")}
+
+        full_upload_file_url = (
+            self._backend_metadata.lexis_resource.heappe_url
+            + QClient.UPLOAD_FILE_TO_EXECUTION_DIR_ENDPOINT
+        )
         upload_resp = requests.post(
             url=full_upload_file_url,
             files=files,
-            headers={'Authorization': f"Bearer {self._token}"},
+            headers={"Authorization": f"Bearer {self._token}"},
             timeout=120,
-            params={'JobId': job_info.id, 'TaskId': job_info.tasks[0].id})
+            params={"JobId": job_info.id, "TaskId": job_info.tasks[0].id},
+        )
 
         if upload_resp.status_code != 200:
             raise QException("Failed to upload quantum job backend!!!")
 
-        #pylint: disable=W0105
+        # pylint: disable=W0105
         """
         [
             {
@@ -837,17 +898,16 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         uploaded_files = upload_resp.json()
         # check if succeeded
         for _, f in enumerate(uploaded_files):
-            if f['Succeeded'] and file_name == f['FileName']:
+            if f["Succeeded"] and file_name == f["FileName"]:
                 return
-             
-             
+
         raise QException(
-        f"Job meta files failed to be uploaded. Assigned file name is '{file_name}'"
+            f"Job meta files failed to be uploaded. Assigned file name is '{file_name}'"
         )
-    
+
     @classmethod
-    def _get_real_template_name(cls, project_name:str, template_name:str)->str:
-        return project_name+"_"+template_name
+    def _get_real_template_name(cls, project_name: str, template_name: str) -> str:
+        return project_name + "_" + template_name
 
     @property
     def heappe_client(self) -> Optional[HEAppEApi]:
@@ -907,7 +967,13 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
         return self._backend_metadata
 
-    def submit_quantum_job(self, job_data: Dict[str, Any], backend:IQMBackend|Pulla=None, circuits: SweepDefinition|str|list[str]|None = None, run_options: dict[str, Any]|None = None) -> int:
+    def submit_quantum_job(
+        self,
+        job_data: Dict[str, Any],
+        backend: IQMBackend | Pulla = None,
+        circuits: SweepDefinition | str | list[str] | None = None,
+        run_options: dict[str, Any] | None = None,
+    ) -> int:
         """
         Submit a quantum job for execution via HEAppE.
 
@@ -925,7 +991,7 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             * cluster_id (int): HEAppE cluster ID (optional, uses default)
 
         :type job_data: Dict[str, Any]
-        
+
         :param circuits: Quantum circuit or list of circuits. OpenQASM serialized string.
         :type circuits: SweepDefinition|str|list[str]|None
         :param run_options: Dictionary of quantum circuit execution
@@ -956,25 +1022,37 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
 
-        if backend and isinstance(backend,Pulla) or (isinstance(circuits,list) and isinstance(circuits[0],SweepDefinition)):
-            log.warning("We are sorry for inconvenience, Pulla is currently not supported. We are working on this feature")
+        if (
+            backend
+            and isinstance(backend, Pulla)
+            or (isinstance(circuits, list) and isinstance(circuits[0], SweepDefinition))
+        ):
+            log.warning(
+                "We are sorry for inconvenience, Pulla is currently not supported. We are working on this feature"
+            )
             return NotImplemented
 
         # handle user token
         raw_encrypt_pwd, encoded_pwd = generate_password(50)
 
         # Determine whether to select qinit or qexecute
-        queue = 'qexecute' if backend else 'qinit'
-        heappe_project_id = self._command_template_infos[queue]['target_project_id']
-        heappe_cluster_id = self._command_template_infos[queue]['target_location_id']
-        heappe_node_type_id = self._command_template_infos[queue]['target_node_type_id']
-        heappe_command_template_id = self._command_template_infos[queue]['target_template_id']
-        heappe_file_transfer_method_id = self._command_template_infos[queue]['target_node_type_file_transfer_method_id']
-        minmax_cores = 1 if queue == 'qinit' else 2
-        
-        
-        log.debug("LEXIS_PROJECT_RESOURCE_ID: %s", str(self._backend_metadata.lexis_resource.project_resource_id))
-        
+        queue = "qexecute" if backend else "qinit"
+        heappe_project_id = self._command_template_infos[queue]["target_project_id"]
+        heappe_cluster_id = self._command_template_infos[queue]["target_location_id"]
+        heappe_node_type_id = self._command_template_infos[queue]["target_node_type_id"]
+        heappe_command_template_id = self._command_template_infos[queue][
+            "target_template_id"
+        ]
+        heappe_file_transfer_method_id = self._command_template_infos[queue][
+            "target_node_type_file_transfer_method_id"
+        ]
+        minmax_cores = 1 if queue == "qinit" else 2
+
+        log.debug(
+            "LEXIS_PROJECT_RESOURCE_ID: %s",
+            str(self._backend_metadata.lexis_resource.project_resource_id),
+        )
+
         try:
             env_variables = [
                 *job_data.get("environment_variables", []),
@@ -983,29 +1061,39 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
                 EnvironmentVariableExt("Q_COMMAND", "backend_run"),
                 EnvironmentVariableExt("USER_JWT_PWD", encoded_pwd),
                 EnvironmentVariableExt("LEXIS_PROJECT", self.lexis_project),
-                EnvironmentVariableExt("LEXIS_PROJECT_RESOURCE_ID", str(self._backend_metadata.lexis_resource.project_resource_id)),
-                ]
+                EnvironmentVariableExt(
+                    "LEXIS_PROJECT_RESOURCE_ID",
+                    str(self._backend_metadata.lexis_resource.project_resource_id),
+                ),
+            ]
             # Create job specification
             job_spec = JobSpecification(
-                name=job_data.get('name', 'quantum_job'),
-                project_id=job_data.get('project_id', heappe_project_id),
-                cluster_id=job_data.get('cluster_id', heappe_cluster_id),
-                tasks=[TaskSpecification(
-                    name="quantum_task",
-                    min_cores=minmax_cores,
-                    max_cores=minmax_cores,
-                    walltime_limit=job_data.get('walltime_limit', 7200),
-                    progress_file="quantum_task_progress.log",
-                    log_file="quantum_task_progress.log",
-                    cluster_node_type_id=job_data.get('tasks', [{'cluster_node_type_id': heappe_node_type_id}])[
-                        0].get('cluster_node_type_id', heappe_node_type_id),
-                    command_template_id=job_data.get('command_template_id', [{'command_template_id': heappe_command_template_id}])[
-                        0].get('command_template_id', heappe_command_template_id),
-                    template_parameter_values=job_data.get('tasks', [{'template_parameter_values': []}])[
-                        0].get('template_parameter_values', [])
-                )],
+                name=job_data.get("name", "quantum_job"),
+                project_id=job_data.get("project_id", heappe_project_id),
+                cluster_id=job_data.get("cluster_id", heappe_cluster_id),
+                tasks=[
+                    TaskSpecification(
+                        name="quantum_task",
+                        min_cores=minmax_cores,
+                        max_cores=minmax_cores,
+                        walltime_limit=job_data.get("walltime_limit", 7200),
+                        progress_file="quantum_task_progress.log",
+                        log_file="quantum_task_progress.log",
+                        cluster_node_type_id=job_data.get(
+                            "tasks", [{"cluster_node_type_id": heappe_node_type_id}]
+                        )[0].get("cluster_node_type_id", heappe_node_type_id),
+                        command_template_id=job_data.get(
+                            "command_template_id",
+                            [{"command_template_id": heappe_command_template_id}],
+                        )[0].get("command_template_id", heappe_command_template_id),
+                        template_parameter_values=job_data.get(
+                            "tasks", [{"template_parameter_values": []}]
+                        )[0].get("template_parameter_values", []),
+                    )
+                ],
                 file_transfer_method_id=job_data.get(
-                    'file_transfer_method_id', heappe_file_transfer_method_id),
+                    "file_transfer_method_id", heappe_file_transfer_method_id
+                ),
                 environment_variables=env_variables,
             )
 
@@ -1015,66 +1103,128 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
             # Submit job
             try:
-                job_info: SubmittedJobInfoExt = heappe_job_management_api.heappe_job_management_create_job_post(
-                    body=job_spec_model)
+                job_info: SubmittedJobInfoExt = (
+                    heappe_job_management_api.heappe_job_management_create_job_post(
+                        body=job_spec_model
+                    )
+                )
                 if not job_info:
                     raise QException("Job creation failed!!!")
             except ApiException as e:
                 if e.status == 401:
                     raise QAuthException("Unauthorized!!!") from e
-                raise QException(f"Unable to create job: {e.reason}; API status: {e.status}") from e
-            
+                raise QException(
+                    f"Unable to create job: {e.reason}; API status: {e.status}"
+                ) from e
+
             # upload token
             self._token_upload_to_cluster(raw_encrypt_pwd, job_info)
-            
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
                 upload_futures = []
                 ####################
                 # Upload circuits #
                 ####################
                 # if circuits is set, upload it to execution directory of job
-                if circuits and isinstance(circuits,SweepDefinition) or (isinstance(circuits,list) and isinstance(circuits[0],SweepDefinition)):
-                    upload_futures.append(executor.submit(self._python_object_upload_to_cluster, circuits, 'sweep', job_info, True))
+                if (
+                    circuits
+                    and isinstance(circuits, SweepDefinition)
+                    or (
+                        isinstance(circuits, list)
+                        and isinstance(circuits[0], SweepDefinition)
+                    )
+                ):
+                    upload_futures.append(
+                        executor.submit(
+                            self._python_object_upload_to_cluster,
+                            circuits,
+                            "sweep",
+                            job_info,
+                            True,
+                        )
+                    )
                 elif circuits:
                     q_circuits = circuits if isinstance(circuits, list) else [circuits]
                     for index, circuit in enumerate(q_circuits):
-                        upload_futures.append(executor.submit(self._circuit_upload_to_cluster, circuit, f'circuit_{index}', job_info))
-                        
-                
+                        upload_futures.append(
+                            executor.submit(
+                                self._circuit_upload_to_cluster,
+                                circuit,
+                                f"circuit_{index}",
+                                job_info,
+                            )
+                        )
+
                 #####################
                 # Upload run_kwargs #
                 #####################
                 # if run_kwargs is set, upload it to execution directory of job
                 if run_options:
-                    upload_futures.append(executor.submit(self._python_object_upload_to_cluster, run_options, "run_kwargs", job_info, True))
-                
+                    upload_futures.append(
+                        executor.submit(
+                            self._python_object_upload_to_cluster,
+                            run_options,
+                            "run_kwargs",
+                            job_info,
+                            True,
+                        )
+                    )
+
                 ##################
                 # Upload backend #
                 ##################
-                if backend and (isinstance(backend,IQMBackend)):
-                    upload_futures.append(executor.submit(self._python_object_upload_to_cluster,backend, "backend", job_info, False))
+                if backend and (isinstance(backend, IQMBackend)):
+                    upload_futures.append(
+                        executor.submit(
+                            self._python_object_upload_to_cluster,
+                            backend,
+                            "backend",
+                            job_info,
+                            False,
+                        )
+                    )
                     # Fixes loading of iqm_ attrs of IQMTarget
-                    if isinstance(backend,IQMBackend):
+                    if isinstance(backend, IQMBackend):
+
                         def _get_iqm_target_attrs(backend):
                             # Covering fix, that iqm_ attributes are not mentioned in class definition of IQMTarget, so pickling does not save them
                             return {
                                 attr: getattr(backend.target, attr)
                                 for attr in dir(backend.target)
-                                if attr.startswith('iqm_') and not attr.startswith('__')
+                                if attr.startswith("iqm_") and not attr.startswith("__")
                             }
-                        iqm_target_attrs = _get_iqm_target_attrs(backend)
-                        upload_futures.append(executor.submit(self._python_object_upload_to_cluster, iqm_target_attrs, "iqm_target_attrs", job_info, False))
-                elif backend and isinstance(backend,Pulla):
-                    upload_futures.append(executor.submit(self._python_object_upload_to_cluster,backend, "pulla", job_info, True))
 
-                done, pending = concurrent.futures.wait(upload_futures, return_when=concurrent.futures.FIRST_EXCEPTION)
+                        iqm_target_attrs = _get_iqm_target_attrs(backend)
+                        upload_futures.append(
+                            executor.submit(
+                                self._python_object_upload_to_cluster,
+                                iqm_target_attrs,
+                                "iqm_target_attrs",
+                                job_info,
+                                False,
+                            )
+                        )
+                elif backend and isinstance(backend, Pulla):
+                    upload_futures.append(
+                        executor.submit(
+                            self._python_object_upload_to_cluster,
+                            backend,
+                            "pulla",
+                            job_info,
+                            True,
+                        )
+                    )
+
+                done, pending = concurrent.futures.wait(
+                    upload_futures, return_when=concurrent.futures.FIRST_EXCEPTION
+                )
                 for future in pending:
                     future.cancel()
-                
+
                 # This will raise if any done future has an exception
                 for future in done:
                     future.result()  # Raises exception if future failed
-            
+
             ########################
             # Submit job to HEAppE #
             ########################
@@ -1082,17 +1232,21 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             # Submit to queue
             try:
                 heappe_job_management_api.heappe_job_management_submit_job_put(
-                    body=submit_model)
+                    body=submit_model
+                )
             except ApiException as e:
                 if e.status == 401:
                     raise QAuthException("Unauthorized!!!") from e
-                raise QException(f"Unable to submit job: {e.reason}; API status: {e.status}") from e
+                raise QException(
+                    f"Unable to submit job: {e.reason}; API status: {e.status}"
+                ) from e
             return job_info.id
 
         except QException as e:
             raise e
         except Exception as e:
             import traceback
+
             traceback.print_exc(file=sys.stderr)
             raise QException("Job submission failed!!!") from e
 
@@ -1131,23 +1285,34 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             raise QAuthException("Client not authenticated")
 
         try:
-
             heappe_job_management_api = JobManagementApi(self._heappe_client)
-            try: 
+            try:
                 job_info: SubmittedJobInfoExt = heappe_job_management_api.heappe_job_management_current_info_for_job_get(
                     SubmittedJobInfoId=job_id
                 )
             except ApiException as e:
                 if e.status == 401:
                     raise QAuthException("Unauthorized!!!") from e
-                raise QException(f"Unable to get job info: {e.reason}; API status: {e.status}") from e
+                raise QException(
+                    f"Unable to get job info: {e.reason}; API status: {e.status}"
+                ) from e
 
-            if hasattr(job_info, 'state'):
+            if hasattr(job_info, "state"):
                 job_state = JobState(job_info.state)
-                log.debug("Job '%d' state '%d', failed_code '%d', %s", job_id,
-                          job_info.state, JobState.Failed.value, str(job_state == JobState.Failed))
-                is_failed: bool = job_state == JobState.Failed or job_state == JobState.Canceled
-                is_finished: bool = job_state.value > JobState.Running.value and job_state != JobState.WaitingForServiceAccount
+                log.debug(
+                    "Job '%d' state '%d', failed_code '%d', %s",
+                    job_id,
+                    job_info.state,
+                    JobState.Failed.value,
+                    str(job_state == JobState.Failed),
+                )
+                is_failed: bool = (
+                    job_state == JobState.Failed or job_state == JobState.Canceled
+                )
+                is_finished: bool = (
+                    job_state.value > JobState.Running.value
+                    and job_state != JobState.WaitingForServiceAccount
+                )
 
                 if is_failed:
                     return "FAILED", job_info.id, [task.id for task in job_info.tasks]
@@ -1160,7 +1325,15 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         except Exception as e:
             raise QException("Failed to get job status!") from e
 
-    def get_job_results(self, job_id: int, file_names_to_fetch: list[str] = None, use_dill:list[bool] = None, job_status=None, task_ids=None, wait=False) -> Dict[str, Any]:
+    def get_job_results(
+        self,
+        job_id: int,
+        file_names_to_fetch: list[str] = None,
+        use_dill: list[bool] = None,
+        job_status=None,
+        task_ids=None,
+        wait=False,
+    ) -> Dict[str, Any]:
         """
         Retrieve quantum job execution results from HEAppE.
 
@@ -1180,7 +1353,7 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
             * results: Quantum measurement results
             * circuit: Circuit specification used
-            * job: Job execution information  
+            * job: Job execution information
             * backend: Backend configuration
             * status: Job completion status
 
@@ -1209,8 +1382,7 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
         if not self.is_authenticated:
             raise QAuthException(
-                reason="Client not authenticated",
-                resource=f"job_{job_id}"
+                reason="Client not authenticated", resource=f"job_{job_id}"
             )
 
         if file_names_to_fetch is None:
@@ -1231,12 +1403,12 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
                 try:
                     file_content_stderr = self._download_file_from_cluster_binary(
                         submitted_job_context_id=job_id,
-                        relative_file_path=f"/{job_id}/{task_ids[0]}/stderr.txt"
+                        relative_file_path=f"/{job_id}/{task_ids[0]}/stderr.txt",
                     )
 
                     file_content_stdout = self._download_file_from_cluster_binary(
                         submitted_job_context_id=job_id,
-                        relative_file_path=f"/{job_id}/{task_ids[0]}/stdout.txt"
+                        relative_file_path=f"/{job_id}/{task_ids[0]}/stdout.txt",
                     )
 
                     # Unpickle the results
@@ -1244,8 +1416,13 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
                     stderr_content = file_content_stderr.decode("utf-8")
                 except Exception as e:
                     raise QResultsFailed(job_id) from e
-                raise QResultsFailed(job_id, "Failure reason (stderr):\n" +
-                                     stderr_content+"\n-------\n (stdout):\n"+stdout_content)
+                raise QResultsFailed(
+                    job_id,
+                    "Failure reason (stderr):\n"
+                    + stderr_content
+                    + "\n-------\n (stdout):\n"
+                    + stdout_content,
+                )
 
             # Not finished, continue polling
             if job_status != "FINISHED":
@@ -1261,24 +1438,28 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
                 try:
                     # Download the pickle file as binary
                     file_content = self._download_file_from_cluster_binary(
-                        submitted_job_context_id=job_id,
-                        relative_file_path=file_name
+                        submitted_job_context_id=job_id, relative_file_path=file_name
                     )
 
                     # Unpickle the results
-                    unpickled_data = dill.loads(file_content) if use_dill[idx] else pickle.loads(file_content)
-                    results_data[file_name.split("/")[-1].split(".")[0]] = unpickled_data
+                    unpickled_data = (
+                        dill.loads(file_content)
+                        if use_dill[idx]
+                        else pickle.loads(file_content)
+                    )
+                    results_data[file_name.split("/")[-1].split(".")[0]] = (
+                        unpickled_data
+                    )
 
                 except Exception as file_error:
                     log.warning(
-                        "Could not download or unpickle %s: %s", file_name, file_error)
+                        "Could not download or unpickle %s: %s", file_name, file_error
+                    )
                     raise QException(
-                        f"Could not download or unpickle {file_name}: ") from file_error
+                        f"Could not download or unpickle {file_name}: "
+                    ) from file_error
 
-            return {
-                **results_data,
-                "status": "FINISHED"
-            }
+            return {**results_data, "status": "FINISHED"}
 
         except QException:
             raise
@@ -1287,14 +1468,16 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
                 f"Failed to get job ({job_id}) results: {str(e)}"
             ) from e
 
-    def get_pulla(self)->Tuple[Dict[str,Any],Pulla]:
+    def get_pulla(self) -> Tuple[Dict[str, Any], Pulla]:
         """Initialize Pulla and returns it data to be able to instantiate QPulla, to avoid calling API from client
 
         :raises QAuthException: Failed to verify client
         :raises QException: General exception raised inside QaaS
         :return: data required to initialize QPulla, Pulla instance created on remote
         """
-        log.warning("We are sorry for inconvenience, Pulla is currently not supported. We are working on this feature")
+        log.warning(
+            "We are sorry for inconvenience, Pulla is currently not supported. We are working on this feature"
+        )
         return NotImplemented
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
@@ -1303,36 +1486,45 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         raw_encrypt_pwd, encoded_pwd = generate_password(50)
 
         # Determine whether to select qinit or qexecute
-        QUEUE = 'qinit'
-        heappe_project_id = self._command_template_infos[QUEUE]['target_project_id']
-        heappe_cluster_id = self._command_template_infos[QUEUE]['target_location_id']
-        heappe_node_type_id = self._command_template_infos[QUEUE]['target_node_type_id']
-        heappe_command_template_id = self._command_template_infos[QUEUE]['target_template_id']
-        heappe_file_transfer_method_id = self._command_template_infos[QUEUE]['target_node_type_file_transfer_method_id']
+        QUEUE = "qinit"
+        heappe_project_id = self._command_template_infos[QUEUE]["target_project_id"]
+        heappe_cluster_id = self._command_template_infos[QUEUE]["target_location_id"]
+        heappe_node_type_id = self._command_template_infos[QUEUE]["target_node_type_id"]
+        heappe_command_template_id = self._command_template_infos[QUEUE][
+            "target_template_id"
+        ]
+        heappe_file_transfer_method_id = self._command_template_infos[QUEUE][
+            "target_node_type_file_transfer_method_id"
+        ]
         MINMAX_CORES = 1
         try:
             env_variables = [
-                EnvironmentVariableExt("Q_COMMAND","pulla_init"),
+                EnvironmentVariableExt("Q_COMMAND", "pulla_init"),
                 EnvironmentVariableExt("USER_JWT_PWD", encoded_pwd),
                 EnvironmentVariableExt("LEXIS_PROJECT", self.lexis_project),
-                EnvironmentVariableExt("LEXIS_PROJECT_RESOURCE_ID", str(self._backend_metadata.lexis_resource.project_resource_id)),
-                ]
+                EnvironmentVariableExt(
+                    "LEXIS_PROJECT_RESOURCE_ID",
+                    str(self._backend_metadata.lexis_resource.project_resource_id),
+                ),
+            ]
             # Create job specification
             job_spec = JobSpecification(
-                name='quantum_pulla_init',
+                name="quantum_pulla_init",
                 project_id=heappe_project_id,
                 cluster_id=heappe_cluster_id,
-                tasks=[TaskSpecification(
-                    name="quantum_task",
-                    min_cores=MINMAX_CORES,
-                    max_cores=MINMAX_CORES,
-                    walltime_limit=60,
-                    progress_file="quantum_task_progress.log",
-                    log_file="quantum_task_progress.log",
-                    cluster_node_type_id=heappe_node_type_id,
-                    command_template_id=heappe_command_template_id,
-                    template_parameter_values=[]
-                )],
+                tasks=[
+                    TaskSpecification(
+                        name="quantum_task",
+                        min_cores=MINMAX_CORES,
+                        max_cores=MINMAX_CORES,
+                        walltime_limit=60,
+                        progress_file="quantum_task_progress.log",
+                        log_file="quantum_task_progress.log",
+                        cluster_node_type_id=heappe_node_type_id,
+                        command_template_id=heappe_command_template_id,
+                        template_parameter_values=[],
+                    )
+                ],
                 file_transfer_method_id=heappe_file_transfer_method_id,
                 environment_variables=env_variables,
             )
@@ -1343,18 +1535,23 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
             # Submit job
             try:
-                job_info: SubmittedJobInfoExt = heappe_job_management_api.heappe_job_management_create_job_post(
-                    body=job_spec_model)
+                job_info: SubmittedJobInfoExt = (
+                    heappe_job_management_api.heappe_job_management_create_job_post(
+                        body=job_spec_model
+                    )
+                )
                 if not job_info:
                     raise QException("Job creation failed!!!")
             except ApiException as e:
                 if e.status == 401:
                     raise QAuthException("Unauthorized!!!") from e
-                raise QException(f"Unable to create job: {e.reason}; API status: {e.status}") from e
-            
+                raise QException(
+                    f"Unable to create job: {e.reason}; API status: {e.status}"
+                ) from e
+
             # upload token
             self._token_upload_to_cluster(raw_encrypt_pwd, job_info)
-            
+
             ########################
             # Submit job to HEAppE #
             ########################
@@ -1362,28 +1559,34 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             # Submit to queue
             try:
                 heappe_job_management_api.heappe_job_management_submit_job_put(
-                    body=submit_model)
+                    body=submit_model
+                )
             except ApiException as e:
                 if e.status == 401:
                     raise QAuthException("Unauthorized!!!") from e
-                raise QException(f"Unable to submit job: {e.reason}; API status: {e.status}") from e
-            
+                raise QException(
+                    f"Unable to submit job: {e.reason}; API status: {e.status}"
+                ) from e
+
             # Fetch results of initialization
-            results = self.get_job_results(job_info.id,
-                                 [f"/{job_info.id}/{job_info.tasks[0].id}/pulla_data.pkl",
-                                    f"/{job_info.id}/{job_info.tasks[0].id}/pulla.pkl"],
-                                 use_dill=[True,True],
-                                 task_ids=[job_info.tasks[0].id],
-                                 wait=True
-                                 )
-            return results['pulla_data'], results['pulla']
+            results = self.get_job_results(
+                job_info.id,
+                [
+                    f"/{job_info.id}/{job_info.tasks[0].id}/pulla_data.pkl",
+                    f"/{job_info.id}/{job_info.tasks[0].id}/pulla.pkl",
+                ],
+                use_dill=[True, True],
+                task_ids=[job_info.tasks[0].id],
+                wait=True,
+            )
+            return results["pulla_data"], results["pulla"]
 
         except QException as e:
             raise e
         except Exception as e:
             raise QException("Failed to initialize Pulla!!!") from e
-        
-    def get_calibration_set(self, calibration_set_id: UUID|None)->CalibrationSet:
+
+    def get_calibration_set(self, calibration_set_id: UUID | None) -> CalibrationSet:
         """Fetch from available calibration sets on QC
 
         :param calibration_set_id: When None, default calibration is fetched
@@ -1398,37 +1601,46 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         raw_encrypt_pwd, encoded_pwd = generate_password(50)
 
         # Determine whether to select qinit or qexecute
-        QUEUE = 'qinit'
-        heappe_project_id = self._command_template_infos[QUEUE]['target_project_id']
-        heappe_cluster_id = self._command_template_infos[QUEUE]['target_location_id']
-        heappe_node_type_id = self._command_template_infos[QUEUE]['target_node_type_id']
-        heappe_command_template_id = self._command_template_infos[QUEUE]['target_template_id']
-        heappe_file_transfer_method_id = self._command_template_infos[QUEUE]['target_node_type_file_transfer_method_id']
+        QUEUE = "qinit"
+        heappe_project_id = self._command_template_infos[QUEUE]["target_project_id"]
+        heappe_cluster_id = self._command_template_infos[QUEUE]["target_location_id"]
+        heappe_node_type_id = self._command_template_infos[QUEUE]["target_node_type_id"]
+        heappe_command_template_id = self._command_template_infos[QUEUE][
+            "target_template_id"
+        ]
+        heappe_file_transfer_method_id = self._command_template_infos[QUEUE][
+            "target_node_type_file_transfer_method_id"
+        ]
         MINMAX_CORES = 1
         try:
             env_variables = [
-                                EnvironmentVariableExt("Q_COMMAND","get_calibration_set"),
-                                EnvironmentVariableExt(encoded_pwd),
-                                EnvironmentVariableExt("LEXIS_PROJECT", self.lexis_project),
-                                EnvironmentVariableExt("LEXIS_PROJECT_RESOURCE_ID", str(self._backend_metadata.lexis_resource.project_resource_id)),
-                                EnvironmentVariableExt("Q_OPTIONAL_ARG", str(calibration_set_id)),
-                             ]
+                EnvironmentVariableExt("Q_COMMAND", "get_calibration_set"),
+                EnvironmentVariableExt(encoded_pwd),
+                EnvironmentVariableExt("LEXIS_PROJECT", self.lexis_project),
+                EnvironmentVariableExt(
+                    "LEXIS_PROJECT_RESOURCE_ID",
+                    str(self._backend_metadata.lexis_resource.project_resource_id),
+                ),
+                EnvironmentVariableExt("Q_OPTIONAL_ARG", str(calibration_set_id)),
+            ]
             # Create job specification
             job_spec = JobSpecification(
-                name='quantum_get_calibration_set',
+                name="quantum_get_calibration_set",
                 project_id=heappe_project_id,
                 cluster_id=heappe_cluster_id,
-                tasks=[TaskSpecification(
-                    name="quantum_task",
-                    min_cores=MINMAX_CORES,
-                    max_cores=MINMAX_CORES,
-                    walltime_limit=60,
-                    progress_file="quantum_task_progress.log",
-                    log_file="quantum_task_progress.log",
-                    cluster_node_type_id=heappe_node_type_id,
-                    command_template_id=heappe_command_template_id,
-                    template_parameter_values=[]
-                )],
+                tasks=[
+                    TaskSpecification(
+                        name="quantum_task",
+                        min_cores=MINMAX_CORES,
+                        max_cores=MINMAX_CORES,
+                        walltime_limit=60,
+                        progress_file="quantum_task_progress.log",
+                        log_file="quantum_task_progress.log",
+                        cluster_node_type_id=heappe_node_type_id,
+                        command_template_id=heappe_command_template_id,
+                        template_parameter_values=[],
+                    )
+                ],
                 file_transfer_method_id=heappe_file_transfer_method_id,
                 environment_variables=env_variables,
             )
@@ -1439,18 +1651,23 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
             # Submit job
             try:
-                job_info: SubmittedJobInfoExt = heappe_job_management_api.heappe_job_management_create_job_post(
-                    body=job_spec_model)
+                job_info: SubmittedJobInfoExt = (
+                    heappe_job_management_api.heappe_job_management_create_job_post(
+                        body=job_spec_model
+                    )
+                )
                 if not job_info:
                     raise QException("Job creation failed!!!")
             except ApiException as e:
                 if e.status == 401:
                     raise QAuthException("Unauthorized!!!") from e
-                raise QException(f"Unable to create job: {e.reason}; API status: {e.status}") from e
-            
+                raise QException(
+                    f"Unable to create job: {e.reason}; API status: {e.status}"
+                ) from e
+
             # upload token
             self._token_upload_to_cluster(raw_encrypt_pwd, job_info)
-            
+
             ########################
             # Submit job to HEAppE #
             ########################
@@ -1458,27 +1675,33 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             # Submit to queue
             try:
                 heappe_job_management_api.heappe_job_management_submit_job_put(
-                    body=submit_model)
+                    body=submit_model
+                )
             except ApiException as e:
                 if e.status == 401:
                     raise QAuthException("Unauthorized!!!") from e
-                raise QException(f"Unable to submit job: {e.reason}; API status: {e.status}") from e
-            
+                raise QException(
+                    f"Unable to submit job: {e.reason}; API status: {e.status}"
+                ) from e
+
             # Fetch results of initialization
-            results = self.get_job_results(job_info.id,
-                                 [f"/{job_info.id}/{job_info.tasks[0].id}/calibration_set.pkl"],
-                                 use_dill=[True],
-                                 task_ids=[job_info.tasks[0].id],
-                                 wait=True
-                                 )
-            return results['calibration_set']
+            results = self.get_job_results(
+                job_info.id,
+                [f"/{job_info.id}/{job_info.tasks[0].id}/calibration_set.pkl"],
+                use_dill=[True],
+                task_ids=[job_info.tasks[0].id],
+                wait=True,
+            )
+            return results["calibration_set"]
 
         except QException as e:
             raise e
         except Exception as e:
             raise QException("Failed to fetch calibration set!!!") from e
-    
-    def get_dynamic_architecture(self, calibration_set_id: UUID|None=None)->DynamicQuantumArchitecture:
+
+    def get_dynamic_architecture(
+        self, calibration_set_id: UUID | None = None
+    ) -> DynamicQuantumArchitecture:
         """Fetch from available calibration sets on QC
 
         :param calibration_set_id: When None, default calibration is fetched
@@ -1486,49 +1709,60 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         :raises QException: _description_
         :return: Calibration set
         """
-        _calibration_set_id = calibration_set_id if calibration_set_id is not None else "default"
-        
+        _calibration_set_id = (
+            calibration_set_id if calibration_set_id is not None else "default"
+        )
+
         if _calibration_set_id in self._dynamic_quantum_architectures:
             return self._dynamic_quantum_architectures[_calibration_set_id]
-        
+
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
 
         # handle token
         raw_encrypt_pwd, encoded_pwd = generate_password(50)
-        
+
         # Determine whether to select qinit or qexecute
-        QUEUE = 'qinit'
-        heappe_project_id = self._command_template_infos[QUEUE]['target_project_id']
-        heappe_cluster_id = self._command_template_infos[QUEUE]['target_location_id']
-        heappe_node_type_id = self._command_template_infos[QUEUE]['target_node_type_id']
-        heappe_command_template_id = self._command_template_infos[QUEUE]['target_template_id']
-        heappe_file_transfer_method_id = self._command_template_infos[QUEUE]['target_node_type_file_transfer_method_id']
+        QUEUE = "qinit"
+        heappe_project_id = self._command_template_infos[QUEUE]["target_project_id"]
+        heappe_cluster_id = self._command_template_infos[QUEUE]["target_location_id"]
+        heappe_node_type_id = self._command_template_infos[QUEUE]["target_node_type_id"]
+        heappe_command_template_id = self._command_template_infos[QUEUE][
+            "target_template_id"
+        ]
+        heappe_file_transfer_method_id = self._command_template_infos[QUEUE][
+            "target_node_type_file_transfer_method_id"
+        ]
         MINMAX_CORES = 1
         try:
             env_variables = [
-                                EnvironmentVariableExt("Q_COMMAND","get_dynamic_quantum_architecture"),
-                                EnvironmentVariableExt("USER_JWT_PWD", encoded_pwd),
-                                EnvironmentVariableExt("LEXIS_PROJECT", self.lexis_project),
-                                EnvironmentVariableExt("LEXIS_PROJECT_RESOURCE_ID", str(self._backend_metadata.lexis_resource.project_resource_id)),
-                                EnvironmentVariableExt("Q_OPTIONAL_ARG", str(_calibration_set_id)),
-                             ]
+                EnvironmentVariableExt("Q_COMMAND", "get_dynamic_quantum_architecture"),
+                EnvironmentVariableExt("USER_JWT_PWD", encoded_pwd),
+                EnvironmentVariableExt("LEXIS_PROJECT", self.lexis_project),
+                EnvironmentVariableExt(
+                    "LEXIS_PROJECT_RESOURCE_ID",
+                    str(self._backend_metadata.lexis_resource.project_resource_id),
+                ),
+                EnvironmentVariableExt("Q_OPTIONAL_ARG", str(_calibration_set_id)),
+            ]
             # Create job specification
             job_spec = JobSpecification(
-                name='quantum_get_dynamic_architecture',
+                name="quantum_get_dynamic_architecture",
                 project_id=heappe_project_id,
                 cluster_id=heappe_cluster_id,
-                tasks=[TaskSpecification(
-                    name="quantum_task",
-                    min_cores=MINMAX_CORES,
-                    max_cores=MINMAX_CORES,
-                    walltime_limit=60,
-                    progress_file="quantum_task_progress.log",
-                    log_file="quantum_task_progress.log",
-                    cluster_node_type_id=heappe_node_type_id,
-                    command_template_id=heappe_command_template_id,
-                    template_parameter_values=[]
-                )],
+                tasks=[
+                    TaskSpecification(
+                        name="quantum_task",
+                        min_cores=MINMAX_CORES,
+                        max_cores=MINMAX_CORES,
+                        walltime_limit=60,
+                        progress_file="quantum_task_progress.log",
+                        log_file="quantum_task_progress.log",
+                        cluster_node_type_id=heappe_node_type_id,
+                        command_template_id=heappe_command_template_id,
+                        template_parameter_values=[],
+                    )
+                ],
                 file_transfer_method_id=heappe_file_transfer_method_id,
                 environment_variables=env_variables,
             )
@@ -1539,18 +1773,23 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
             # Submit job
             try:
-                job_info: SubmittedJobInfoExt = heappe_job_management_api.heappe_job_management_create_job_post(
-                    body=job_spec_model)
+                job_info: SubmittedJobInfoExt = (
+                    heappe_job_management_api.heappe_job_management_create_job_post(
+                        body=job_spec_model
+                    )
+                )
                 if not job_info:
                     raise QException("Job creation failed!!!")
             except ApiException as e:
                 if e.status == 401:
                     raise QAuthException("Unauthorized!!!") from e
-                raise QException(f"Unable to create job: {e.reason}; API status: {e.status}") from e
-            
+                raise QException(
+                    f"Unable to create job: {e.reason}; API status: {e.status}"
+                ) from e
+
             # upload token
             self._token_upload_to_cluster(raw_encrypt_pwd, job_info)
-            
+
             ########################
             # Submit job to HEAppE #
             ########################
@@ -1558,33 +1797,39 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             # Submit to queue
             try:
                 heappe_job_management_api.heappe_job_management_submit_job_put(
-                    body=submit_model)
+                    body=submit_model
+                )
             except ApiException as e:
                 if e.status == 401:
                     raise QAuthException("Unauthorized!!!") from e
-                raise QException(f"Unable to submit job: {e.reason}; API status: {e.status}") from e
-            
+                raise QException(
+                    f"Unable to submit job: {e.reason}; API status: {e.status}"
+                ) from e
+
             # Fetch results of initialization
-            results = self.get_job_results(job_info.id,
-                                 [f"/{job_info.id}/{job_info.tasks[0].id}/dynamic_quantum_architecture.pkl"],
-                                 use_dill=[True],
-                                 task_ids=[job_info.tasks[0].id],
-                                 wait=True
-                                 )
-            dynamic_quantum_architecture = results['dynamic_quantum_architecture']
-            self._dynamic_quantum_architectures[dynamic_quantum_architecture.calibration_set_id] = (
-            dynamic_quantum_architecture
+            results = self.get_job_results(
+                job_info.id,
+                [
+                    f"/{job_info.id}/{job_info.tasks[0].id}/dynamic_quantum_architecture.pkl"
+                ],
+                use_dill=[True],
+                task_ids=[job_info.tasks[0].id],
+                wait=True,
             )
-            
+            dynamic_quantum_architecture = results["dynamic_quantum_architecture"]
+            self._dynamic_quantum_architectures[
+                dynamic_quantum_architecture.calibration_set_id
+            ] = dynamic_quantum_architecture
+
             return dynamic_quantum_architecture
 
         except QException as e:
             raise e
         except Exception as e:
             raise QException("Failed to fetch calibration set!!!") from e
-    
-    def get_available_backends(self)->Dict[str, Any]:
-        """ Get available backends based on UserOrganization Resources and Assignments information
+
+    def get_available_backends(self) -> Dict[str, Any]:
+        """Get available backends based on UserOrganization Resources and Assignments information
         List location and aggregation names with LocationTypeId == 7 (Quantum) and their associated resource names, which can be used to determine available quantum backends and their configurations.
         """
         if not self._authenticated:
@@ -1592,14 +1837,18 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
         try:
             headers = {
-                'Authorization': f'Bearer {self._token}',
-                'Content-Type': 'application/json'
+                "Authorization": f"Bearer {self._token}",
+                "Content-Type": "application/json",
             }
 
             # Get project resources
             project_resources_url = f"{self._lexis_userorg_api_url}/api/ProjectResource"
-            response = requests.get(project_resources_url, headers=headers, params={
-                                    'ProjectShortName': self._lexis_project}, timeout=30)
+            response = requests.get(
+                project_resources_url,
+                headers=headers,
+                params={"ProjectShortName": self._lexis_project},
+                timeout=30,
+            )
             response.raise_for_status()
 
             project_resources = response.json()
@@ -1609,50 +1858,53 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             # Find the project by name or ID
             backend_metadata_list: list[QBackendMetadata] = []
             for project_resource_info in project_resources:
-                for assignment_info in project_resource_info.get('Assignments', []):
-                    location_type_id = project_resource_info.get('LocationTypeId')
-                    if location_type_id == 7:  # LocationTypeId 7 corresponds to locations in LEXIS, which we use for quantum backends
-                        aggregation_name = project_resource_info.get('AggregationName')
+                for assignment_info in project_resource_info.get("Assignments", []):
+                    location_type_id = project_resource_info.get("LocationTypeId")
+                    if (
+                        location_type_id == 7
+                    ):  # LocationTypeId 7 corresponds to locations in LEXIS, which we use for quantum backends
+                        aggregation_name = project_resource_info.get("AggregationName")
                         if aggregation_name in QClient.DEFAULT_LEXIS_AGGREGATION_NAME:
-                            
                             quantum_technology = "UNKNOWN"
                             sw_stack = "UNKNOWN"
                             heappe_url = None
-                            for spec in assignment_info.get('Specifications', []):
-                                if spec.get('Key') == 'HEAPPE_URL':
-                                    heappe_url = spec.get('Value')
-                                elif spec.get('Key') == 'SW_STACK':
-                                    sw_stack = spec.get('Value')
-                                elif spec.get('Key') == 'QUANTUM_TECHNOLOGY':
-                                    quantum_technology = spec.get('Value')
-                            
+                            for spec in assignment_info.get("Specifications", []):
+                                if spec.get("Key") == "HEAPPE_URL":
+                                    heappe_url = spec.get("Value")
+                                elif spec.get("Key") == "SW_STACK":
+                                    sw_stack = spec.get("Value")
+                                elif spec.get("Key") == "QUANTUM_TECHNOLOGY":
+                                    quantum_technology = spec.get("Value")
+
                             qmetadata = QBackendMetadata(
-                            backend_name=assignment_info["AggregationName"],
-                            swstack=sw_stack,
-                            available="UNKNOWN", #FIXME: get this information
-                            quantum_technology=quantum_technology,
-                            lexis_resource=LexisResource(
-                                project_resource_info["Name"],
-                                assignment_info["AllocationAmount"],
-                                assignment_info["ProjectResourceId"],
-                                project_resource_info["StartDate"],
-                                project_resource_info["EndDate"],
-                                heappe_url
+                                backend_name=assignment_info["AggregationName"],
+                                swstack=sw_stack,
+                                available="UNKNOWN",  # FIXME: get this information
+                                quantum_technology=quantum_technology,
+                                lexis_resource=LexisResource(
+                                    project_resource_info["Name"],
+                                    assignment_info["AllocationAmount"],
+                                    assignment_info["ProjectResourceId"],
+                                    project_resource_info["StartDate"],
+                                    project_resource_info["EndDate"],
+                                    heappe_url,
                                 ),
-                            lexis_project=LexisProject(self._lexis_project),
-                            host_entity=assignment_info["LocationName"]
+                                lexis_project=LexisProject(self._lexis_project),
+                                host_entity=assignment_info["LocationName"],
                             )
                             backend_metadata_list.append(qmetadata)
-            return {metadata.backend_name: metadata for metadata in backend_metadata_list}
+            return {
+                metadata.backend_name: metadata for metadata in backend_metadata_list
+            }
         except Exception:
             raise QAuthException(
                 reason=f"Failed to retrieve resources for LEXIS project '{self._lexis_project}', please verify your assignment and try again!",
-                user_id=self._username
+                user_id=self._username,
             )
-    
-    def _download_file_from_cluster_binary(self,
-                                           submitted_job_context_id: int,
-                                           relative_file_path: str) -> bytes:
+
+    def _download_file_from_cluster_binary(
+        self, submitted_job_context_id: int, relative_file_path: str
+    ) -> bytes:
         """
         Download file from HEAppE cluster as binary data.
 
@@ -1678,25 +1930,33 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
         download_body = DownloadFileFromClusterModel(
             submitted_job_info_id=submitted_job_context_id,
-            relative_file_path=relative_file_path
+            relative_file_path=relative_file_path,
         )
 
-        api_request_body = {
-            "_preload_content": False,
-            "body": download_body
-        }
+        api_request_body = {"_preload_content": False, "body": download_body}
 
         file_transfer_api = FileTransferApi(self.heappe_client)
         try:
-            response = file_transfer_api.heappe_file_transfer_download_file_from_cluster_post(
-                **api_request_body)
+            response = (
+                file_transfer_api.heappe_file_transfer_download_file_from_cluster_post(
+                    **api_request_body
+                )
+            )
         except ApiException as e:
-                if e.status == 401:
-                    raise QAuthException("Unauthorized!!!") from e
-                raise QException(f"Unable to download file from cluster: {e.reason}; API status: {e.status}") from e
+            if e.status == 401:
+                raise QAuthException("Unauthorized!!!") from e
+            raise QException(
+                f"Unable to download file from cluster: {e.reason}; API status: {e.status}"
+            ) from e
         return base64.b64decode(json.loads(response.data))
 
-    def _get_command_template_ids(self, template_name_qinit: str, template_name_qexecute: str, qinit_queue_name:str, qexecute_queue_name:str) -> Dict[str,Dict[str,int]]:
+    def _get_command_template_ids(
+        self,
+        template_name_qinit: str,
+        template_name_qexecute: str,
+        qinit_queue_name: str,
+        qexecute_queue_name: str,
+    ) -> Dict[str, Dict[str, int]]:
         """
         Retrieve HEAppE command template configuration for quantum jobs.
 
@@ -1719,21 +1979,26 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             resource specified during client initialization.
         """
 
-        qinit_template_name = QClient._get_real_template_name(self._lexis_project, template_name_qinit)
-        qexecute_template_name = QClient._get_real_template_name(self._lexis_project, template_name_qexecute)
+        qinit_template_name = QClient._get_real_template_name(
+            self._lexis_project, template_name_qinit
+        )
+        qexecute_template_name = QClient._get_real_template_name(
+            self._lexis_project, template_name_qexecute
+        )
 
         def get_command_template_call(target_template_name):
             try:
                 # This would typically call HEAppE API to list command templates
                 # For now, using a placeholder implementation
-                heappe_cluster_info_api = ClusterInformationApi(
-                    self._heappe_client)
+                heappe_cluster_info_api = ClusterInformationApi(self._heappe_client)
 
                 # Get available command templates (API endpoint may vary)
                 clusters: ClusterExt = heappe_cluster_info_api.heappe_cluster_information_list_available_clusters_get(
                     ClusterName=self._backend_metadata.backend_name,
-                    AccountingString=[self._backend_metadata.lexis_resource.resource_name],
-                    CommandTemplateName=target_template_name
+                    AccountingString=[
+                        self._backend_metadata.lexis_resource.resource_name
+                    ],
+                    CommandTemplateName=target_template_name,
                 )
             except Exception as e:
                 log.warning("Failed to get command template ID")
@@ -1753,17 +2018,31 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
             if not target_location:
                 raise QException(
-                    f"Quantum location '{self._backend_metadata.backend_name}' not found in HEAppE")
+                    f"Quantum location '{self._backend_metadata.backend_name}' not found in HEAppE"
+                )
 
             # Fetch information about node type (partition), cluster etc.
-            log.debug("Queue names to be searched: %s, %s", qinit_queue_name, qexecute_queue_name)
-            log.debug("Template names to be searched: %s, %s", qinit_template_name, qexecute_template_name)
-
+            log.debug(
+                "Queue names to be searched: %s, %s",
+                qinit_queue_name,
+                qexecute_queue_name,
+            )
+            log.debug(
+                "Template names to be searched: %s, %s",
+                qinit_template_name,
+                qexecute_template_name,
+            )
 
             for node_type_in_location in target_location.node_types:
-                if node_type_in_location.name in [qinit_queue_name, qexecute_queue_name]:
+                if node_type_in_location.name in [
+                    qinit_queue_name,
+                    qexecute_queue_name,
+                ]:
                     for project_in_node_type in node_type_in_location.projects:
-                        if project_in_node_type.accounting_string == self._backend_metadata.lexis_resource.resource_name:
+                        if (
+                            project_in_node_type.accounting_string
+                            == self._backend_metadata.lexis_resource.resource_name
+                        ):
                             target_node_type = node_type_in_location
                             target_project = project_in_node_type
                             break
@@ -1771,12 +2050,18 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
                     break
 
             if not target_project:
-                log.warning(f"Verify all command templates are accessible to your user for Project '{self._backend_metadata.lexis_resource.resource_name}'!")
-                
+                log.warning(
+                    f"Verify all command templates are accessible to your user for Project '{self._backend_metadata.lexis_resource.resource_name}'!"
+                )
+
                 raise QException(
-                    f"Project '{self._backend_metadata.lexis_resource.resource_name}' in HEAppE not found")
-            log.debug("target_project: %s",str(target_project))
-            log.debug("target_project.command_templates: %s",str(target_project.command_templates))
+                    f"Project '{self._backend_metadata.lexis_resource.resource_name}' in HEAppE not found"
+                )
+            log.debug("target_project: %s", str(target_project))
+            log.debug(
+                "target_project.command_templates: %s",
+                str(target_project.command_templates),
+            )
             for template in target_project.command_templates:
                 if template.name == target_template_name:
                     target_template = template
@@ -1784,19 +2069,21 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
             if not target_template:
                 raise QException(
-                    f"Command template '{target_template_name}' not found in HEAppE")
+                    f"Command template '{target_template_name}' not found in HEAppE"
+                )
             return {
-                'target_location_id': target_location.id,
-                'target_node_type_id': target_node_type.id,
-                'target_project_id': target_project.id,
-                'target_template_id': target_template.id,
-                'target_node_type_file_transfer_method_id': target_node_type.file_transfer_method_id,
-                'qinit_queue_name': qinit_queue_name,
-                'qexecute_queue_name': qexecute_queue_name
+                "target_location_id": target_location.id,
+                "target_node_type_id": target_node_type.id,
+                "target_project_id": target_project.id,
+                "target_template_id": target_template.id,
+                "target_node_type_file_transfer_method_id": target_node_type.file_transfer_method_id,
+                "qinit_queue_name": qinit_queue_name,
+                "qexecute_queue_name": qexecute_queue_name,
             }
+
         template_infos = {
-            'qinit': get_command_template_call(qinit_template_name),
-            'qexecute': get_command_template_call(qexecute_template_name)
+            "qinit": get_command_template_call(qinit_template_name),
+            "qexecute": get_command_template_call(qexecute_template_name),
         }
 
         return template_infos
@@ -1814,7 +2101,7 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         :returns: True if cancellation succeeded, False otherwise
         :rtype: bool
 
-        :raises QAuthException: When client authentication is invalid        
+        :raises QAuthException: When client authentication is invalid
         .. note::
             This method converts job_id to integer internally for HEAppE API.
             Cancellation may not be possible for jobs that are already running
@@ -1824,7 +2111,6 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             raise QAuthException("Client not authenticated")
 
         try:
-
             heappe_job_management_api = JobManagementApi(self._heappe_client)
 
             cancel_job_model = CancelJobModel(submitted_job_info_id=int(job_id))
@@ -1836,7 +2122,9 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         except ApiException as e:
             if e.status == 401:
                 raise QAuthException("Unauthorized!!!") from e
-            raise QException(f"Unable to cancel job: {e.reason}; API status: {e.status}") from e
+            raise QException(
+                f"Unable to cancel job: {e.reason}; API status: {e.status}"
+            ) from e
         except Exception as e:  # pylint: disable=W0718
             log.error("Error cancelling job: %s", str(e))
             return False

@@ -1,9 +1,15 @@
-"""Implements class storing information about specific quantum backend
-"""
+"""Implements class storing information about specific quantum backend"""
+
 
 class LexisProject:
     """Information about LEXIS Resource entity"""
-    def __init__(self, project_name:str, project_validity_start:str="-", project_validity_end:str="-"):
+
+    def __init__(
+        self,
+        project_name: str,
+        project_validity_start: str = "-",
+        project_validity_end: str = "-",
+    ):
         """
         Initializes a LexisProject object.
 
@@ -14,7 +20,7 @@ class LexisProject:
         self._project_name = project_name
         self._project_validity_start = project_validity_start
         self._project_validity_end = project_validity_end
-        
+
     @property
     def project_name(self):
         """
@@ -36,9 +42,19 @@ class LexisProject:
         """
         return self._project_validity_end
 
+
 class LexisResource:
     """Information about LEXIS Resource entity"""
-    def __init__(self, resource_name:str, allocated_units:int, project_resource_id:str, resource_validity_start:str, resource_validity_end:str, heappe_url:str):
+
+    def __init__(
+        self,
+        resource_name: str,
+        allocated_units: int,
+        project_resource_id: str,
+        resource_validity_start: str,
+        resource_validity_end: str,
+        heappe_url: str,
+    ):
         """
         Initializes a LexisResource object.
 
@@ -55,7 +71,7 @@ class LexisResource:
         self._resource_validity_start = resource_validity_start
         self._resource_validity_end = resource_validity_end
         self._heappe_url = heappe_url
-    
+
     @property
     def resource_name(self):
         """
@@ -69,6 +85,7 @@ class LexisResource:
         The number of units allocated.
         """
         return self._allocated_units
+
     @property
     def project_resource_id(self):
         """
@@ -97,10 +114,22 @@ class LexisResource:
         """
         return self._heappe_url
 
+
 class QBackendMetadata:
-    """This class represents information about a quantum backend.
-    """
-    def __init__(self, backend_name:str, swstack:str, available:bool, host_entity:str, lexis_project:LexisProject, lexis_resource:LexisResource, supplier:str="-", quantum_technology:str="-", host_supercomputer:str="-"):
+    """This class represents information about a quantum backend."""
+
+    def __init__(
+        self,
+        backend_name: str,
+        swstack: str,
+        available: bool,
+        host_entity: str,
+        lexis_project: LexisProject,
+        lexis_resource: LexisResource,
+        supplier: str = "-",
+        quantum_technology: str = "-",
+        host_supercomputer: str = "-",
+    ):
         """
         This class represents information about a quantum backend.
 
@@ -114,7 +143,7 @@ class QBackendMetadata:
         :param host_supercomputer: The name of HPC connected to the QC (e.g. Karolina)
         :param swstack: Software stack type (e.g. IQM)
         """
-        
+
         self._backend_name = backend_name
         self._swstack = swstack
         self._available = available
@@ -124,49 +153,48 @@ class QBackendMetadata:
         self._supplier = supplier
         self._quantum_technology = quantum_technology
         self._host_supercomputer = host_supercomputer
+
     @property
-    def backend_name(self)->str:
-        """Name of backend, which can be used to get
-        """
+    def backend_name(self) -> str:
+        """Name of backend, which can be used to get"""
         return self._backend_name
+
     @property
-    def available(self)->bool:
-        """Whether is backend online and available
-        """
+    def available(self) -> bool:
+        """Whether is backend online and available"""
         return self._available
+
     @property
-    def host_entity(self)->str:
-        """Quantum computer hosting entity (e.g. IT4Innovations)
-        """
+    def host_entity(self) -> str:
+        """Quantum computer hosting entity (e.g. IT4Innovations)"""
         return self._host_entity
+
     @property
-    def lexis_project(self)->LexisProject:
-        """Name of resource registered on LEXIS platform
-        """
+    def lexis_project(self) -> LexisProject:
+        """Name of resource registered on LEXIS platform"""
         return self._lexis_project
+
     @property
-    def lexis_resource(self)->LexisResource:
-        """Resource registered on LEXIS platform assigned to LEXIS project
-        """
+    def lexis_resource(self) -> LexisResource:
+        """Resource registered on LEXIS platform assigned to LEXIS project"""
         return self._lexis_resource
+
     @property
-    def host_supercomputer(self)->str:
-        """Name of hosting supercomputer
-        """
+    def host_supercomputer(self) -> str:
+        """Name of hosting supercomputer"""
         return self._host_supercomputer
+
     @property
-    def supplier(self)->str:
-        """Quantum computer vendor (e.g. IQM)
-        """
+    def supplier(self) -> str:
+        """Quantum computer vendor (e.g. IQM)"""
         return self._supplier
+
     @property
-    def software_stack(self)->str:
-        """Quantum computer software stack type
-        """
+    def software_stack(self) -> str:
+        """Quantum computer software stack type"""
         return self._swstack
+
     @property
-    def quantum_technology(self)->str:
-        """Technology name (e.g. superconducting)
-        """
+    def quantum_technology(self) -> str:
+        """Technology name (e.g. superconducting)"""
         return self._quantum_technology
-    
