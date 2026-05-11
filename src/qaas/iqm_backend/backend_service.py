@@ -282,15 +282,18 @@ class IQMBackendService:
             if command_params.command in ACCOUNTED_COMMANDS:
                 # Try to get submitter info from cache, otherwise fetch from HEAppE and cache it. If not found, return error
                 accounting_info = IQMBackendService.get_accounting_info(command_params)
-                print(
-                    f"accountinfo: {accounting_info.aggregation_name}, {accounting_info.resource_name}, {accounting_info.lexis_project}, {accounting_info.decode_user_jwt_email()}",
-                    file=sys.stderr,
-                )
+
                 if isinstance(accounting_info, str) or accounting_info is None:
                     conn.sendall(
                         f"ERROR: Unable to get job submitter info -- {accounting_info if isinstance(accounting_info, str) else 'Unknown error'}\n".encode()
                     )
                     return
+                 
+                print(
+                    f"accountinfo: {accounting_info.aggregation_name}, {accounting_info.resource_name}, {accounting_info.lexis_project}, {accounting_info.decode_user_jwt_email()}",
+                    file=sys.stderr,
+                )
+                  
                 self._consumption_cache[command_params.full_id] = (
                     accounting_info  # submitter and accounting_string
                 )
