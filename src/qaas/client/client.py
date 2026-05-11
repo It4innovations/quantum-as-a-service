@@ -21,14 +21,11 @@ from iqm.iqm_server_client.models import CalibrationSet
 from iqm.pulla.pulla import Pulla
 
 
-from qiskit import QuantumCircuit
 from iqm.qiskit_iqm import IQMBackend
 from iqm.station_control.interface.models import DynamicQuantumArchitecture
 
 from py4heappe.heappe_v6.core import ApiClient as HEAppEApi, Configuration as HEAppEConfiguration
 from py4heappe.heappe_v6.core.models import (
-    LexisCredentialsExt as LexisCredentials,
-    AuthenticateLexisTokenModel,
     CreateJobByProjectModel,
     SubmitJobModel,
     CancelJobModel,
@@ -45,7 +42,6 @@ from py4heappe.heappe_v6.core.models import (
     EnvironmentVariableExt
 )
 from py4heappe.heappe_v6.core.api import (
-    UserAndLimitationManagementApi,
     JobManagementApi,
     FileTransferApi,
     ClusterInformationApi

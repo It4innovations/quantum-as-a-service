@@ -36,8 +36,7 @@ from iqm.pulla.utils import calset_to_cal_data_tree
 from iqm.pulse.builder import ScheduleBuilder, build_quantum_ops
 
 from py4heappe.heappe_v6.core.models import (
-    EnvironmentVariableExt,
-    CommandTemplateParameterValueExt
+    EnvironmentVariableExt
 )
 
 from .utils import QPullaFetchError

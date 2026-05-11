@@ -1,6 +1,6 @@
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 print("Loading environment variables...")
 

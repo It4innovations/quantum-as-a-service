@@ -6,7 +6,6 @@ import csv
 from pathlib import Path
 from qiskit import QuantumCircuit
 from qiskit.qasm2 import dump as dump_qasm2
-from qiskit.visualization import plot_histogram
 import numpy as np
 import matplotlib.pyplot as plt
 from iqm.qiskit_iqm import IQMProvider

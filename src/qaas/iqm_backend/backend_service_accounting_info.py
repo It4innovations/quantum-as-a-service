@@ -1,4 +1,3 @@
-import json
 import sys
 from datetime import datetime, timezone, timedelta
 from typing import Tuple
@@ -319,7 +318,7 @@ class AccountingInfo:
                 
                 # Extract and cache resource details
                 if not self._allocation_amount or not self._aggregation_name:
-                    raise Exception(f"Missing allocation amount or aggregation name in resource assignment")
+                    raise Exception("Missing allocation amount or aggregation name in resource assignment")
                 
                 return heappe_url
         

@@ -14,7 +14,7 @@ import jwt
 from cachetools import TTLCache
 from qiskit import QuantumCircuit
 from qiskit.qasm3 import load as qasm3load
-from iqm.qiskit_iqm import transpile_to_IQM, IQMBackend, IQMProvider
+from iqm.qiskit_iqm import IQMBackend, IQMProvider
 from iqm.qiskit_iqm.iqm_job import IQMJob
 from iqm.iqm_client import JobStatus as IQMJobStatus
 # from iqm.iqm_server_client.models import TimelineEntry

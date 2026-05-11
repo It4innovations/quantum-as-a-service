@@ -15,7 +15,6 @@ import sys
 import logging
 
 from qiskit import QuantumCircuit
-from qiskit.transpiler.layout import Layout
 from qiskit.result import Result as QiskitResult
 from iqm.qiskit_iqm import IQMJob
 
@@ -24,8 +23,7 @@ from qiskit.qasm3 import dumps as qasm3dumps
 from iqm.station_control.interface.models import CircuitMeasurementResultsBatch
 
 from py4heappe.heappe_v6.core.models import (
-    EnvironmentVariableExt,
-    CommandTemplateParameterValueExt
+    EnvironmentVariableExt
 )
 
 from .utils import QException

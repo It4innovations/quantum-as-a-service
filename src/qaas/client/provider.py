@@ -3,7 +3,6 @@ from uuid import UUID
 from .backend_iqm import QBackendIQM
 from .client import QClient
 from .qpulla import QPulla
-from .utils import QException
 from .backend_metadata import QBackendMetadata
 class QProvider:
     """

@@ -1,5 +1,3 @@
-import json
-import time
 import os
 import sys
 import logging
@@ -7,20 +5,12 @@ import copy
 from uuid import UUID
 from iqm.qiskit_iqm import (
     IQMBackend,
-    transpile_to_IQM as transpile_to_IQM_orig,
-    IQMTarget
+    transpile_to_IQM as transpile_to_IQM_orig
 )
-from iqm.iqm_client.transpile import ExistingMoveHandlingOptions
 
 from qiskit import QuantumCircuit
-from qiskit.transpiler.layout import Layout
 
-from py4heappe.heappe_v6.core.models import (
-    EnvironmentVariableExt,
-    CommandTemplateParameterValueExt
-)
 from .backend import QBackend,QJob
-from .utils import QException
 from .client import QClient
 from .backend_metadata import QBackendMetadata
 
