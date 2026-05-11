@@ -1644,7 +1644,7 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
                             )
                             backend_metadata_list.append(qmetadata)
             return {metadata.backend_name: metadata for metadata in backend_metadata_list}
-        except:
+        except Exception:
             raise QAuthException(
                 reason=f"Failed to retrieve resources for LEXIS project '{self._lexis_project}', please verify your assignment and try again!",
                 user_id=self._username

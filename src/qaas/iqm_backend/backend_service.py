@@ -219,7 +219,7 @@ class IQMBackendService:
                     print(f"Error handling connection: {e}", file=sys.stderr)
                     try:
                         conn.sendall(f"ERROR: {str(e)}\n".encode())
-                    except:
+                    except Exception:
                         pass
                 finally:
                     conn.close()

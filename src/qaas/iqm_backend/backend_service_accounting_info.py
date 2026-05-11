@@ -227,8 +227,8 @@ class AccountingInfo:
                 if resource.get('Name') != self._resource_name:
                     clusters = resource.get('Clusters', [])
 
-                    accounting_string = cluster.get('AccountingString')
                     for cluster in clusters:
+                        accounting_string = cluster.get('AccountingString')
                         # Access ClusterNodeTypes (Queues) within the cluster
                         node_types = cluster.get('ClusterNodeTypes', [])
                         cluster_name = cluster['Name']
