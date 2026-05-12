@@ -1,0 +1,10 @@
+[default.extend-words]
+anc = "anc"
+aer = "aer"
+arange = "arange"
+
+[default]
+extend-ignore-re = [
+    "(?s)-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----"
+]
+
