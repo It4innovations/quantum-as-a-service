@@ -6,9 +6,6 @@ icon: lucide/atom
 
 **QaaS** provides access to quantum computing hardware through the [LEXIS platform](https://lexis-project.eu/) via HEAppE. It targets IQM quantum hardware and aims to offer a vendor-neutral interface for academic quantum infrastructure.
 
-!!! note "Documentation"
-    Full documentation is available at **[it4innovations.github.io/quantum-as-a-service](https://it4innovations.github.io/quantum-as-a-service/)**.
-
 ## Quick start
 
 ```python

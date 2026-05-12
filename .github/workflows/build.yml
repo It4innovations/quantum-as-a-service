@@ -5,7 +5,9 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
-    branches: [main]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
 
@@ -24,6 +26,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: '3.11'
+          enable-cache: false
 
       - name: Lint with ruff
         run: uvx ruff check .
@@ -87,7 +90,7 @@ jobs:
           path: dist/
 
       - name: Install package and doc tools
-        run: pip install dist/*.whl zensical pdoc
+        run: pip install "$(ls dist/*.whl)[iqm_backend]" zensical pdoc
 
       - name: Build Zensical documentation
         run: zensical build --clean
@@ -96,6 +99,9 @@ jobs:
         # Generates HTML into site/api_reference/ alongside the Zensical output.
         # Link to it from docs/api.md, e.g.: [Full API Reference](../api_reference/qaas.html)
         run: pdoc --output-dir site/api_reference qaas
+        env:
+          CYCLOPS_API_URL: "http://placeholder"
+          CYCLOPS_KAFKA_SERVER: "placeholder:9092"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -145,8 +151,6 @@ jobs:
           name: dist
           path: dist/
 
-      # Requires a trusted publisher configured on PyPI for this repo+workflow.
-      # See: https://docs.pypi.org/trusted-publishers/
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
