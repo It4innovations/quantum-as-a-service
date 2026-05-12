@@ -1,0 +1,157 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # 1) Check & Build
+  # ---------------------------------------------------------------------------
+  check-and-build:
+    name: Check & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check spelling (typos)
+        uses: crate-ci/typos@v1
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.11'
+
+      - name: Lint with ruff
+        run: uvx ruff check .
+
+      - name: Check formatting with ruff
+        run: uvx ruff format --check .
+
+      - name: Build package
+        run: uv build
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # ---------------------------------------------------------------------------
+  # 2) Tests — depends on check-and-build
+  # ---------------------------------------------------------------------------
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs: check-and-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install package into clean environment
+        run: pip install dist/*.whl
+
+      - name: Smoke test — import check
+        run: python -c "import qaas; from qaas.client import QProvider; print('qaas import OK')"
+
+  # ---------------------------------------------------------------------------
+  # 3) Build Documentation — depends on check-and-build
+  # ---------------------------------------------------------------------------
+  build-doc:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    needs: check-and-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install package and doc tools
+        run: pip install dist/*.whl zensical pdoc
+
+      - name: Build Zensical documentation
+        run: zensical build --clean
+
+      - name: Build pdoc API reference
+        # Generates HTML into site/api_reference/ alongside the Zensical output.
+        # Link to it from docs/api.md, e.g.: [Full API Reference](../api_reference/qaas.html)
+        run: pdoc --output-dir site/api_reference qaas
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+  # ---------------------------------------------------------------------------
+  # 4) Deploy Documentation — depends on tests + build-doc
+  #    Runs only on push to main or a v* tag (not on PRs)
+  # ---------------------------------------------------------------------------
+  deploy-doc:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: [tests, build-doc]
+    if: >
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ---------------------------------------------------------------------------
+  # 5) Release — depends on deploy-doc
+  #    Runs only on a v* tag
+  # ---------------------------------------------------------------------------
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: deploy-doc
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write   # needed to create a GitHub Release
+      id-token: write   # needed for PyPI trusted publishing (OIDC)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      # Requires a trusted publisher configured on PyPI for this repo+workflow.
+      # See: https://docs.pypi.org/trusted-publishers/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

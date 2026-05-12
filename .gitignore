@@ -10,3 +10,4 @@ venv_mac*/
 venv_*/
 dist/*
 build/
+site/*
