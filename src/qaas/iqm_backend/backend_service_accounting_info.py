@@ -346,9 +346,11 @@ class AccountingInfo:
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as resp:
                 if resp.status != 200:
-                    raise Exception(
-                        f"Status code: {resp.status}, Response: {await resp.text()}"
+                    print(
+                        f"Status code: {resp.status}, Response: {await resp.text()}",
+                        file=sys.stderr
                     )
+                    return None
 
                 assignment_data = await resp.json()
 
@@ -361,9 +363,11 @@ class AccountingInfo:
                         break
 
                 if not heappe_url:
-                    raise Exception(
-                        f"HEAppE URL not specified in resource assignment {self.lexis_project_resource_id}"
+                    print(
+                        f"HEAppE URL not specified in resource assignment {self.lexis_project_resource_id}",
+                        file=sys.stderr
                     )
+                    return None
 
                 self._heappe_url = heappe_url
                 self._allocation_amount = assignment_data.get("AllocationAmount")
@@ -372,16 +376,20 @@ class AccountingInfo:
 
                 # Extract and cache resource details
                 if not self._allocation_amount or not self._aggregation_name:
-                    raise Exception(
-                        "Missing allocation amount or aggregation name in resource assignment"
+                    print(
+                        "WARN! Missing allocation amount or aggregation name in resource assignment",
+                        file=sys.stderr
                     )
+                    return None
 
                 return heappe_url
 
         except asyncio.TimeoutError:
-            raise Exception(
-                "Timeout while fetching resource assignment data from LEXIS API"
+            print(
+                "Timeout while fetching resource assignment data from LEXIS API",
+                file=sys.stderr
             )
+            return None
 
     async def _get_resource_info_and_verify_given_resource_id(
         self, session: aiohttp.ClientSession
@@ -398,9 +406,11 @@ class AccountingInfo:
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as resp:
                 if resp.status != 200:
-                    raise Exception(
-                        f"Status code: {resp.status}, Response: {await resp.text()}"
+                    print(
+                        f"Status code: {resp.status}, Response: {await resp.text()}",
+                        file=sys.stderr
                     )
+                    return False
 
                 project_resources: list[dict] = await resp.json()
 
@@ -413,9 +423,11 @@ class AccountingInfo:
                     project_resource is None
                     or len(project_resource["Assignments"]) == 0
                 ):
-                    raise Exception(
-                        f"Resource ID {self._lexis_project_resource_id} with assignment not found in LEXIS project {self._lexis_project}"
+                    print(
+                        f"Resource ID {self._lexis_project_resource_id} with assignment not found in LEXIS project {self._lexis_project}",
+                        file=sys.stderr
                     )
+                    return False
 
                 self._resource_name = project_resource.get("Name")
                 self._resource_start_date = project_resource.get("StartDate")
@@ -424,7 +436,8 @@ class AccountingInfo:
                 return True
 
         except asyncio.TimeoutError:
-            raise Exception("Timeout while verifying resource ID with LEXIS API")
+            print("Timeout while verifying resource ID with LEXIS API", file=sys.stderr)
+            return False
 
     async def fetch_cyclops_entities_ids(self) -> Tuple[str, str] | None:
         """From Cyclops's Customer DB API fetches cyclops customer_id, which is equal to lexis project short name, and resource_id, which is needed for accounting record in Cyclops, using lexis project and resource name as reference. Using endpoint CYCLOPS_API_URL/customerdbAPI/api/v1.0/customer?search={lexis_short_name} and CYCLOPS_API_URL/planmanagerAPI/api/v1.0/plan.
@@ -469,9 +482,11 @@ class AccountingInfo:
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as resp_customer:
                 if resp_customer.status != 200:
-                    raise Exception(
-                        f"Status code: {resp_customer.status}, Response: {await resp_customer.text()}"
+                    print(
+                        f"Status code: {resp_customer.status}, Response: {await resp_customer.text()}",
+                        file=sys.stderr
                     )
+                    return None
 
                 customers = await resp_customer.json()
                 cyclops_customer_id = None
@@ -485,14 +500,17 @@ class AccountingInfo:
                         break
 
                 if not cyclops_customer_id:
-                    raise Exception(
-                        f"Customer with name {self._lexis_project} not found in Cyclops"
+                    print(
+                        f"Customer with name {self._lexis_project} not found in Cyclops",
+                        file=sys.stderr
                     )
+                    return None
 
                 return cyclops_customer_id
 
         except asyncio.TimeoutError:
-            raise Exception("Timeout while fetching customer data from Cyclops API")
+            print("Timeout while fetching customer data from Cyclops API", file=sys.stderr)
+            return None
 
     async def _fetch_cyclops_plan_id(
         self, session: aiohttp.ClientSession
@@ -506,9 +524,11 @@ class AccountingInfo:
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as resp_plan:
                 if resp_plan.status != 200:
-                    raise Exception(
-                        f"Status code: {resp_plan.status}, Response: {await resp_plan.text()}"
+                    print(
+                        f"Status code: {resp_plan.status}, Response: {await resp_plan.text()}",
+                        file=sys.stderr
                     )
+                    return None
 
                 plans = await resp_plan.json()
                 cyclops_resource_id = None
@@ -524,9 +544,12 @@ class AccountingInfo:
                         cyclops_resource_id = plan.get("ID")
                         return cyclops_resource_id
 
-                raise Exception(
-                    f"Plan with name {self._resource_name} not found for customer {self._lexis_project} in Cyclops"
+                print(
+                    f"Plan with name {self._resource_name} not found for customer {self._lexis_project} in Cyclops",
+                    file=sys.stderr
                 )
+                return None
 
         except asyncio.TimeoutError:
-            raise Exception("Timeout while fetching plan data from Cyclops API")
+            print("Timeout while fetching plan data from Cyclops API", file=sys.stderr)
+            return None
