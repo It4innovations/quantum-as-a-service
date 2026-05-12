@@ -212,7 +212,7 @@ class IQMBackendService:
 
             if not accounting_info.fetch_all_accounting_info(command_params.full_id):
                 print(
-                    "Failed to fetch all accounting info for submitter", file=sys.stderr
+                    f"Failed to fetch all accounting info for submitter '{accounting_info.decode_user_jwt_identifier()}'", file=sys.stderr
                 )
                 return None
 
@@ -290,7 +290,7 @@ class IQMBackendService:
                     return
                  
                 print(
-                    f"accountinfo: {accounting_info.aggregation_name}, {accounting_info.resource_name}, {accounting_info.lexis_project}, {accounting_info.decode_user_jwt_email()}",
+                    f"accountinfo: {accounting_info.aggregation_name}, {accounting_info.resource_name}, {accounting_info.lexis_project}, {accounting_info.decode_user_jwt_identifier()}",
                     file=sys.stderr,
                 )
                   

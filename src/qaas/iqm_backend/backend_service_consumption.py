@@ -290,9 +290,13 @@ def record_consumption_usage(
     :param task_id: HEAppE Task identifier
     """
 
+    if not accounting_info.cyclops_customer_id:
+        # do not send usage - missing entities in CYCLOPS
+        return
+    
     # Inputs for serializing function (kafka_value_serializer)
     record = {
-        "submitter_email": accounting_info.decode_user_jwt_email(),
+        "submitter_email": accounting_info.decode_user_jwt_identifier(),
         "customer_id": accounting_info.cyclops_customer_id,
         "lexis_project": accounting_info.lexis_project,
         "lexis_resource_name": accounting_info.resource_name,

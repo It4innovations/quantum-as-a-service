@@ -153,12 +153,12 @@ class AccountingInfo:
         """
         return self._cyclops_resource_id
 
-    def decode_user_jwt_email(self) -> str:
+    def decode_user_jwt_identifier(self) -> str:
         """
-        Decode the user JWT token and extract the email address.
+        Decode the user JWT token and extract the user identifier.
 
         This method decodes the JWT token stored in ``self._user_jwt`` without
-        verifying the signature and returns the email claim from the decoded token.
+        verifying the signature and returns the identifier claim from the decoded token.
 
         :return: The user identifier is extracted from the JWT token, or None if not present.
         :rtype: str or "UNKNOWN"
@@ -196,17 +196,22 @@ class AccountingInfo:
 
         # 2. Concurrent Calls
         # These run at the same time now that the URL is ready
-        results = await asyncio.gather(
-            asyncio.to_thread(self.fetch_submitter_info_from_heappe, job_id),
-            self.fetch_cyclops_entities_ids(),
-            return_exceptions=True,
-        )
+        
+        # Currently not available
+        # submitter_info_task = asyncio.to_thread(self.fetch_submitter_info_from_heappe, job_id)
+        
+        # Fetch CYCLOPS's accounting identifiers
+        cyclops_ids_task = self.fetch_cyclops_entities_ids()
 
         # 3. Validation
         # Check if any exceptions occurred or if None was returned
-        return all(
-            res is not None and not isinstance(res, Exception) for res in results
-        )
+        try:
+            cyclops_ids = await cyclops_ids_task
+        except Exception as e:
+            # Handle failure
+            print(f"ERROR: Cyclops IDs failed: {e}", file=sys.stderr)
+        return True
+            
 
     def fetch_all_accounting_info(self, job_id: str) -> bool:
         """The clean public synchronous wrapper."""
