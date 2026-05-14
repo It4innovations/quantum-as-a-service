@@ -341,7 +341,7 @@ class AccountingInfo:
         """Fetch HEAppE URL and resource details from LEXIS assignment endpoint"""
         try:
             async with session.get(
-                f"{QAAS_LEXIS_API_URL}/userorg/api/ProjectResourceAssignment/{self._lexis_project_resource_id}",
+                f"{QAAS_LEXIS_API_URL}/userorg/api/ProjectResource/{self._lexis_project_resource_id}",
                 headers={"Authorization": f"Bearer {self._user_jwt}"},
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as resp:
@@ -352,7 +352,8 @@ class AccountingInfo:
                     )
                     return None
 
-                assignment_data = await resp.json()
+                resource_data = await resp.json()
+                assignment_data = resource_data.get("Assignments",[{}])[0]
 
                 # Extract HEAppE URL from specifications
                 heappe_url = None
