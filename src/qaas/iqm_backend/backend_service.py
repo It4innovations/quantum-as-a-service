@@ -274,7 +274,7 @@ class IQMBackendService:
             ACCOUNTED_COMMANDS = ["backend_run", "pulla_submit_playlist"]
 
             # Disabled commands
-            if command_params.command in ["pulla_submit_playlist", "pulla_init"]:
+            if command_params.command in []:
                 conn.sendall(b"COMMAND DISABLED")
                 return
 
