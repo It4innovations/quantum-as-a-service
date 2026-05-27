@@ -206,11 +206,11 @@ class AccountingInfo:
         # 3. Validation
         # Check if any exceptions occurred or if None was returned
         try:
-            cyclops_ids = await cyclops_ids_task
+            return True if await cyclops_ids_task else False
         except Exception as e:
             # Handle failure
             print(f"ERROR: Cyclops IDs failed: {e}", file=sys.stderr)
-        return True
+            return False
             
 
     def fetch_all_accounting_info(self, job_id: str) -> bool:
