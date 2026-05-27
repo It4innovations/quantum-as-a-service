@@ -196,10 +196,10 @@ class AccountingInfo:
 
         # 2. Concurrent Calls
         # These run at the same time now that the URL is ready
-        
+
         # Currently not available
         # submitter_info_task = asyncio.to_thread(self.fetch_submitter_info_from_heappe, job_id)
-        
+
         # Fetch CYCLOPS's accounting identifiers
         cyclops_ids_task = self.fetch_cyclops_entities_ids()
 
@@ -211,7 +211,6 @@ class AccountingInfo:
             # Handle failure
             print(f"ERROR: Cyclops IDs failed: {e}", file=sys.stderr)
             return False
-            
 
     def fetch_all_accounting_info(self, job_id: str) -> bool:
         """The clean public synchronous wrapper."""
@@ -348,12 +347,12 @@ class AccountingInfo:
                 if resp.status != 200:
                     print(
                         f"Status code: {resp.status}, Response: {await resp.text()}",
-                        file=sys.stderr
+                        file=sys.stderr,
                     )
                     return None
 
                 resource_data = await resp.json()
-                assignment_data = resource_data.get("Assignments",[{}])[0]
+                assignment_data = resource_data.get("Assignments", [{}])[0]
 
                 # Extract HEAppE URL from specifications
                 heappe_url = None
@@ -366,7 +365,7 @@ class AccountingInfo:
                 if not heappe_url:
                     print(
                         f"HEAppE URL not specified in resource assignment {self.lexis_project_resource_id}",
-                        file=sys.stderr
+                        file=sys.stderr,
                     )
                     return None
 
@@ -379,7 +378,7 @@ class AccountingInfo:
                 if not self._allocation_amount or not self._aggregation_name:
                     print(
                         "WARN! Missing allocation amount or aggregation name in resource assignment",
-                        file=sys.stderr
+                        file=sys.stderr,
                     )
                     return None
 
@@ -388,7 +387,7 @@ class AccountingInfo:
         except asyncio.TimeoutError:
             print(
                 "Timeout while fetching resource assignment data from LEXIS API",
-                file=sys.stderr
+                file=sys.stderr,
             )
             return None
 
@@ -409,7 +408,7 @@ class AccountingInfo:
                 if resp.status != 200:
                     print(
                         f"Status code: {resp.status}, Response: {await resp.text()}",
-                        file=sys.stderr
+                        file=sys.stderr,
                     )
                     return False
 
@@ -426,7 +425,7 @@ class AccountingInfo:
                 ):
                     print(
                         f"Resource ID {self._lexis_project_resource_id} with assignment not found in LEXIS project {self._lexis_project}",
-                        file=sys.stderr
+                        file=sys.stderr,
                     )
                     return False
 
@@ -485,7 +484,7 @@ class AccountingInfo:
                 if resp_customer.status != 200:
                     print(
                         f"Status code: {resp_customer.status}, Response: {await resp_customer.text()}",
-                        file=sys.stderr
+                        file=sys.stderr,
                     )
                     return None
 
@@ -503,14 +502,16 @@ class AccountingInfo:
                 if not cyclops_customer_id:
                     print(
                         f"Customer with name {self._lexis_project} not found in Cyclops",
-                        file=sys.stderr
+                        file=sys.stderr,
                     )
                     return None
 
                 return cyclops_customer_id
 
         except asyncio.TimeoutError:
-            print("Timeout while fetching customer data from Cyclops API", file=sys.stderr)
+            print(
+                "Timeout while fetching customer data from Cyclops API", file=sys.stderr
+            )
             return None
 
     async def _fetch_cyclops_plan_id(
@@ -527,7 +528,7 @@ class AccountingInfo:
                 if resp_plan.status != 200:
                     print(
                         f"Status code: {resp_plan.status}, Response: {await resp_plan.text()}",
-                        file=sys.stderr
+                        file=sys.stderr,
                     )
                     return None
 
@@ -547,7 +548,7 @@ class AccountingInfo:
 
                 print(
                     f"Plan with name {self._resource_name} not found for customer {self._lexis_project} in Cyclops",
-                    file=sys.stderr
+                    file=sys.stderr,
                 )
                 return None
 

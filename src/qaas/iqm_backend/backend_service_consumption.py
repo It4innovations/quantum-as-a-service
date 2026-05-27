@@ -293,7 +293,7 @@ def record_consumption_usage(
     if not accounting_info.cyclops_customer_id:
         # do not send usage - missing entities in CYCLOPS
         return
-    
+
     # Inputs for serializing function (kafka_value_serializer)
     record = {
         "submitter_email": accounting_info.decode_user_jwt_identifier(),
