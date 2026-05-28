@@ -306,10 +306,7 @@ class IQMBackendService:
 
                     traceback.print_exc(file=sys.stderr)
                     print(f"Error checking resource consumption: {e}", file=sys.stderr)
-                    conn.sendall(
-                        "ERROR: Error while fetching consumption of selected resouurce!\n".encode()
-                    )
-                    return
+                    
 
                 if consumption > accounting_info.allocation_amount:
                     # Consumption exceeded limits, allow job
