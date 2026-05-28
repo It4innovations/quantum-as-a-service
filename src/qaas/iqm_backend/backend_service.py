@@ -306,7 +306,6 @@ class IQMBackendService:
 
                     traceback.print_exc(file=sys.stderr)
                     print(f"Error checking resource consumption: {e}", file=sys.stderr)
-                    
 
                 if consumption > accounting_info.allocation_amount:
                     # Consumption exceeded limits, allow job
