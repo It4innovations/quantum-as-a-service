@@ -298,7 +298,7 @@ class IQMBackendService:
                 self._consumption_cache[command_params.full_id] = (
                     accounting_info  # submitter and accounting_string
                 )
-                
+
                 # Fallback value for consumption when not in cache
                 consumption = 0
                 try:

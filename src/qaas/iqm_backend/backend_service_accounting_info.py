@@ -212,7 +212,7 @@ class AccountingInfo:
         except Exception as e:
             # Handle failure
             print(f"ERROR: Cyclops IDs failed: {e}", file=sys.stderr)
-            return True # Cyclops is allowed to fail, is optional
+            return True  # Cyclops is allowed to fail, is optional
 
     def fetch_all_accounting_info(self, job_id: str) -> bool:
         """The clean public synchronous wrapper."""

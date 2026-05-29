@@ -394,6 +394,7 @@ HEAppE_QISKIT_STATUS_MAPPING = {
     "UNKNOWN": "ERROR",
 }
 
+
 class QJob:
     """
     QaaS wrapper around QJob for managing quantum job execution through HEAppE.
@@ -679,11 +680,14 @@ class QJob:
 
         heappe_status, _, _ = self._qclient.get_job_status(self.job_id)
 
-        
         return HEAppE_QISKIT_STATUS_MAPPING.get(heappe_status, "ERROR")
 
     def wait_for_final_state(
-        self, timeout: float = 600, cancel_after_timeout=True, callback: Optional[Callable] = None, wait: float = QClient.DEFAULT_POLL_TIME
+        self,
+        timeout: float = 600,
+        cancel_after_timeout=True,
+        callback: Optional[Callable] = None,
+        wait: float = QClient.DEFAULT_POLL_TIME,
     ) -> None:
         """Waits until job results are ready or job fails.
 
@@ -706,7 +710,11 @@ class QJob:
                     raise QException(f"Unable to cancel job with id:{self.job_id}")
                 raise TimeoutError(f"Job was cancelled after {timeout}s")
         if callback:
-            callback(self.job_id(), HEAppE_QISKIT_STATUS_MAPPING.get(job_heappe_status, "ERROR"), self)
+            callback(
+                self.job_id,
+                HEAppE_QISKIT_STATUS_MAPPING.get(job_heappe_status, "ERROR"),
+                self,
+            )
         return
 
     def cancel_heappe_job(self, heappe_job_id: int) -> bool:
