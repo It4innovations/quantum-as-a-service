@@ -206,11 +206,13 @@ class AccountingInfo:
         # 3. Validation
         # Check if any exceptions occurred or if None was returned
         try:
-            return True if await cyclops_ids_task else False
+            if not await cyclops_ids_task:
+                print("WARNING: CYCLOPS IDs failed to be fetched!", file=sys.stderr)
+            return True  # Allowed to fail, is optional
         except Exception as e:
             # Handle failure
             print(f"ERROR: Cyclops IDs failed: {e}", file=sys.stderr)
-            return False
+            return True # Cyclops is allowed to fail, is optional
 
     def fetch_all_accounting_info(self, job_id: str) -> bool:
         """The clean public synchronous wrapper."""
@@ -346,7 +348,7 @@ class AccountingInfo:
             ) as resp:
                 if resp.status != 200:
                     print(
-                        f"Status code: {resp.status}, Response: {await resp.text()}",
+                        f"[api/ProjectResource/{self._lexis_project_resource_id}] Status code: {resp.status}, Response: {await resp.text()}",
                         file=sys.stderr,
                     )
                     return None
@@ -407,7 +409,7 @@ class AccountingInfo:
             ) as resp:
                 if resp.status != 200:
                     print(
-                        f"Status code: {resp.status}, Response: {await resp.text()}",
+                        f"[api/ProjectResource] Status code: {resp.status}, Response: {await resp.text()}",
                         file=sys.stderr,
                     )
                     return False
@@ -483,7 +485,7 @@ class AccountingInfo:
             ) as resp_customer:
                 if resp_customer.status != 200:
                     print(
-                        f"Status code: {resp_customer.status}, Response: {await resp_customer.text()}",
+                        f"[customerdbAPI] Status code: {resp_customer.status}, Response: {await resp_customer.text()}",
                         file=sys.stderr,
                     )
                     return None
@@ -527,7 +529,7 @@ class AccountingInfo:
             ) as resp_plan:
                 if resp_plan.status != 200:
                     print(
-                        f"Status code: {resp_plan.status}, Response: {await resp_plan.text()}",
+                        f"[planmanagerAPI] Status code: {resp_plan.status}, Response: {await resp_plan.text()}",
                         file=sys.stderr,
                     )
                     return None
