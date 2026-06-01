@@ -12,6 +12,9 @@ from uuid import UUID
 import dill
 import jwt
 from cachetools import TTLCache
+import asyncio
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from qiskit import QuantumCircuit
 from qiskit.qasm3 import load as qasm3load
 from iqm.qiskit_iqm import IQMBackend, IQMProvider
@@ -24,12 +27,15 @@ from iqm.iqm_client import IQMClient
 
 from qaas.iqm_backend.backend_env_variables import (
     QAAS_ALLOWED_CLIENT_COUNT,
+    QAAS_INTERNAL_ACCOUNTING_DB_URI,
 )
 from qaas.iqm_backend.backend_service_accounting_info import AccountingInfo
 from qaas.iqm_backend.backend_service_consumption import (
     initializeKafkaProducer,
     fetch_current_resource_consumption,
     record_consumption_usage,
+    fetch_current_consumption_internal,
+    record_consumption_to_internal_db,
 )
 
 print("Dependencies loaded...")
@@ -166,14 +172,20 @@ class IQMBackendService:
         self.work_dir = Path(work_dir)
 
         self._backend_cache = TTLCache(maxsize=1024, ttl=3600)
-        self._consumption_cache = TTLCache(
+        self._consumption_info_cache = TTLCache(
             maxsize=8000, ttl=24 * 3600
-        )  # keeping consumption info for 24h, as it is needed for checking consumption of past jobs when new job is submitted
+        )  # keeping consumption info for 24h
+        self._new_consumption_cache = TTLCache(
+            maxsize=8000, ttl=3600
+        )  # keeping consumption for 1h
         self._pulla_cache = TTLCache(maxsize=1024, ttl=3600)
         self._calibration_set_cache = TTLCache(maxsize=1024, ttl=3600)
         self._dynamic_quantum_architecture_cache = TTLCache(maxsize=1024, ttl=3600)
 
         self._kafka_producer = initializeKafkaProducer()
+
+        _engine = create_engine(QAAS_INTERNAL_ACCOUNTING_DB_URI)
+        self._internal_accounting_db_sessionmaker = sessionmaker(bind=_engine)
 
     @staticmethod
     def save_python_obj(path, obj, use_dill=False):
@@ -295,20 +307,41 @@ class IQMBackendService:
                     file=sys.stderr,
                 )
 
-                self._consumption_cache[command_params.full_id] = (
+                self._consumption_info_cache[command_params.full_id] = (
                     accounting_info  # submitter and accounting_string
                 )
-
-                # Fallback value for consumption when not in cache
-                consumption = 0
+                #####################
+                # Consumption Check #
+                #####################
                 try:
-                    consumption = fetch_current_resource_consumption(accounting_info)
+                    consumption = asyncio.run(
+                        fetch_current_consumption_internal(
+                            self._internal_accounting_db_sessionmaker(), accounting_info
+                        )
+                    )
                 except RuntimeError as e:
                     import traceback
 
                     traceback.print_exc(file=sys.stderr)
                     print(f"Error checking resource consumption: {e}", file=sys.stderr)
+                    conn.sendall(
+                        "ERROR: Error occured while checking consumption!\n".encode()
+                    )
+                    return
+                except Exception as e:
+                    import traceback
 
+                    traceback.print_exc(file=sys.stderr)
+                    print(
+                        f"Unexpected error checking resource consumption: {e}",
+                        file=sys.stderr,
+                    )
+                    conn.sendall(
+                        "ERROR: Unexpected error occured while checking consumption!\n".encode()
+                    )
+                    return
+
+                # Check limits
                 if consumption > accounting_info.allocation_amount:
                     # Consumption exceeded limits, allow job
                     conn.sendall(
@@ -382,11 +415,25 @@ class IQMBackendService:
                 )
 
             if command_params.command in ACCOUNTED_COMMANDS:
-                record_consumption_usage(
-                    self._kafka_producer,
-                    accounting_info,
-                    self._consumption_cache.get(command_params.full_id, 0.0),
+                ##########################
+                # Internal Accounting DB #
+                ##########################
+                asyncio.run(
+                    record_consumption_to_internal_db(
+                        self._internal_accounting_db_sessionmaker(),
+                        accounting_info,
+                        self._new_consumption_cache.get(command_params.full_id, 0.0),
+                    ).close()
                 )
+
+                ###########
+                # CYCLOPS # - Disabled from core logic
+                ###########
+                # record_consumption_usage(
+                #     self._kafka_producer,
+                #     accounting_info,
+                #     self._new_consumption_cache.get(command_params.full_id, 0.0),
+                # )
 
         except UnicodeDecodeError as e:
             error_msg = f"ERROR: Failed to decode message: {str(e)}\n"
@@ -645,7 +692,7 @@ class IQMBackendService:
             #########################################
             # RECORD USAGE INFO IN ACCOUNTING CACHE #
             #########################################
-            self._consumption_cache[task_id] = job.remote_hw_runtime
+            self._new_consumption_cache[task_id] = job.remote_hw_runtime
         # Check status
         if job.status() == IQMJobStatus.FAILED or not result.success:
             raise Exception(f"Job failed: {job.error_message() or 'None'}")
@@ -825,7 +872,7 @@ class IQMBackendService:
             #########################################
             # RECORD USAGE INFO IN ACCOUNTING CACHE #
             #########################################
-            self._consumption_cache[task_id] = sw_job.remote_hw_runtime
+            self._new_consumption_cache[task_id] = sw_job.remote_hw_runtime
 
         # Check status
         if sw_job.status == IQMJobStatus.FAILED or not result.success:

@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 
 from kafka import KafkaProducer
+from sqlalchemy import Session
 
 from qaas.iqm_backend.backend_env_variables import (
     CYCLOPS_API_URL,
@@ -17,8 +18,93 @@ from qaas.iqm_backend.backend_env_variables import (
     CYCLOPS_DEFAULT_UNIT,
 )
 from qaas.iqm_backend.backend_service_accounting_info import AccountingInfo
+from qaas.iqm_backend.internal_accounting_table_models import (
+    ConsumptionEntity,
+    ResourceConsumptionSummary,
+)
 
 
+##########################
+# Internal Accounting DB #
+##########################
+async def fetch_current_consumption_internal(
+    session: Session, accounting_info: AccountingInfo
+) -> float:
+    """Fetches current consumption from the internal accounting database"""
+
+    try:
+        # Query the latest consumption for the specified resource
+        consumption_summary = (
+            await session.query(ResourceConsumptionSummary)
+            .filter(
+                ResourceConsumptionSummary.LexisLocationName
+                == accounting_info.location_name,
+                ResourceConsumptionSummary.LexisResourceName
+                == accounting_info.resource_name,
+            )
+            .first()
+        )
+
+        if not consumption_summary:
+            print(
+                f"[fetch_current_consumption_internal] No consumption data found for resource {accounting_info.location_name} and {accounting_info.resource_name}",
+                file=sys.stderr,
+            )
+            return 0.0
+
+        return consumption_summary.TotalCalculatedConsumption
+
+    except Exception as e:
+        print(f"[fetch_current_consumption_internal] Error fetching consumption: {e}")
+        return -1.0
+
+
+async def record_consumption_to_internal_db(
+    session: Session, accounting_info: AccountingInfo, new_consumption: float
+):
+    """Records consumption to the internal accounting database"""
+
+    try:
+        # Update existing record or create new one
+        consumption_entity = (
+            await session.query(ConsumptionEntity)
+            .filter(
+                ConsumptionEntity.LexisLocationName == accounting_info.location_name,
+                ConsumptionEntity.LexisProject == accounting_info.lexis_project,
+                ConsumptionEntity.LexisResourceName == accounting_info.resource_name,
+            )
+            .first()
+        )
+
+        if consumption_entity:
+            # Update existing record
+            consumption_entity.consumption = new_consumption
+        else:
+            # Create new record
+            new_entry = ConsumptionEntity(
+                lexis_location_name=accounting_info.location_name,
+                lexis_project=accounting_info.lexis_project,
+                lexis_resource_name=accounting_info.resource_name,
+                # <LEXIS_SHORT_NAME>|<PROVIDER_NAME>|<RESOURCE_NAME>
+                collector_name=accounting_info.lexis_project
+                + "|"
+                + accounting_info.provider_name
+                + "|"
+                + accounting_info.resource_name,
+                lexis_user_id=accounting_info.decode_user_jwt_identifier(),
+                consumption=new_consumption,
+            )
+            session.add(new_entry)
+
+        await session.commit()
+
+    except Exception as e:
+        print(f"[record_consumption_to_internal_db] Error recording consumption: {e}")
+
+
+###########
+# CYCLOPS #
+###########
 def initializeKafkaProducer() -> KafkaProducer:
     """Initializes Kafka producer for CYCLOPS billing records
 
@@ -34,7 +120,7 @@ def initializeKafkaProducer() -> KafkaProducer:
             lexis_location_name=v["lexis_location_name"],
             lexis_project=v["lexis_project"],
             customer_id=v["customer_id"],
-            submitter_email=v["submitter_email"],
+            submitter_email=v["submitter_identifier"],
         ),
         request_timeout_ms=CYCLOPS_DEFAULT_TIMEOUT,
         retries=CYCLOPS_DEFAULT_RETRIES,
@@ -296,7 +382,7 @@ def record_consumption_usage(
 
     # Inputs for serializing function (kafka_value_serializer)
     record = {
-        "submitter_email": accounting_info.decode_user_jwt_identifier(),
+        "submitter_identifier": accounting_info.decode_user_jwt_identifier(),
         "customer_id": accounting_info.cyclops_customer_id,
         "lexis_project": accounting_info.lexis_project,
         "lexis_resource_name": accounting_info.resource_name,
