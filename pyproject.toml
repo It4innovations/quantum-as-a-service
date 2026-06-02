@@ -41,7 +41,8 @@ iqm_backend = [
     "kafka-python==2.3.*",
     "cachetools",
     "aiohttp",
-    "sqlalchemy"
+    "sqlalchemy",
+    "psycopg2-binary"
 ]
 
 [tool.setuptools.packages.find]

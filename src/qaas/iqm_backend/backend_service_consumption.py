@@ -4,9 +4,12 @@ from datetime import datetime, timedelta, timezone
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
+from uuid import UUID
 
 from kafka import KafkaProducer
-from sqlalchemy import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from qaas.iqm_backend.backend_env_variables import (
     CYCLOPS_API_URL,
@@ -21,13 +24,15 @@ from qaas.iqm_backend.backend_service_accounting_info import AccountingInfo
 from qaas.iqm_backend.internal_accounting_table_models import (
     ConsumptionEntity,
     ResourceConsumptionSummary,
+    Task,
+    TaskState,
 )
 
 
 ##########################
 # Internal Accounting DB #
 ##########################
-async def fetch_current_consumption_internal(
+def fetch_current_consumption_internal(
     session: Session, accounting_info: AccountingInfo
 ) -> float:
     """Fetches current consumption from the internal accounting database"""
@@ -35,7 +40,7 @@ async def fetch_current_consumption_internal(
     try:
         # Query the latest consumption for the specified resource
         consumption_summary = (
-            await session.query(ResourceConsumptionSummary)
+            session.query(ResourceConsumptionSummary)
             .filter(
                 ResourceConsumptionSummary.LexisLocationName
                 == accounting_info.location_name,
@@ -59,46 +64,63 @@ async def fetch_current_consumption_internal(
         return -1.0
 
 
-async def record_consumption_to_internal_db(
-    session: Session, accounting_info: AccountingInfo, new_consumption: float
+def record_consumption_to_internal_db(
+    session: AsyncSession,
+    accounting_info: AccountingInfo,
+    new_consumption: float,
+    session_id: UUID = None,
+    iqm_job_id: UUID = None,
+    heappe_id: int = None,
 ):
-    """Records consumption to the internal accounting database"""
+    """Records granular consumption to the internal DB by creating/updating a unique Task log"""
 
     try:
-        # Update existing record or create new one
-        consumption_entity = (
-            await session.query(ConsumptionEntity)
-            .filter(
-                ConsumptionEntity.LexisLocationName == accounting_info.location_name,
-                ConsumptionEntity.LexisProject == accounting_info.lexis_project,
-                ConsumptionEntity.LexisResourceName == accounting_info.resource_name,
-            )
-            .first()
-        )
+        # 1. Check if this specific Task already exists using its unique remote Job ID
+        task_stmt = select(Task).filter(Task.IQMJobId == iqm_job_id)
+        task_result = session.execute(task_stmt)
+        existing_task = task_result.scalars().first()
 
-        if consumption_entity:
-            # Update existing record
-            consumption_entity.consumption = new_consumption
+        if existing_task:
+            # Scenario A: Task exists -> Fetch and update its dedicated consumption row
+            consumption_stmt = select(ConsumptionEntity).filter(
+                ConsumptionEntity.ConsumptionId == existing_task.ConsumptionId
+            )
+            consumption_result = session.execute(consumption_stmt)
+            consumption_entity = consumption_result.scalars().first()
+
+            if consumption_entity:
+                # Update the consumption value for this ongoing task
+                consumption_entity.Consumption = new_consumption
         else:
-            # Create new record
-            new_entry = ConsumptionEntity(
-                lexis_location_name=accounting_info.location_name,
-                lexis_project=accounting_info.lexis_project,
-                lexis_resource_name=accounting_info.resource_name,
-                # <LEXIS_SHORT_NAME>|<PROVIDER_NAME>|<RESOURCE_NAME>
-                collector_name=accounting_info.lexis_project
-                + "|"
-                + accounting_info.provider_name
-                + "|"
-                + accounting_info.resource_name,
-                lexis_user_id=accounting_info.decode_user_jwt_identifier(),
-                consumption=new_consumption,
+            # Scenario B: New Task -> Create a fresh ConsumptionEntity entry first
+            new_consumption_entry = ConsumptionEntity(
+                LexisLocationName=accounting_info.location_name,
+                LexisProject=accounting_info.lexis_project,
+                LexisResourceName=accounting_info.resource_name,
+                CollectorName=f"{accounting_info.lexis_project}|{accounting_info.provider_name}|{accounting_info.resource_name}",
+                LexisUserId=accounting_info.decode_user_jwt_identifier(),
+                Consumption=new_consumption,
             )
-            session.add(new_entry)
+            session.add(new_consumption_entry)
 
-        await session.commit()
+            # Flush the session to force Postgres to generate the ConsumptionId UUID
+            # without committing the entire transaction early
+            session.flush()
+
+            # Now create the Task row linked to the new Consumption entry
+            new_task = Task(
+                ConsumptionId=new_consumption_entry.ConsumptionId,
+                SessionId=session_id,
+                HeappeId=heappe_id,
+                IQMJobId=iqm_job_id,
+                State=TaskState.Running,  # Set your desired initial task state
+            )
+            session.add(new_task)
+
+        session.commit()
 
     except Exception as e:
+        session.rollback()
         print(f"[record_consumption_to_internal_db] Error recording consumption: {e}")
 
 

@@ -42,6 +42,8 @@ class AccountingInfo:
         # self._lexis_resource_id = None
         self._provider_name = QAAS_PROVIDER_NAME
         self._allocation_amount = None
+        # amount of currently consumpted Qseconds
+        self._current_consumption = None
         self._aggregation_name = None
         self._cluster_name = None
         self._location_name = None
@@ -112,6 +114,23 @@ class AccountingInfo:
         :return: Allocation amount specified in LEXIS resource assignment, otherwise None
         """
         return self._allocation_amount
+
+    @property
+    def current_consumption(self):
+        """To fetch value, call AccountingInfo.fetch_assignment_data()
+
+        :return: Amount of currently consumpted Qseconds for the resource, otherwise None
+        """
+        return self._current_consumption
+
+    @current_consumption.setter
+    def current_consumption(self, consumpted_qseconds: float):
+        """To set current consumption for the resource"""
+        # Optional: You can add validation here since it's a setter
+        if consumpted_qseconds < 0:
+            raise ValueError("Consumption cannot be negative.")
+
+        self._current_consumption = consumpted_qseconds
 
     @property
     def provider_name(self):

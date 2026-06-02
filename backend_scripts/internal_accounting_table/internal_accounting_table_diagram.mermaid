@@ -1,19 +1,18 @@
 erDiagram
     ConsumptionEntities {
-        varchar LexisLocationName PK
-        varchar LexisProject PK
-        varchar LexisResourceName PK
+        uuid ConsumptionId PK
+        varchar LexisLocationName
+        varchar LexisProject
+        varchar LexisResourceName
         varchar CollectorName
-        uuid LexisUser
+        uuid LexisUserId
         double_precision Consumption
         double_precision ConsumptionFactor
     }
 
     Sessions {
         uuid SessionId PK
-        varchar LexisLocationName FK
-        varchar LexisProject FK
-        varchar LexisResourceName FK
+        uuid ConsumptionId FK
         timestamp FromDatetime
         timestamp ToDatetime
         session_state State
@@ -21,15 +20,13 @@ erDiagram
 
     Tasks {
         uuid TaskId PK
-        varchar LexisLocationName FK
-        varchar LexisProject FK
-        varchar LexisResourceName FK
+        uuid ConsumptionId FK
         uuid SessionId FK
         integer HeappeId
         uuid IQMJobId
         task_state State
     }
 
-    ConsumptionEntities ||--|| Sessions : "1:1 mapping"
-    ConsumptionEntities ||--|| Tasks : "1:1 mapping"
-    Sessions ||--o{ Tasks : "1:N relationship"
+    ConsumptionEntities ||--|| Sessions : "links metadata"
+    ConsumptionEntities ||--|| Tasks : "links metadata"
+    Sessions ||--o{ Tasks : "contains"

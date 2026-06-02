@@ -314,11 +314,10 @@ class IQMBackendService:
                 # Consumption Check #
                 #####################
                 try:
-                    consumption = asyncio.run(
-                        fetch_current_consumption_internal(
-                            self._internal_accounting_db_sessionmaker(), accounting_info
-                        )
+                    consumption = fetch_current_consumption_internal(
+                        self._internal_accounting_db_sessionmaker(), accounting_info
                     )
+                    accounting_info.current_consumption = consumption
                 except RuntimeError as e:
                     import traceback
 
@@ -418,12 +417,10 @@ class IQMBackendService:
                 ##########################
                 # Internal Accounting DB #
                 ##########################
-                asyncio.run(
-                    record_consumption_to_internal_db(
-                        self._internal_accounting_db_sessionmaker(),
-                        accounting_info,
-                        self._new_consumption_cache.get(command_params.full_id, 0.0),
-                    ).close()
+                record_consumption_to_internal_db(
+                    self._internal_accounting_db_sessionmaker(),
+                    accounting_info,
+                    self._new_consumption_cache.get(command_params.full_id, 0.0),
                 )
 
                 ###########
@@ -693,6 +690,12 @@ class IQMBackendService:
             # RECORD USAGE INFO IN ACCOUNTING CACHE #
             #########################################
             self._new_consumption_cache[task_id] = job.remote_hw_runtime
+            # Put information about current consumption and allocation amount to job object
+            account_info: AccountingInfo = self._consumption_info_cache[task_id]
+            job.consumpted_resources = (
+                job.remote_hw_runtime + account_info._current_consumption
+            )
+            job.allocation_amount = account_info.allocation_amount
         # Check status
         if job.status() == IQMJobStatus.FAILED or not result.success:
             raise Exception(f"Job failed: {job.error_message() or 'None'}")
