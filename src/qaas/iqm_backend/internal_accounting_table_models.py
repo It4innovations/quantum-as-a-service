@@ -2,21 +2,17 @@ import enum
 from sqlalchemy import (
     Column,
     ForeignKey,
-    Enum,
     Integer,
     String,
     Float,
     UUID,
     DateTime,
-    text,
-    ForeignKeyConstraint,
+    text
 )
 from sqlalchemy import Index
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import TIMESTAMP, INTERVAL
 from sqlalchemy.ext.declarative import declarative_base
-from enum import Enum
 
 Base = declarative_base()
 

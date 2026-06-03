@@ -12,7 +12,6 @@ from uuid import UUID
 import dill
 import jwt
 from cachetools import TTLCache
-import asyncio
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from qiskit import QuantumCircuit
@@ -32,8 +31,6 @@ from qaas.iqm_backend.backend_env_variables import (
 from qaas.iqm_backend.backend_service_accounting_info import AccountingInfo
 from qaas.iqm_backend.backend_service_consumption import (
     initializeKafkaProducer,
-    fetch_current_resource_consumption,
-    record_consumption_usage,
     fetch_current_consumption_internal,
     record_consumption_to_internal_db,
 )
