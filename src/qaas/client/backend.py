@@ -9,6 +9,7 @@
 """
 
 from abc import abstractmethod
+from typing import Optional, Callable
 from uuid import UUID
 import time
 import os
@@ -385,6 +386,15 @@ def transpile(
     return backend.transpile(circuit=circuit, **kwargs)
 
 
+# Map HEAppE status to Qiskit status
+HEAppE_QISKIT_STATUS_MAPPING = {
+    "FINISHED": "DONE",
+    "WAITING": "RUNNING",
+    "FAILED": "ERROR",
+    "UNKNOWN": "ERROR",
+}
+
+
 class QJob:
     """
     QaaS wrapper around QJob for managing quantum job execution through HEAppE.
@@ -491,6 +501,11 @@ class QJob:
             "client_instance_update_started": None,
             "client_instance_update_ended": None,
         }
+
+        """Currently consumpted resources - is available after is job finished"""
+        self.consumpted_resources: float | None = None
+        """Allocation amount for LEXIS resource - is available after is job finished"""
+        self.allocation_amount: float | None = None
 
         self.remote_job: IQMJob = None  # Will be set when results are available
 
@@ -670,21 +685,18 @@ class QJob:
 
         heappe_status, _, _ = self._qclient.get_job_status(self.job_id)
 
-        # Map HEAppE status to Qiskit status
-        status_mapping = {
-            "FINISHED": "DONE",
-            "WAITING": "RUNNING",
-            "FAILED": "ERROR",
-            "UNKNOWN": "ERROR",
-        }
-        return status_mapping.get(heappe_status, "ERROR")
+        return HEAppE_QISKIT_STATUS_MAPPING.get(heappe_status, "ERROR")
 
-    def wait_for_completion(
-        self, timeout_secs: float = 600, cancel_after_timeout=True
-    ) -> bool:
+    def wait_for_final_state(
+        self,
+        timeout: float = 600,
+        cancel_after_timeout=True,
+        callback: Optional[Callable] = None,
+        wait: float = QClient.DEFAULT_POLL_TIME,
+    ) -> None:
         """Waits until job results are ready or job fails.
 
-        :param timeout_secs: When less then 0.0, timeout is disabled, defaults to 600
+        :param timeout: When less then 0.0, timeout is disabled, defaults to 600
         :param cancel_after_timeout: cancels job, when timed out, defaults to True
         :raises TimeoutError: Job run out of timeout
         :raises QException: General exception from QaaS
@@ -693,16 +705,22 @@ class QJob:
         # Fetching of results started
         timeout_start = time.time()
 
-        job_status, _, task_ids = self._qclient.get_job_status(self.job_id)
+        job_heappe_status, _, task_ids = self._qclient.get_job_status(self.job_id)
 
-        while job_status not in ["FINISHED", "FAILED"]:
-            time.sleep(QClient.DEFAULT_POLL_TIME)
-            job_status, _, _ = self._qclient.get_job_status(self.job_id)
-            if timeout_secs > 0.0 and time.time() - timeout_start > timeout_secs:
+        while job_heappe_status not in ["FINISHED", "FAILED"]:
+            time.sleep(wait)
+            job_heappe_status, _, _ = self._qclient.get_job_status(self.job_id)
+            if timeout > 0.0 and time.time() - timeout_start > timeout:
                 if cancel_after_timeout and not self._backend.cancel_job(self.job_id):
                     raise QException(f"Unable to cancel job with id:{self.job_id}")
-                raise TimeoutError(f"Job was cancelled after {timeout_secs}s")
-        return True
+                raise TimeoutError(f"Job was cancelled after {timeout}s")
+        if callback:
+            callback(
+                self.job_id,
+                HEAppE_QISKIT_STATUS_MAPPING.get(job_heappe_status, "ERROR"),
+                self,
+            )
+        return
 
     def cancel_heappe_job(self, heappe_job_id: int) -> bool:
         """See doc QClient:cancel_job"""

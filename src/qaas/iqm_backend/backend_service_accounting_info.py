@@ -1,16 +1,14 @@
 import sys
 from datetime import datetime, timezone, timedelta
-from typing import Tuple
 import aiohttp
 import asyncio
 import jwt
 import requests
 
 from qaas.iqm_backend.backend_env_variables import (
-    CYCLOPS_API_URL,
-    CYCLOPS_API_KEY,
     HEAPPE_REPORTED_AUTH_HEADER,
     QAAS_LEXIS_API_URL,
+    QAAS_PROVIDER_NAME,
 )
 
 
@@ -41,7 +39,10 @@ class AccountingInfo:
         self._heappe_url = None
         self._resource_name = None
         # self._lexis_resource_id = None
+        self._provider_name = QAAS_PROVIDER_NAME
         self._allocation_amount = None
+        # amount of currently consumpted Qseconds
+        self._current_consumption = None
         self._aggregation_name = None
         self._cluster_name = None
         self._location_name = None
@@ -112,6 +113,28 @@ class AccountingInfo:
         :return: Allocation amount specified in LEXIS resource assignment, otherwise None
         """
         return self._allocation_amount
+
+    @property
+    def current_consumption(self):
+        """To fetch value, call AccountingInfo.fetch_assignment_data()
+
+        :return: Amount of currently consumpted Qseconds for the resource, otherwise None
+        """
+        return self._current_consumption
+
+    @current_consumption.setter
+    def current_consumption(self, consumpted_qseconds: float):
+        """To set current consumption for the resource"""
+        # Optional: You can add validation here since it's a setter
+        if consumpted_qseconds < 0:
+            raise ValueError("Consumption cannot be negative.")
+
+        self._current_consumption = consumpted_qseconds
+
+    @property
+    def provider_name(self):
+        """Geter for provider name"""
+        return self._provider_name
 
     @property
     def aggregation_name(self):
@@ -196,22 +219,11 @@ class AccountingInfo:
 
         # 2. Concurrent Calls
         # These run at the same time now that the URL is ready
-        
+
         # Currently not available
         # submitter_info_task = asyncio.to_thread(self.fetch_submitter_info_from_heappe, job_id)
-        
-        # Fetch CYCLOPS's accounting identifiers
-        cyclops_ids_task = self.fetch_cyclops_entities_ids()
 
-        # 3. Validation
-        # Check if any exceptions occurred or if None was returned
-        try:
-            cyclops_ids = await cyclops_ids_task
-        except Exception as e:
-            # Handle failure
-            print(f"ERROR: Cyclops IDs failed: {e}", file=sys.stderr)
         return True
-            
 
     def fetch_all_accounting_info(self, job_id: str) -> bool:
         """The clean public synchronous wrapper."""
@@ -347,13 +359,13 @@ class AccountingInfo:
             ) as resp:
                 if resp.status != 200:
                     print(
-                        f"Status code: {resp.status}, Response: {await resp.text()}",
-                        file=sys.stderr
+                        f"[api/ProjectResource/{self._lexis_project_resource_id}] Status code: {resp.status}, Response: {await resp.text()}",
+                        file=sys.stderr,
                     )
                     return None
 
                 resource_data = await resp.json()
-                assignment_data = resource_data.get("Assignments",[{}])[0]
+                assignment_data = resource_data.get("Assignments", [{}])[0]
 
                 # Extract HEAppE URL from specifications
                 heappe_url = None
@@ -366,7 +378,7 @@ class AccountingInfo:
                 if not heappe_url:
                     print(
                         f"HEAppE URL not specified in resource assignment {self.lexis_project_resource_id}",
-                        file=sys.stderr
+                        file=sys.stderr,
                     )
                     return None
 
@@ -379,7 +391,7 @@ class AccountingInfo:
                 if not self._allocation_amount or not self._aggregation_name:
                     print(
                         "WARN! Missing allocation amount or aggregation name in resource assignment",
-                        file=sys.stderr
+                        file=sys.stderr,
                     )
                     return None
 
@@ -388,7 +400,7 @@ class AccountingInfo:
         except asyncio.TimeoutError:
             print(
                 "Timeout while fetching resource assignment data from LEXIS API",
-                file=sys.stderr
+                file=sys.stderr,
             )
             return None
 
@@ -408,8 +420,8 @@ class AccountingInfo:
             ) as resp:
                 if resp.status != 200:
                     print(
-                        f"Status code: {resp.status}, Response: {await resp.text()}",
-                        file=sys.stderr
+                        f"[api/ProjectResource] Status code: {resp.status}, Response: {await resp.text()}",
+                        file=sys.stderr,
                     )
                     return False
 
@@ -426,7 +438,7 @@ class AccountingInfo:
                 ):
                     print(
                         f"Resource ID {self._lexis_project_resource_id} with assignment not found in LEXIS project {self._lexis_project}",
-                        file=sys.stderr
+                        file=sys.stderr,
                     )
                     return False
 
@@ -439,118 +451,3 @@ class AccountingInfo:
         except asyncio.TimeoutError:
             print("Timeout while verifying resource ID with LEXIS API", file=sys.stderr)
             return False
-
-    async def fetch_cyclops_entities_ids(self) -> Tuple[str, str] | None:
-        """From Cyclops's Customer DB API fetches cyclops customer_id, which is equal to lexis project short name, and resource_id, which is needed for accounting record in Cyclops, using lexis project and resource name as reference. Using endpoint CYCLOPS_API_URL/customerdbAPI/api/v1.0/customer?search={lexis_short_name} and CYCLOPS_API_URL/planmanagerAPI/api/v1.0/plan.
-
-        Sets also self._cyclops_customer_id and self._cyclops_resource_id, which are needed for future accounting records, so they are loaded only once and then cached in the instance.
-        :return: Tuple of (cyclops_customer_id, cyclops_resource_id) or None if error occurs or entities not found
-        """
-        try:
-            async with aiohttp.ClientSession() as session:
-                # 1. Fetch Customer ID first
-                customer_id = await self._fetch_cyclops_customer_id(session)
-                if not customer_id:
-                    return None
-
-                # Cache it so the next method can use it
-                self._cyclops_customer_id = customer_id
-
-                # 2. Now fetch Plan ID using the cached customer_id
-                resource_id = await self._fetch_cyclops_plan_id(session)
-                if not resource_id:
-                    return None
-
-                self._cyclops_resource_id = resource_id
-                return str(customer_id), str(resource_id)
-
-        except Exception as e:
-            import traceback
-
-            traceback.print_exc(file=sys.stderr)
-            print(f"Error fetching Cyclops entity IDs: {e}", file=sys.stderr)
-            return None
-
-    async def _fetch_cyclops_customer_id(
-        self, session: aiohttp.ClientSession
-    ) -> str | None:
-        """Fetch customer ID from Cyclops Customer DB API"""
-        try:
-            async with session.get(
-                f"{CYCLOPS_API_URL}/customerdbAPI/api/v1.0/customer",
-                params={"search": self._lexis_project},
-                headers={"X-API-KEY": CYCLOPS_API_KEY},
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as resp_customer:
-                if resp_customer.status != 200:
-                    print(
-                        f"Status code: {resp_customer.status}, Response: {await resp_customer.text()}",
-                        file=sys.stderr
-                    )
-                    return None
-
-                customers = await resp_customer.json()
-                cyclops_customer_id = None
-
-                # for debug:
-                # print("customers: "+str(customers.get("customers",[])), file=sys.stderr, flush=True)
-
-                for customer in customers.get("customers", []):
-                    if customer.get("Name") == self._lexis_project:
-                        cyclops_customer_id = customer.get("CustomerId")
-                        break
-
-                if not cyclops_customer_id:
-                    print(
-                        f"Customer with name {self._lexis_project} not found in Cyclops",
-                        file=sys.stderr
-                    )
-                    return None
-
-                return cyclops_customer_id
-
-        except asyncio.TimeoutError:
-            print("Timeout while fetching customer data from Cyclops API", file=sys.stderr)
-            return None
-
-    async def _fetch_cyclops_plan_id(
-        self, session: aiohttp.ClientSession
-    ) -> str | None:
-        """Fetch resource entity details (plan ID in Cyclops)"""
-        try:
-            async with session.get(
-                f"{CYCLOPS_API_URL}/planmanagerAPI/api/v1.0/plan",
-                # params={"customerId": getattr(self, '_cyclops_customer_id', '')},
-                headers={"X-API-KEY": CYCLOPS_API_KEY},
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as resp_plan:
-                if resp_plan.status != 200:
-                    print(
-                        f"Status code: {resp_plan.status}, Response: {await resp_plan.text()}",
-                        file=sys.stderr
-                    )
-                    return None
-
-                plans = await resp_plan.json()
-                cyclops_resource_id = None
-
-                # for debug:
-                # print("plans: "+str(plans), file=sys.stderr, flush=True)
-
-                for plan in plans:
-                    if (
-                        plan.get("Name")
-                        == self._location_name + "_" + self._resource_name
-                    ):
-                        cyclops_resource_id = plan.get("ID")
-                        return cyclops_resource_id
-
-                print(
-                    f"Plan with name {self._resource_name} not found for customer {self._lexis_project} in Cyclops",
-                    file=sys.stderr
-                )
-                return None
-
-        except asyncio.TimeoutError:
-            print("Timeout while fetching plan data from Cyclops API", file=sys.stderr)
-            return None

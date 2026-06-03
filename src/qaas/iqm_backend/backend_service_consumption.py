@@ -4,8 +4,12 @@ from datetime import datetime, timedelta, timezone
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
+from uuid import UUID
 
 from kafka import KafkaProducer
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from qaas.iqm_backend.backend_env_variables import (
     CYCLOPS_API_URL,
@@ -17,8 +21,112 @@ from qaas.iqm_backend.backend_env_variables import (
     CYCLOPS_DEFAULT_UNIT,
 )
 from qaas.iqm_backend.backend_service_accounting_info import AccountingInfo
+from qaas.iqm_backend.internal_accounting_table_models import (
+    ConsumptionEntity,
+    ResourceConsumptionSummary,
+    Task,
+    TaskState,
+)
 
 
+##########################
+# Internal Accounting DB #
+##########################
+def fetch_current_consumption_internal(
+    session: Session, accounting_info: AccountingInfo
+) -> float:
+    """Fetches current consumption from the internal accounting database"""
+
+    try:
+        # Query the latest consumption for the specified resource
+        consumption_summary = (
+            session.query(ResourceConsumptionSummary)
+            .filter(
+                ResourceConsumptionSummary.LexisLocationName
+                == accounting_info.location_name,
+                ResourceConsumptionSummary.LexisResourceName
+                == accounting_info.resource_name,
+            )
+            .first()
+        )
+
+        if not consumption_summary:
+            print(
+                f"[fetch_current_consumption_internal] No consumption data found for resource {accounting_info.location_name} and {accounting_info.resource_name}",
+                file=sys.stderr,
+            )
+            return 0.0
+
+        return consumption_summary.TotalCalculatedConsumption
+
+    except Exception as e:
+        print(f"[fetch_current_consumption_internal] Error fetching consumption: {e}")
+        return -1.0
+
+
+def record_consumption_to_internal_db(
+    session: AsyncSession,
+    accounting_info: AccountingInfo,
+    new_consumption: float,
+    session_id: UUID = None,
+    iqm_job_id: UUID = None,
+    heappe_id: int = None,
+):
+    """Records granular consumption to the internal DB by creating/updating a unique Task log"""
+
+    try:
+        # 1. Check if this specific Task already exists using its unique remote Job ID
+        task_stmt = select(Task).filter(Task.IQMJobId == iqm_job_id)
+        task_result = session.execute(task_stmt)
+        existing_task = task_result.scalars().first()
+
+        if existing_task:
+            # Scenario A: Task exists -> Fetch and update its dedicated consumption row
+            consumption_stmt = select(ConsumptionEntity).filter(
+                ConsumptionEntity.ConsumptionId == existing_task.ConsumptionId
+            )
+            consumption_result = session.execute(consumption_stmt)
+            consumption_entity = consumption_result.scalars().first()
+
+            if consumption_entity:
+                # Update the consumption value for this ongoing task
+                consumption_entity.Consumption = new_consumption
+        else:
+            # Scenario B: New Task -> Create a fresh ConsumptionEntity entry first
+            new_consumption_entry = ConsumptionEntity(
+                LexisLocationName=accounting_info.location_name,
+                LexisProject=accounting_info.lexis_project,
+                LexisResourceName=accounting_info.resource_name,
+                CollectorName=f"{accounting_info.lexis_project}|{accounting_info.provider_name}|{accounting_info.resource_name}",
+                LexisUserId=accounting_info.decode_user_jwt_identifier(),
+                Consumption=new_consumption,
+            )
+            session.add(new_consumption_entry)
+
+            # Flush the session to force Postgres to generate the ConsumptionId UUID
+            # without committing the entire transaction early
+            session.flush()
+
+            # Now create the Task row linked to the new Consumption entry
+            new_task = Task(
+                ConsumptionId=new_consumption_entry.ConsumptionId,
+                SessionId=session_id,
+                HeappeId=heappe_id,
+                IQMJobId=iqm_job_id,
+                State=TaskState.Running,  # Set your desired initial task state
+            )
+            session.add(new_task)
+
+        session.commit()
+
+    except Exception as e:
+        session.rollback()
+        print(f"[record_consumption_to_internal_db] Error recording consumption: {e}")
+
+
+###########
+# CYCLOPS #
+###########
 def initializeKafkaProducer() -> KafkaProducer:
     """Initializes Kafka producer for CYCLOPS billing records
 
@@ -34,7 +142,7 @@ def initializeKafkaProducer() -> KafkaProducer:
             lexis_location_name=v["lexis_location_name"],
             lexis_project=v["lexis_project"],
             customer_id=v["customer_id"],
-            submitter_email=v["submitter_email"],
+            submitter_email=v["submitter_identifier"],
         ),
         request_timeout_ms=CYCLOPS_DEFAULT_TIMEOUT,
         retries=CYCLOPS_DEFAULT_RETRIES,
@@ -293,10 +401,10 @@ def record_consumption_usage(
     if not accounting_info.cyclops_customer_id:
         # do not send usage - missing entities in CYCLOPS
         return
-    
+
     # Inputs for serializing function (kafka_value_serializer)
     record = {
-        "submitter_email": accounting_info.decode_user_jwt_identifier(),
+        "submitter_identifier": accounting_info.decode_user_jwt_identifier(),
         "customer_id": accounting_info.cyclops_customer_id,
         "lexis_project": accounting_info.lexis_project,
         "lexis_resource_name": accounting_info.resource_name,

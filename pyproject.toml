@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qaas"
-version = "0.2.3-dev"
+version = "0.3.0-dev"
 description = "Quantum-as-a-Service utilizing IQMProvider, IQMBackend, IQMJob and HEAppE. Developed by IT4Innovations."
 authors = [
     { name="Jan Swiatkowski", email="jan.swiatkowski@vsb.cz" },
@@ -41,7 +41,9 @@ dependencies = [
 iqm_backend = [
     "kafka-python==2.3.*",
     "cachetools",
-    "aiohttp"
+    "aiohttp",
+    "sqlalchemy",
+    "psycopg2-binary"
 ]
 
 [tool.setuptools.packages.find]
