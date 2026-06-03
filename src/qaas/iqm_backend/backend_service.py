@@ -324,7 +324,7 @@ class IQMBackendService:
                     traceback.print_exc(file=sys.stderr)
                     print(f"Error checking resource consumption: {e}", file=sys.stderr)
                     conn.sendall(
-                        "ERROR: Error occured while checking consumption!\n".encode()
+                        "ERROR: Error occurred while checking consumption!\n".encode()
                     )
                     return
                 except Exception as e:
@@ -336,7 +336,7 @@ class IQMBackendService:
                         file=sys.stderr,
                     )
                     conn.sendall(
-                        "ERROR: Unexpected error occured while checking consumption!\n".encode()
+                        "ERROR: Unexpected error occurred while checking consumption!\n".encode()
                     )
                     return
 
