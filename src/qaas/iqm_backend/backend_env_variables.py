@@ -24,6 +24,19 @@ HEAPPE_REPORTED_AUTH_HEADER = {
     "X-API-Key": QAAS_REPORTER_USER + ":" + QAAS_REPORTER_PWD
 }
 
+QAAS_PROVIDER_NAME = os.getenv("QAAS_PROVIDER_NAME", "IT4Innovations")
+
+QAAS_INTERNAL_ACCOUNTING_DB_URI = os.getenv(
+    "QAAS_INTERNAL_ACCOUNTING_DB_URI", "postgresql://user:password@localhost/database"
+)
+if QAAS_INTERNAL_ACCOUNTING_DB_URI == "postgresql://user:password@localhost/database":
+    print(
+        "WARNING: NO DATABASE URI PROVIDED in 'QAAS_INTERNAL_ACCOUNTING_DB_URI' environment variable!!!",
+        file=sys.stderr,
+        flush=True,
+    )
+    exit(-4)
+
 CYCLOPS_KAFKA_SERVER = os.getenv("CYCLOPS_KAFKA_SERVER")
 CYCLOPS_API_URL = os.getenv("CYCLOPS_API_URL")
 CYCLOPS_API_KEY = os.getenv("CYCLOPS_API_KEY")
@@ -33,24 +46,25 @@ CYCLOPS_DEFAULT_RETRIES = int(os.getenv("CYCLOPS_DEFAULT_RETRIES", "3"))
 CYCLOPS_DEFAULT_TOPIC = os.getenv("CYCLOPS_DEFAULT_TOPIC", "UDR")
 
 
-# check all required environment variables at the start of the service, so if something is missing, it fails immediately
-if not CYCLOPS_API_URL:
-    print(
-        "CYCLOPS_API_URL environment variable is required to fetch Cyclops entity IDs",
-        file=sys.stderr,
-    )
-    exit(-1)
-if not CYCLOPS_KAFKA_SERVER:
-    print(
-        "CYCLOPS_KAFKA_SERVER environment variable is required to fetch Cyclops entity IDs",
-        file=sys.stderr,
-    )
-    exit(-2)
-if not QAAS_LEXIS_API_URL:
-    print(
-        "QAAS_LEXIS_API_URL environment variable is required to fetch LEXIS entity IDs",
-        file=sys.stderr,
-    )
-    exit(-3)
+# CYCLOPS is not currently a part of consumption logic
+# # check all required environment variables at the start of the service, so if something is missing, it fails immediately
+# if not CYCLOPS_API_URL:
+#     print(
+#         "CYCLOPS_API_URL environment variable is required to fetch Cyclops entity IDs",
+#         file=sys.stderr,
+#     )
+#     exit(-1)
+# if not CYCLOPS_KAFKA_SERVER:
+#     print(
+#         "CYCLOPS_KAFKA_SERVER environment variable is required to fetch Cyclops entity IDs",
+#         file=sys.stderr,
+#     )
+#     exit(-2)
+# if not QAAS_LEXIS_API_URL:
+#     print(
+#         "QAAS_LEXIS_API_URL environment variable is required to fetch LEXIS entity IDs",
+#         file=sys.stderr,
+#     )
+#     exit(-3)
 
-print("All required environment variables are set. Starting service...")
+# print("All required environment variables are set. Starting service...")

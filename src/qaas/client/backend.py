@@ -502,6 +502,11 @@ class QJob:
             "client_instance_update_ended": None,
         }
 
+        """Currently consumpted resources - is available after is job finished"""
+        self.consumpted_resources: float | None = None
+        """Allocation amount for LEXIS resource - is available after is job finished"""
+        self.allocation_amount: float | None = None
+
         self.remote_job: IQMJob = None  # Will be set when results are available
 
     def result(

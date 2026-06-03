@@ -125,3 +125,93 @@ class QProvider:
             self._token, self._lexis_project, lexis_resource, self._provider_token
         )
         return c
+
+
+class QProviderDev(QProvider):
+    """Provider for accessing development instance with different queues and command templates.
+
+    :param QProvider: _description_
+    """
+
+    def __init__(self, token, lexis_project, provider_access_token=None):
+        super().__init__(token, lexis_project, provider_access_token)
+
+    def get_backend(
+        self,
+        lexis_resource: str | QBackendMetadata,
+        backend_name: str | None = None,
+        calibration_set_id: UUID | None = None,
+        *,
+        use_metrics: bool = False,
+        **kwargs,
+    ) -> QBackendIQM:
+        """An IQMBackend instance associated with this provider.
+
+
+        :param backend_name: optional name of a custom facade backend
+        :param lexis_resource_name: LEXIS accounting resource, defaults to 'VLQ HPC'
+        :param calibration_set_id: ID of the calibration set used to create the transpilation target of the backend.
+            If None, the server default calibration set will be used.
+
+        """
+
+        if isinstance(lexis_resource, QBackendMetadata):
+            lexis_resource_name: str = lexis_resource.lexis_resource_name
+        else:
+            lexis_resource_name: str = lexis_resource
+
+        client = QClient(
+            self._token,
+            self._lexis_project,
+            lexis_resource_name,
+            self._provider_token,
+            **kwargs,
+        )
+        backend_metadata = client.get_quantum_backend_info()
+
+        if backend_metadata.software_stack == "IQM":
+            if backend_name and backend_name.startswith("facade_"):
+                return IQMFacadeBackend(
+                    client,
+                    name=backend_name,
+                    calibration_set_id=calibration_set_id,
+                    use_metrics=use_metrics,
+                )
+            return QBackendIQM(
+                client,
+                calibration_set_id=calibration_set_id,
+                use_metrics=use_metrics,
+                backend_metadata=backend_metadata,
+            )
+        return NotImplemented
+
+    def get_pulla(self, lexis_resource: str | QBackendMetadata, **kwargs) -> QPulla:
+        if isinstance(lexis_resource, QBackendMetadata):
+            lexis_resource_name: str = lexis_resource.lexis_resource_name
+        else:
+            lexis_resource_name: str = lexis_resource
+
+        client = QClient(
+            self._token,
+            self._lexis_project,
+            lexis_resource_name,
+            self._provider_token,
+            **kwargs,
+        )
+        pulla_data, pulla = client.get_pulla()
+        return QPulla(client, pulla, **pulla_data)
+
+    def get_client(self, lexis_resource: str | QBackendMetadata, **kwargs) -> QClient:
+        if isinstance(lexis_resource, QBackendMetadata):
+            lexis_resource_name: str = lexis_resource.lexis_resource_name
+        else:
+            lexis_resource_name: str = lexis_resource
+
+        client = QClient(
+            self._token,
+            self._lexis_project,
+            lexis_resource_name,
+            self._provider_token,
+            **kwargs,
+        )
+        return client

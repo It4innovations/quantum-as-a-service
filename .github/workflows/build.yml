@@ -102,6 +102,7 @@ jobs:
         env:
           CYCLOPS_API_URL: "http://placeholder"
           CYCLOPS_KAFKA_SERVER: "placeholder:9092"
+          QAAS_INTERNAL_ACCOUNTING_DB_URI: "postgresql://user_placeholder:example_pwd@localhost/database_name"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

@@ -1,0 +1,32 @@
+erDiagram
+    ConsumptionEntities {
+        uuid ConsumptionId PK
+        varchar LexisLocationName
+        varchar LexisProject
+        varchar LexisResourceName
+        varchar CollectorName
+        uuid LexisUserId
+        double_precision Consumption
+        double_precision ConsumptionFactor
+    }
+
+    Sessions {
+        uuid SessionId PK
+        uuid ConsumptionId FK
+        timestamp FromDatetime
+        timestamp ToDatetime
+        session_state State
+    }
+
+    Tasks {
+        uuid TaskId PK
+        uuid ConsumptionId FK
+        uuid SessionId FK
+        integer HeappeId
+        uuid IQMJobId
+        task_state State
+    }
+
+    ConsumptionEntities ||--|| Sessions : "links metadata"
+    ConsumptionEntities ||--|| Tasks : "links metadata"
+    Sessions ||--o{ Tasks : "contains"
