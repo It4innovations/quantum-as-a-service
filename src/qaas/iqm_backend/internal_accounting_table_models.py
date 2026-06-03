@@ -1,14 +1,5 @@
 import enum
-from sqlalchemy import (
-    Column,
-    ForeignKey,
-    Integer,
-    String,
-    Float,
-    UUID,
-    DateTime,
-    text
-)
+from sqlalchemy import Column, ForeignKey, Integer, String, Float, UUID, DateTime, text
 from sqlalchemy import Index
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import relationship
