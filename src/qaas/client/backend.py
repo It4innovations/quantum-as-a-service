@@ -686,7 +686,7 @@ class QJob:
         heappe_status, _, _ = self._qclient.get_job_status(self.job_id)
 
         return HEAppE_QISKIT_STATUS_MAPPING.get(heappe_status, "ERROR")
-
+    
     def wait_for_final_state(
         self,
         timeout: float = 600,
@@ -721,6 +721,16 @@ class QJob:
                 self,
             )
         return
+    
+    
+    def wait_for_completion(
+        self,
+        timeout: float = 600,
+        cancel_after_timeout=True,
+        wait: float = QClient.DEFAULT_POLL_TIME
+        ):
+        """Waits until job results are ready or job fails."""
+        return self.wait_for_final_state(timeout=timeout, cancel_after_timeout=cancel_after_timeout, callback=None, wait=wait)
 
     def cancel_heappe_job(self, heappe_job_id: int) -> bool:
         """See doc QClient:cancel_job"""

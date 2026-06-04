@@ -875,7 +875,7 @@ class IQMBackendService:
             self._new_consumption_cache[task_id] = sw_job.remote_hw_runtime
 
         # Check status
-        if sw_job.status == IQMJobStatus.FAILED or not result.success:
+        if sw_job.status == IQMJobStatus.FAILED:
             raise Exception(
                 f"Job failed: {sw_job._errors[0] if sw_job._errors else 'Unknown sweep job error'}"
             )
