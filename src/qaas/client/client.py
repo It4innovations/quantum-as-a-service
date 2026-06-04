@@ -1478,7 +1478,7 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         log.warning(
             "We are sorry for inconvenience, Pulla is currently not supported. We are working on this feature"
         )
-        
+
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
 
@@ -1995,7 +1995,6 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
                 # Get available command templates (API endpoint may vary)
                 clusters: ClusterExt = heappe_cluster_info_api.heappe_cluster_information_list_available_clusters_get(
                     ClusterName=self._backend_metadata.backend_name,
-                    
                     AccountingString=[
                         self._backend_metadata.lexis_resource.resource_name
                     ],
