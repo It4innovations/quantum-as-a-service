@@ -53,11 +53,15 @@ IQM Pulla
    from qiskit.compiler import transpile
    from iqm.qiskit_iqm.iqm_transpilation import optimize_single_qubit_gates
    from iqm.pulla.utils_qiskit import sweep_job_to_qiskit
+   from qaas.client import QProvider, QBackend
    from qaas.client.qpulla import qiskit_to_pulla, QPullaBackendIQM
 
-   client = provider.get_client(resource_name)
+   provider = QProvider(lexis_access_token, "my_project")
+   client = provider.get_client(lexis_resource_name)
    dqa = client.get_dynamic_architecture()
    compiler = p.get_standard_compiler()
+   # Create Pulla instance
+   p = provider.get_pulla(lexis_resource_name)
    pulla_backend: QPullaBackendIQM = QPullaBackendIQM(dqa,p,compiler)
 
    qc_transpiled = backend.transpile(
@@ -68,7 +72,7 @@ IQM Pulla
    # Optimize single-qubit gates
    qc_optimized = optimize_single_qubit_gates(qc_transpiled)
 
-   circuits, compiler = qiskit_to_pulla(p, pulla_backend, [qc_transpiled])
+   circuits, compiler = qiskit_to_pulla(p, pulla_backend, [qc_optimized])
    playlist, context = compiler.compile(circuits[0])
    # Build settings for execution
    settings, context = compiler.build_settings(context, shots=100)
