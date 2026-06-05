@@ -49,7 +49,9 @@ Example usage:
 
 
 Also OpenQASM is supported on input:
+
 .. code-block:: python
+
    from qiskit.qasm3 import dumps as qasm3dumps
 
    qc = QuantumCircuit(2, 2)
@@ -64,7 +66,9 @@ Also OpenQASM is supported on input:
 
 IQM Pulla
 ----------
+
 .. code-block:: python
+
    from qiskit import QuantumCircuit, visualization
    from qiskit.compiler import transpile
    from iqm.qiskit_iqm.iqm_transpilation import optimize_single_qubit_gates
