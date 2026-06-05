@@ -1022,15 +1022,15 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
 
-        if (
-            backend
-            and isinstance(backend, Pulla)
-            or (isinstance(circuits, list) and isinstance(circuits[0], SweepDefinition))
-        ):
-            log.warning(
-                "We are sorry for inconvenience, Pulla is currently not supported. We are working on this feature"
-            )
-            return NotImplemented
+        # if (
+        #     backend
+        #     and isinstance(backend, Pulla)
+        #     or (isinstance(circuits, list) and isinstance(circuits[0], SweepDefinition))
+        # ):
+        #     log.warning(
+        #         "We are sorry for inconvenience, Pulla is currently not supported. We are working on this feature"
+        #     )
+        #     return NotImplemented
 
         # handle user token
         raw_encrypt_pwd, encoded_pwd = generate_password(50)
@@ -1478,7 +1478,7 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         log.warning(
             "We are sorry for inconvenience, Pulla is currently not supported. We are working on this feature"
         )
-        return NotImplemented
+
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
 
@@ -1615,7 +1615,7 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
         try:
             env_variables = [
                 EnvironmentVariableExt("Q_COMMAND", "get_calibration_set"),
-                EnvironmentVariableExt(encoded_pwd),
+                EnvironmentVariableExt("USER_JWT_PWD", encoded_pwd),
                 EnvironmentVariableExt("LEXIS_PROJECT", self.lexis_project),
                 EnvironmentVariableExt(
                     "LEXIS_PROJECT_RESOURCE_ID",

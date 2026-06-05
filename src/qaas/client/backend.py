@@ -722,6 +722,20 @@ class QJob:
             )
         return
 
+    def wait_for_completion(
+        self,
+        timeout: float = 600,
+        cancel_after_timeout=True,
+        wait: float = QClient.DEFAULT_POLL_TIME,
+    ):
+        """Waits until job results are ready or job fails."""
+        return self.wait_for_final_state(
+            timeout=timeout,
+            cancel_after_timeout=cancel_after_timeout,
+            callback=None,
+            wait=wait,
+        )
+
     def cancel_heappe_job(self, heappe_job_id: int) -> bool:
         """See doc QClient:cancel_job"""
         return self._qclient.cancel_job(heappe_job_id)
