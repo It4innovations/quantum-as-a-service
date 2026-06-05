@@ -5,16 +5,32 @@ QaaS — Quantum-as-a-Service
    :target: https://it4innovations.github.io/quantum-as-a-service/
    :alt: Documentation
 
-Access IQM quantum hardware through the `LEXIS platform <https://lexis-project.eu/>`_ via HEAppE.
+Access IQM quantum hardware through the `LEXIS platform <https://lexis-project.eu/>`_ via `HEAppE <https://heappe.eu/>`_.
 
 **Documentation:** https://it4innovations.github.io/quantum-as-a-service/
+
+Requirements
+------------
+
+- Python 3.11+
+- required Python packages: see `dependencies` in `pyproject.toml <pyproject.toml>`_
 
 Quick start
 -----------
 
+QaaS is available on `PyPI <https://pypi.org/project/qaas>`_, so you can install it easily using `pip`.
+
 .. code-block:: bash
 
-   pip3.11 install git+https://github.com/It4innovations/quantum-as-a-service.git@main
+   pip install qaas
+
+Alternatively, you can install the latest (development) version using:
+
+.. code-block:: bash
+
+   pip install git+https://github.com/It4innovations/quantum-as-a-service.git@main
+
+Example usage:
 
 .. code-block:: python
 
