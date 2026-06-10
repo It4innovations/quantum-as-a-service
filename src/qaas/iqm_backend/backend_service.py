@@ -347,6 +347,8 @@ class IQMBackendService:
 
                 # Consumption is within limits, allow job
 
+            iqm_job_id = None
+            
             # Handle command
             if command_params.command == "backend_init":
                 # Not accounted
@@ -360,7 +362,7 @@ class IQMBackendService:
                     conn.sendall(b"DONE\n")
             elif command_params.command == "backend_run":
                 # Accounted
-                self.backend_run(command_params.task_dir, command_params.full_id)
+                iqm_job_id = self.backend_run(command_params.task_dir, command_params.full_id)
                 conn.sendall(b"DONE\n")
             elif command_params.command == "pulla_init":
                 # Not accounted
@@ -368,7 +370,7 @@ class IQMBackendService:
                 conn.sendall(b"DONE\n")
             elif command_params.command == "pulla_submit_playlist":
                 # Accounted
-                self.pulla_submit_playlist(
+                iqm_job_id = self.pulla_submit_playlist(
                     command_params.task_dir, command_params.full_id
                 )
                 conn.sendall(b"DONE\n")
@@ -418,6 +420,8 @@ class IQMBackendService:
                     self._internal_accounting_db_sessionmaker(),
                     accounting_info,
                     self._new_consumption_cache.get(command_params.full_id, 0.0),
+                    heappe_id=command_params.full_id.split("/")[0],
+                    iqm_job_id=iqm_job_id
                 )
 
                 ###########
@@ -571,7 +575,21 @@ class IQMBackendService:
 
         print(f"Backend initialized and saved for task {task_id}")
 
-    def backend_run(self, task_dir: Path, task_id: str):
+    def backend_run(self, task_dir: Path, task_id: str)->str:
+        """Runs a job for a specific task on the specified backend.
+
+        Args:
+            task_dir (Path): The path to the directory where the job will be executed.
+                        This should contain circuit files (.qasm).
+            task_id (str):  The ID of the task that this function is running.
+            Raises:
+            FileNotFoundError: If the provided file does not exist in the task directory.
+            raises Exception: If any other error happens during the execution. 
+
+        Returns:
+            str: IQM Job Id on success
+    """
+
         print(f"Running job for task {task_id} - backend_run")
 
         backend_run_initialization_started = time.time()
@@ -744,6 +762,7 @@ class IQMBackendService:
         # record postprocessing time as last one
 
         print(f"Task {task_id} completed in {job.remote_backend_runtime:.2f}s ")
+        return job.job_id()
 
     def pulla_init(self, task_dir: Path, task_id: str):
         print(f"Initializing Pulla instance for task {task_id}")
@@ -778,7 +797,20 @@ class IQMBackendService:
 
         print(f"Pulla initialized and saved for task {task_id}")
 
-    def pulla_submit_playlist(self, task_dir: Path, task_id: str):
+    def pulla_submit_playlist(self, task_dir: Path, task_id: str)->str:
+        """Runs a Pulla job for a specific task on the specified backend.
+
+            Args:
+                task_dir (Path): The path to the directory where the job will be executed.
+                            This should contain circuit files (.qasm).
+                task_id (str):  The ID of the task that this function is running.
+                Raises:
+                FileNotFoundError: If the provided file does not exist in the task directory.
+                raises Exception: If any other error happens during the execution. 
+
+            Returns:
+                str: IQM Job Id on success
+        """
         print(f"Running job for task {task_id} - pulla_submit_playlist")
 
         pulla_submit_pl_initialization_started = time.time()
@@ -907,3 +939,5 @@ class IQMBackendService:
             pulla_submit_pl_postprocessing_ended
         )
         IQMBackendService.save_python_obj(task_dir / "job.pkl", sw_job, use_dill=True)
+
+        return sw_job.job_id
