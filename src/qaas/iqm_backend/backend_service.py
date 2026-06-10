@@ -348,7 +348,7 @@ class IQMBackendService:
                 # Consumption is within limits, allow job
 
             iqm_job_id = None
-            
+
             # Handle command
             if command_params.command == "backend_init":
                 # Not accounted
@@ -362,7 +362,9 @@ class IQMBackendService:
                     conn.sendall(b"DONE\n")
             elif command_params.command == "backend_run":
                 # Accounted
-                iqm_job_id = self.backend_run(command_params.task_dir, command_params.full_id)
+                iqm_job_id = self.backend_run(
+                    command_params.task_dir, command_params.full_id
+                )
                 conn.sendall(b"DONE\n")
             elif command_params.command == "pulla_init":
                 # Not accounted
@@ -421,7 +423,7 @@ class IQMBackendService:
                     accounting_info,
                     self._new_consumption_cache.get(command_params.full_id, 0.0),
                     heappe_id=command_params.full_id.split("/")[0],
-                    iqm_job_id=iqm_job_id
+                    iqm_job_id=iqm_job_id,
                 )
 
                 ###########
@@ -575,7 +577,7 @@ class IQMBackendService:
 
         print(f"Backend initialized and saved for task {task_id}")
 
-    def backend_run(self, task_dir: Path, task_id: str)->str:
+    def backend_run(self, task_dir: Path, task_id: str) -> str:
         """Runs a job for a specific task on the specified backend.
 
         Args:
@@ -584,11 +586,11 @@ class IQMBackendService:
             task_id (str):  The ID of the task that this function is running.
             Raises:
             FileNotFoundError: If the provided file does not exist in the task directory.
-            raises Exception: If any other error happens during the execution. 
+            raises Exception: If any other error happens during the execution.
 
         Returns:
             str: IQM Job Id on success
-    """
+        """
 
         print(f"Running job for task {task_id} - backend_run")
 
@@ -797,19 +799,19 @@ class IQMBackendService:
 
         print(f"Pulla initialized and saved for task {task_id}")
 
-    def pulla_submit_playlist(self, task_dir: Path, task_id: str)->str:
+    def pulla_submit_playlist(self, task_dir: Path, task_id: str) -> str:
         """Runs a Pulla job for a specific task on the specified backend.
 
-            Args:
-                task_dir (Path): The path to the directory where the job will be executed.
-                            This should contain circuit files (.qasm).
-                task_id (str):  The ID of the task that this function is running.
-                Raises:
-                FileNotFoundError: If the provided file does not exist in the task directory.
-                raises Exception: If any other error happens during the execution. 
+        Args:
+            task_dir (Path): The path to the directory where the job will be executed.
+                        This should contain circuit files (.qasm).
+            task_id (str):  The ID of the task that this function is running.
+            Raises:
+            FileNotFoundError: If the provided file does not exist in the task directory.
+            raises Exception: If any other error happens during the execution.
 
-            Returns:
-                str: IQM Job Id on success
+        Returns:
+            str: IQM Job Id on success
         """
         print(f"Running job for task {task_id} - pulla_submit_playlist")
 

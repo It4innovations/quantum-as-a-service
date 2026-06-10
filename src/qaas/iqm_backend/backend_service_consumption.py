@@ -77,14 +77,17 @@ def record_consumption_to_internal_db(
 
     try:
         # 1. Check if this specific Task already exists using its unique remote Job ID
-        print(f"[record_consumption_to_internal_db] Recording Task {heappe_id} - {iqm_job_id}", file=sys.stderr)
+        print(
+            f"[record_consumption_to_internal_db] Recording Task {heappe_id} - {iqm_job_id}",
+            file=sys.stderr,
+        )
         task_stmt = select(Task).filter(
             sa.and_(
                 Task.HeappeId == heappe_id,
                 Task.IQMJobId == iqm_job_id,
                 Task.HeappeId.isnot(None),
-                Task.IQMJobId.isnot(None)
-                )
+                Task.IQMJobId.isnot(None),
+            )
         )
         task_result = session.execute(task_stmt)
         existing_task = task_result.scalars().first()
