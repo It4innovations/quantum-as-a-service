@@ -7,6 +7,7 @@ import requests
 from uuid import UUID
 
 from kafka import KafkaProducer
+import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -76,7 +77,18 @@ def record_consumption_to_internal_db(
 
     try:
         # 1. Check if this specific Task already exists using its unique remote Job ID
-        task_stmt = select(Task).filter(Task.IQMJobId == iqm_job_id)
+        print(
+            f"[record_consumption_to_internal_db] Recording Task {heappe_id} - {iqm_job_id}",
+            file=sys.stderr,
+        )
+        task_stmt = select(Task).filter(
+            sa.and_(
+                Task.HeappeId == heappe_id,
+                Task.IQMJobId == iqm_job_id,
+                Task.HeappeId.isnot(None),
+                Task.IQMJobId.isnot(None),
+            )
+        )
         task_result = session.execute(task_stmt)
         existing_task = task_result.scalars().first()
 
@@ -113,7 +125,7 @@ def record_consumption_to_internal_db(
                 SessionId=session_id,
                 HeappeId=heappe_id,
                 IQMJobId=iqm_job_id,
-                State=TaskState.Running,  # Set your desired initial task state
+                State=TaskState.Finished,  # Set your desired initial task state
             )
             session.add(new_task)
 
