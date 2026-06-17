@@ -127,8 +127,8 @@ class QClient:
 
     DEFAULT_LEXIS_AGGREGATION_NAME = ["VLQ", "EQE1", "QLM"]
     # Two templates for two different queues are required by HEAppE architecture
-    DEFAULT_QINIT_TEMPLATE_NAME = "RUN_QINIT"
-    DEFAULT_QEXECUTE_TEMPLATE_NAME = "RUN_QEXECUTE"
+    DEFAULT_QINIT_TEMPLATE_NAME = "RunQInit"
+    DEFAULT_QEXECUTE_TEMPLATE_NAME = "RunQExecute"
     DEFAULT_QINIT_QUEUE_NAME = "init_queue"
     DEFAULT_QEXECUTE_QUEUE_NAME = "compute_queue"
     DEFAULT_USERORG_BASE_URL = "https://api.lexis.tech/userorg"
@@ -1979,12 +1979,9 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             resource specified during client initialization.
         """
 
-        qinit_template_name = QClient._get_real_template_name(
-            self._lexis_project, template_name_qinit
-        )
-        qexecute_template_name = QClient._get_real_template_name(
-            self._lexis_project, template_name_qexecute
-        )
+        qinit_template_name = template_name_qinit
+        qexecute_template_name = template_name_qexecute
+        
 
         def get_command_template_call(target_template_name):
             try:
