@@ -6,6 +6,7 @@ __pycache__/
 .vscode/
 .venv/
 .venv_*/
+.python-version
 venv_mac*/
 venv_*/
 dist/*

@@ -21,7 +21,7 @@ from iqm.qiskit_iqm.iqm_job import IQMJob
 from iqm.iqm_client import JobStatus as IQMJobStatus
 
 # from iqm.iqm_server_client.models import TimelineEntry
-from iqm.pulla.pulla import SweepJob, Pulla
+from iqm.pulla.pulla import PullaJob, Pulla
 from iqm.iqm_client import IQMClient
 
 from qaas.iqm_backend.backend_env_variables import (
@@ -777,11 +777,11 @@ class IQMBackendService:
 
         p = Pulla(server_url, quantum_computer=quantum_computer)
 
-        channel_prop, component_channels = p.get_channel_properties()
+        channel_prop, component_channels = p._iqm_server_client.get_channel_properties()
 
         pulla_data = {
-            "calibration_sets": p._calibration_data_provider._calibration_sets,
-            "station_control_settings": p._get_station_control_settings(),
+            "calibration_sets": p._iqm_server_client.get_calibration_set("default"),
+            "station_control_settings": p._iqm_server_client.get_settings(),
             "chip_label": p.get_chip_label(),
             "channel_properties": channel_prop,
             "component_channels": component_channels,
@@ -855,7 +855,7 @@ class IQMBackendService:
         iqm_client_job_runtime = iqm_client_run_ended - iqm_client_run_started
 
         iqm_client_results_fetching_started = time.time()
-        sw_job = SweepJob(
+        sw_job = PullaJob(
             data=job_data,
             _pulla=pulla,
             _context=deepcopy(context),

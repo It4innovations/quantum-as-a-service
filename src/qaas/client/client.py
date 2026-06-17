@@ -127,8 +127,8 @@ class QClient:
 
     DEFAULT_LEXIS_AGGREGATION_NAME = ["VLQ", "EQE1", "QLM"]
     # Two templates for two different queues are required by HEAppE architecture
-    DEFAULT_QINIT_TEMPLATE_NAME = "RUN_QINIT"
-    DEFAULT_QEXECUTE_TEMPLATE_NAME = "RUN_QEXECUTE"
+    DEFAULT_QINIT_TEMPLATE_NAME = "RunQInit"
+    DEFAULT_QEXECUTE_TEMPLATE_NAME = "RunQExecute"
     DEFAULT_QINIT_QUEUE_NAME = "init_queue"
     DEFAULT_QEXECUTE_QUEUE_NAME = "compute_queue"
     DEFAULT_USERORG_BASE_URL = "https://api.lexis.tech/userorg"
@@ -197,6 +197,9 @@ class QClient:
         # Operational kwargs
         self._lexis_userorg_api_url = kwargs.get(
             "lexis_userorg_api_url", self.DEFAULT_USERORG_BASE_URL
+        )
+        self._lexis_aggregation_name = kwargs.get(
+            "lexis_aggregation_name", self.DEFAULT_LEXIS_AGGREGATION_NAME # list[str]
         )
 
         # Authenticate on initialization
@@ -497,7 +500,7 @@ class QClient:
                             aggregation_name = resource.get("AggregationName")
                             if (
                                 aggregation_name
-                                in QClient.DEFAULT_LEXIS_AGGREGATION_NAME
+                                in self._lexis_aggregation_name
                             ):
                                 if quantum_computer_name is None:
                                     assignment_info = assignment
@@ -518,18 +521,20 @@ class QClient:
             else:
                 for resource in project_resources:
                     resource_name = resource.get("Name")
+                    log.debug("Project resource_name: %s", str(resource_name))
                     if resource_name == lexis_resource_name:
                         project_resource_info = resource
                         for assignment in resource.get("Assignments", []):
-                            location_name = assignment.get("LocationName")
-                            if location_name in QClient.DEFAULT_LEXIS_AGGREGATION_NAME:
+                            location_name = assignment.get("AggregationName")
+                            log.debug("Project location_name: %s", str(location_name))
+                            if location_name in self._lexis_aggregation_name:
                                 assignment_info = assignment
                                 break
                         break
 
             if not project_resource_info or not assignment_info:
                 raise QAuthException(
-                    reason=f"Resource or assignment of type {QClient.DEFAULT_LEXIS_AGGREGATION_NAME} not found in available resources for project '{self._lexis_project}'",
+                    reason=f"Resource or assignment of type {self._lexis_aggregation_name} not found in available resources for project '{self._lexis_project}'",
                     user_id=self._username,
                     resource=lexis_resource_name,
                 )
@@ -617,7 +622,7 @@ class QClient:
                 )
 
                 backend_info = QBackendMetadata(
-                    backend_name=assignment_info["AggregationName"],
+                    backend_name=assignment_info["LocationName"],
                     swstack=sw_stack,
                     available="UNKNOWN",  # FIXME: get this information
                     quantum_technology=quantum_technology,
@@ -654,83 +659,9 @@ class QClient:
         """
 
         try:
-            # Setup file with trusted public certificate
-            ca_file = NamedTemporaryFile("w", encoding="utf-8", delete=False)
-
-            ca_file.write(
-                """-----BEGIN CERTIFICATE-----
-MIIFOjCCBMCgAwIBAgIQOKl0rK8uz3jWbelvhH3T5TAKBggqhkjOPQQDAzBgMQsw
-CQYDVQQGEwJHUjE3MDUGA1UECgwuSGVsbGVuaWMgQWNhZGVtaWMgYW5kIFJlc2Vh
-cmNoIEluc3RpdHV0aW9ucyBDQTEYMBYGA1UEAwwPR0VBTlQgVExTIEVDQyAxMB4X
-DTI1MDkxMTA3MDcxOVoXDTI2MDkxMTA3MDcxOVowgaMxCzAJBgNVBAYTAkNaMR4w
-HAYDVQQIDBVNb3JhdnNrb3NsZXpza8O9IGtyYWoxEDAOBgNVBAcMB09zdHJhdmEx
-QTA/BgNVBAoMOFZ5c29rw6EgxaFrb2xhIGLDocWIc2vDoSAtIFRlY2huaWNrw6Eg
-dW5pdmVyeml0YSBPc3RyYXZhMR8wHQYDVQQDDBZxdWFudHVtLmhlYXBwZS5pdDRp
-LmN6MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEmQqFWnIuktS0Csyx1a12kl146wdI
-VRRmEf6F0BJs9VpLaipuma0LJkPMVqN6UGS211HPQsaVA7qXla9lEgcDFs+QPnbg
-QT/aMVmaZ3neUOVWR7Ysn2JAGNMlTRfgZ0a1o4IC+TCCAvUwHwYDVR0jBBgwFoAU
-6ZkGjRcfq/uWGlrIW15dXuzanI8wbwYIKwYBBQUHAQEEYzBhMDgGCCsGAQUFBzAC
-hixodHRwOi8vY3J0LmhhcmljYS5nci9IQVJJQ0EtR0VBTlQtVExTLUUxLmNlcjAl
-BggrBgEFBQcwAYYZaHR0cDovL29jc3AtdGxzLmhhcmljYS5ncjAhBgNVHREEGjAY
-ghZxdWFudHVtLmhlYXBwZS5pdDRpLmN6MC0GA1UdIAQmMCQwCAYGZ4EMAQICMAgG
-BgQAj3oBBzAOBgwrBgEEAYHPEQEBAQIwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsG
-AQUFBwMBMD0GA1UdHwQ2MDQwMqAwoC6GLGh0dHA6Ly9jcmwuaGFyaWNhLmdyL0hB
-UklDQS1HRUFOVC1UTFMtRTEuY3JsMB0GA1UdDgQWBBRxuKtRV278ArCmmHc4Rp8h
-N/RrWzAOBgNVHQ8BAf8EBAMCB4AwggGABgorBgEEAdZ5AgQCBIIBcASCAWwBagB3
-AJSxwYqw0FfEe+CsBA4fLLyNw3Vye8lR8gpSYSaGO6c8AAABmTei0u0AAAQDAEgw
-RgIhAL4OsS2+pJYNhEsCZq646E14jsPXm2/45vG/+wU+BbzxAiEAsfyJShFPOYSN
-IE1/34C5V9qfiIxZhZORjvQzk2o1gD0AdwCUTkOH+uzB74HzGSQmqBhlAcfTXzgC
-AT9yZ31VNy4Z2AAAAZk3otLWAAAEAwBIMEYCIQDrqDTALUdHksprY3yqNJDrUmtN
-P1VON5OyK6+K/MQ7TQIhAMJNrXXnutC71p8TJB8zSq7IPLUpnUuhfmE1BT15OSjs
-AHYA2AlVO5RPev/IFhlvlE+Fq7D4/F6HVSYPFdEucrtFSxQAAAGZN6LS6QAABAMA
-RzBFAiEAlL/WpPWJ9M752QBf011d4uIRb8JLuDJnWUQgQQnpdT4CIFbChHHfedHx
-Gd24iKV5QHUpmRS3TA5J9aLxmT30n6hSMAoGCCqGSM49BAMDA2gAMGUCMQCi+jsR
-XYUXbdKYDnghXDUoF/m3Z/9dXhUM+rkkhoVmSgvMHUyNfmODonDxKYXw3+YCMBHo
-dhGSF2mJaMmtuucd73U8UbMO3Zr9otOO7NBcg7St8uPya19bBU55a4SRHKet1Q==
------END CERTIFICATE-----
------BEGIN CERTIFICATE-----
-MIIDNzCCArygAwIBAgIQQv3c4SYWB+Gl5pNaQAFh3TAKBggqhkjOPQQDAzBsMQsw
-CQYDVQQGEwJHUjE3MDUGA1UECgwuSGVsbGVuaWMgQWNhZGVtaWMgYW5kIFJlc2Vh
-cmNoIEluc3RpdHV0aW9ucyBDQTEkMCIGA1UEAwwbSEFSSUNBIFRMUyBFQ0MgUm9v
-dCBDQSAyMDIxMB4XDTI1MDEwMzExMTQyMVoXDTM5MTIzMTExMTQyMFowYDELMAkG
-A1UEBhMCR1IxNzA1BgNVBAoMLkhlbGxlbmljIEFjYWRlbWljIGFuZCBSZXNlYXJj
-aCBJbnN0aXR1dGlvbnMgQ0ExGDAWBgNVBAMMD0dFQU5UIFRMUyBFQ0MgMTB2MBAG
-ByqGSM49AgEGBSuBBAAiA2IABANPWLwh0Za2UqtbLV7/qNRm78zsttgSuvhn73bU
-GtxETsVOEZeMUfMjgHw8EwrsSJI9oj0CgZQFFSEY1NJfcxA/NJiOYJUKPsFbpOrY
-dr0q4g+aBZsXWeh7bMCzx24g/aOCAS0wggEpMBIGA1UdEwEB/wQIMAYBAf8CAQAw
-HwYDVR0jBBgwFoAUyRtTgRL+BNUW0aq8mm+3oJUZbsowTQYIKwYBBQUHAQEEQTA/
-MD0GCCsGAQUFBzAChjFodHRwOi8vY3J0LmhhcmljYS5nci9IQVJJQ0EtVExTLVJv
-b3QtMjAyMS1FQ0MuY2VyMBEGA1UdIAQKMAgwBgYEVR0gADAdBgNVHSUEFjAUBggr
-BgEFBQcDAgYIKwYBBQUHAwEwQgYDVR0fBDswOTA3oDWgM4YxaHR0cDovL2NybC5o
-YXJpY2EuZ3IvSEFSSUNBLVRMUy1Sb290LTIwMjEtRUNDLmNybDAdBgNVHQ4EFgQU
-6ZkGjRcfq/uWGlrIW15dXuzanI8wDgYDVR0PAQH/BAQDAgGGMAoGCCqGSM49BAMD
-A2kAMGYCMQD2M1caaY2OwmthgmANUQg3LBLI0/2LiCdxa2zNq0G59wVzbjEk0cR/
-px52OegIwRACMQCk+iTmBlR6Xfv6igiiaFiPYfN2HfbcYLWbot5DZ2H1b4JVJV+V
-rga7uu50SDG9hf4=
------END CERTIFICATE-----
------BEGIN CERTIFICATE-----
-MIICVDCCAdugAwIBAgIQZ3SdjXfYO2rbIvT/WeK/zjAKBggqhkjOPQQDAzBsMQsw
-CQYDVQQGEwJHUjE3MDUGA1UECgwuSGVsbGVuaWMgQWNhZGVtaWMgYW5kIFJlc2Vh
-cmNoIEluc3RpdHV0aW9ucyBDQTEkMCIGA1UEAwwbSEFSSUNBIFRMUyBFQ0MgUm9v
-dCBDQSAyMDIxMB4XDTIxMDIxOTExMDExMFoXDTQ1MDIxMzExMDEwOVowbDELMAkG
-A1UEBhMCR1IxNzA1BgNVBAoMLkhlbGxlbmljIEFjYWRlbWljIGFuZCBSZXNlYXJj
-aCBJbnN0aXR1dGlvbnMgQ0ExJDAiBgNVBAMMG0hBUklDQSBUTFMgRUNDIFJvb3Qg
-Q0EgMjAyMTB2MBAGByqGSM49AgEGBSuBBAAiA2IABDgI/rGgltJ6rK9JOtDA4MM7
-KKrxcm1lAEeIhPyaJmuqS7psBAqIXhfyVYf8MLA04jRYVxqEU+kw2anylnTDUR9Y
-STHMmE5gEYd103KUkE+bECUqqHgtvpBBWJAVcqeht6NCMEAwDwYDVR0TAQH/BAUw
-AwEB/zAdBgNVHQ4EFgQUyRtTgRL+BNUW0aq8mm+3oJUZbsowDgYDVR0PAQH/BAQD
-AgGGMAoGCCqGSM49BAMDA2cAMGQCMBHervjcToiwqfAircJRQO9gcS3ujwLEXQNw
-SaSS6sUUiHCm0w2wqsosQJz76YJumgIwK0eaB8bRwoF8yguWGEEbo/QwCZ61IygN
-nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
------END CERTIFICATE-----"""
-            )
-            ca_file.flush()
-            ca_file.close()
-
             # Initialize HEAppE client
             conf: HEAppEConfiguration = HEAppEConfiguration()
             conf.host = self._backend_metadata.lexis_resource.heappe_url
-            conf.ssl_ca_cert = ca_file.name
 
             heappe_client: HEAppEApi = HEAppEApi(
                 conf, header_name="Authorization", header_value=f"Bearer {self._token}"
@@ -1877,7 +1808,7 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
                                     quantum_technology = spec.get("Value")
 
                             qmetadata = QBackendMetadata(
-                                backend_name=assignment_info["AggregationName"],
+                                backend_name=assignment_info["LocationName"],
                                 swstack=sw_stack,
                                 available="UNKNOWN",  # FIXME: get this information
                                 quantum_technology=quantum_technology,
@@ -1979,12 +1910,10 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
             resource specified during client initialization.
         """
 
-        qinit_template_name = QClient._get_real_template_name(
-            self._lexis_project, template_name_qinit
-        )
-        qexecute_template_name = QClient._get_real_template_name(
-            self._lexis_project, template_name_qexecute
-        )
+        qinit_template_name = self.lexis_project+"_"+template_name_qinit
+        qexecute_template_name = self.lexis_project+"_"+template_name_qexecute
+
+        log.debug("Target command template names: %s, %s", qinit_template_name, qexecute_template_name)
 
         def get_command_template_call(target_template_name):
             try:
@@ -1995,9 +1924,6 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
                 # Get available command templates (API endpoint may vary)
                 clusters: ClusterExt = heappe_cluster_info_api.heappe_cluster_information_list_available_clusters_get(
                     ClusterName=self._backend_metadata.backend_name,
-                    AccountingString=[
-                        self._backend_metadata.lexis_resource.resource_name
-                    ],
                     CommandTemplateName=target_template_name,
                 )
             except Exception as e:
@@ -2018,7 +1944,7 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
             if not target_location:
                 raise QException(
-                    f"Quantum location '{self._backend_metadata.backend_name}' not found in HEAppE"
+                    f"Quantum location '{self._backend_metadata.backend_name}' and resource '{self._backend_metadata.lexis_resource.resource_name}' not found in HEAppE"
                 )
 
             # Fetch information about node type (partition), cluster etc.

@@ -17,12 +17,18 @@ import sys
 import logging
 
 from qiskit import QuantumCircuit
+from qiskit.circuit import Gate
 from qiskit.result import Result as QiskitResult
 from iqm.qiskit_iqm import IQMJob
 
 from qiskit.qasm3 import dumps as qasm3dumps
 
 from iqm.station_control.interface.models import CircuitMeasurementResultsBatch
+
+from iqm.pulla.utils_qiskit import (
+    qiskit_circuits_to_pulla,
+    sweep_job_to_qiskit
+)
 
 from py4heappe.heappe_v6.core.models import EnvironmentVariableExt
 
@@ -47,6 +53,37 @@ else:
 
 handler.setFormatter(formatter)
 log.addHandler(handler)
+
+def export_qasm3_with_custom_move(circuit: QuantumCircuit) -> str:
+    # 1. Export using basis_gates so qasm3dumps bypasses missing .definition checks
+    qasm_str = qasm3dumps(circuit, basis_gates=["move", "Move"])
+
+    # 2. Determine how many qubits 'move' uses in this circuit (default to 2)
+    move_qubits = 2
+    for instr in circuit.data:
+        if instr.operation.name.lower() == "move":
+            move_qubits = instr.operation.num_qubits
+            break
+
+    args_str = ", ".join([f"q{i}" for i in range(move_qubits)])
+
+    # 3. Create a valid, non-empty OpenQASM 3 gate declaration.
+    # 'gphase(0);' gives the body a valid statement so qasm3load registers it.
+    gate_decl = f"\ngate move {args_str} {{\n    gphase(0);\n}}\n"
+
+    # 4. Inject immediately after the header/include
+    if 'include "stdgates.inc";' in qasm_str:
+        qasm_str = qasm_str.replace(
+            'include "stdgates.inc";', f'include "stdgates.inc";\n{gate_decl}'
+        )
+    elif "OPENQASM 3.0;" in qasm_str:
+        qasm_str = qasm_str.replace(
+            "OPENQASM 3.0;", f"OPENQASM 3.0;\n{gate_decl}"
+        )
+    else:
+        qasm_str = gate_decl + qasm_str
+
+    return qasm_str
 
 
 class QBackend:
@@ -226,20 +263,13 @@ class QBackend:
         run_circuits_qasm = []
         for c in run_circuits:
             if isinstance(c, QuantumCircuit):
-                if self.backend_name == "VLQ":
-                    # We must give 'move' a definition so the exporter accepts it.
-                    # We use an 'opaque' definition (empty circuit) to keep it as a single block.
-                    for instr in c.data:
-                        if instr.operation.name == "move":
-                            if (
-                                not hasattr(instr.operation, "definition")
-                                or instr.operation.definition is None
-                            ):
-                                # IQM 'move' usually involves 2 qubits (or a qubit and a resonator)
-                                dummy_circ = QuantumCircuit(instr.operation.num_qubits)
-                                instr.operation.definition = dummy_circ
+
+                if self.backend_name == "VLQ" or self.backend_name.startswith("VLQ-"):
+                    c_qaas = export_qasm3_with_custom_move(c)
+                else:
+                    c_qaas = qasm3dumps(c)
                 # Export to OpenQASM3 with mapping aware transpilation
-                run_circuits_qasm.append(qasm3dumps(c))
+                run_circuits_qasm.append(c_qaas)
             else:
                 run_circuits_qasm.append(c)
 
@@ -772,3 +802,36 @@ class QJob:
     def get_transpiled_circuits(self):
         """Getter of transpiled Quantum circuits used to run a Job"""
         return self._transpiled_circuits
+
+class QPullaJob(QJob):
+    """
+        Implements results for Pulla
+    """
+    def __init__(self, shots:int, backend: QBackend, heappe_job_id: int):
+        """
+        Initialize QJob with backend and HEAppE job identifier.
+
+        Creates a QJob instance that wraps HEAppE job management with QJob
+        functionality. The job starts with a placeholder ID and is later updated
+        with the actual QJob when execution completes.
+
+        :param backend: The quantum backend instance for job execution
+        :type backend: QBackend
+        :param heappe_job_id: HEAppE job identifier for remote tracking
+        :type heappe_job_id: str
+        :param kwargs: Additional keyword arguments passed to QJob parent class
+        :type kwargs: dict
+
+        :raises QException: When backend is invalid or job initialization fails
+        :raises QAuthException: When backend authentication is unsuccessful
+        """
+        self._shots = shots
+        super().__init__(backend, heappe_job_id, job_type="pulla")
+    def result(
+        self, timeout_secs: float = 600, cancel_after_timeout: bool = False
+    ) -> QiskitResult | CircuitMeasurementResultsBatch:  # pylint: disable=W0221
+        QJob.result(self, timeout_secs=timeout_secs, cancel_after_timeout=cancel_after_timeout)
+        qiskit_result = sweep_job_to_qiskit(
+            self.remote_job, shots=self._shots
+        )
+        return qiskit_result

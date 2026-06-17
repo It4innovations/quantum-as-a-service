@@ -12,7 +12,7 @@ Access IQM quantum hardware through the `LEXIS platform <https://lexis-project.e
 Requirements
 ------------
 
-- Python 3.11+
+- Python 3.12
 - required Python packages: see `dependencies` in `pyproject.toml <pyproject.toml>`_
 
 Quick start

@@ -17,41 +17,50 @@ from collections.abc import Sequence
 from qiskit import QuantumCircuit
 from qiskit.providers import Options
 
-from iqm.pulla.pulla import Pulla
+from iqm.pulla.pulla import Pulla, PullaStash
 from iqm.pulla.interface import CalibrationSetValues
 from iqm.pulla.utils import (
     calset_from_observations,
     extract_readout_controller_result_names,
 )
+
+from iqm.iqm_server_client.iqm_server_client import StrUUIDOrDefault
+
 from iqm.pulse.playlist.playlist import Playlist
 
 from exa.common.qcm_data.chip_topology import ChipTopology
+from exa.common.errors.station_control_errors import NotFoundError
 from iqm.station_control.interface.models import (
     SweepDefinition,
     DynamicQuantumArchitecture,
 )
 from iqm.cpc.compiler.compiler import (
-    STANDARD_CIRCUIT_EXECUTION_OPTIONS,
-    STANDARD_CIRCUIT_EXECUTION_OPTIONS_DICT,
     Compiler,
 )
-from iqm.cpc.compiler.standard_stages import get_standard_stages
-from iqm.cpc.interface.compiler import Circuit, CircuitExecutionOptions
+from iqm.cpc.compiler.standard_stages import (
+    _STANDARD_CIRCUIT_STAGES,
+    _STANDARD_FINAL_STAGES,
+    _STANDARD_PULSE_STAGES,
+)
+
+from iqm.cpc.interface.circuit_execution import Circuit
+from iqm.cpc.compiler.post_process import _STANDARD_POST_PROCESSING_STAGES, _STANDARD_CIRCUIT_POST_PROCESSING_STAGES
+from iqm.cpc.core.observation.observation_loading_rules import LatestFromStash, RuleType
 from exa.common.data.setting_node import SettingNode
 from iqm.qiskit_iqm.iqm_backend import IQMBackendBase
 from iqm.pulla.utils_qiskit import (
     qiskit_circuits_to_pulla,
-    sweep_job_to_qiskit,
-    DummyJob,
+    sweep_job_to_qiskit
 )
 from iqm.pulla.utils import calset_to_cal_data_tree
 
+from iqm.pulse.quantum_ops import QuantumOp
 from iqm.pulse.builder import ScheduleBuilder, build_quantum_ops
 
 from py4heappe.heappe_v6.core.models import EnvironmentVariableExt
 
 from .utils import QPullaFetchError
-from .backend import QJob
+from .backend import QJob, QPullaJob
 from .backend_iqm import QBackendIQM
 
 
@@ -81,7 +90,8 @@ class CalibrationDataProvider:
         try:
             if calibration_set_id not in self._calibration_sets:
                 self._calibration_sets[calibration_set_id] = calset_from_observations(
-                    self._qclient.get_calibration_set(calibration_set_id).observations
+                    self._qclient.get_calibration_set(
+                        calibration_set_id).observations
                 )
             return deepcopy(self._calibration_sets[calibration_set_id])
         except Exception as e:
@@ -133,9 +143,10 @@ class QPulla:
 
         self.remote_pulla = remote_pulla
 
-        # Additional
+        # Additional - for compiler
         self._chip_design_record = chip_design_record
         self._duts = duts
+        self._software_version_set_id = 0
 
     def get_chip_label(self) -> str:
         if len(self._duts) != 1:
@@ -165,14 +176,17 @@ class QPulla:
 
     def get_standard_compiler(
         self,
-        calibration_set_values: CalibrationSetValues | None = None,
-        circuit_execution_options: CircuitExecutionOptions | dict | None = None,
+        loading_rules: list[RuleType] | None = None,
+        *,
+        exa_style_pp: bool = True,
+        controller_mapping: dict[str, dict[str, str]] | None = None,
+        gate_definitions: dict[str, QuantumOp] | None = None,
     ) -> Compiler:
         """Returns a new instance of the compiler with the default calibration set and standard stages. (Original Pulla method)
 
         Args:
             calibration_set_values: Calibration set to use. If None, the current calibration set will be used.
-            circuit_execution_options: circuit execution options to use for the compiler. If a CircuitExecutionOptions
+            circuit_execution_options: circuit execution options to use for the compiler. If a CompilerOptions
                 object is provided, the compiler use it as is. If a dict is provided, the default values will be
                 overridden for the present keys in that dict. If left ``None``, the default options will be used.
 
@@ -180,22 +194,43 @@ class QPulla:
             The compiler object.
 
         """
-        if circuit_execution_options is None:
-            circuit_execution_options = STANDARD_CIRCUIT_EXECUTION_OPTIONS
-        elif isinstance(circuit_execution_options, dict):
-            circuit_execution_options = CircuitExecutionOptions(
-                **STANDARD_CIRCUIT_EXECUTION_OPTIONS_DICT | circuit_execution_options  # type: ignore
-            )
-        return Compiler(
-            calibration_set_values=calibration_set_values
-            or self.fetch_default_calibration_set()[0],
-            chip_topology=self.get_chip_topology(),
-            channel_properties=self._channel_properties,
-            component_channels=self._component_channels,
-            component_mapping=None,
-            stages=get_standard_stages(),
-            options=circuit_execution_options,
+        pp_stages = (
+            deepcopy(_STANDARD_POST_PROCESSING_STAGES)
+            if exa_style_pp
+            else deepcopy(_STANDARD_CIRCUIT_POST_PROCESSING_STAGES)
         )
+        loading_rules = loading_rules if loading_rules is not None else [
+            LatestFromStash(self.get_calibration_stash())]
+
+        return Compiler(
+            dut_label=self._duts.get_chip_label(),
+            loading_rules=loading_rules,  # type:ignore[arg-type]
+            chip_topology=self.get_chip_topology(),
+            software_version_set_id=self._software_version_set_id,
+            station_control_settings=self._station_control_settings.model_copy(),
+            component_mapping=None,
+            controller_mapping=controller_mapping,
+            gate_definitions=gate_definitions,
+            circuit_stages=deepcopy(_STANDARD_CIRCUIT_STAGES),
+            pulse_stages=deepcopy(_STANDARD_PULSE_STAGES),
+            final_stages=deepcopy(_STANDARD_FINAL_STAGES),
+            pp_stages=pp_stages,
+        )
+
+    def get_calibration_stash(self, calibration_set_id: StrUUIDOrDefault = "default") -> PullaStash:
+        """Contents of a calibration set as a stash object."""
+        try:
+            calibration_set_observations = self._qclient.get_calibration_set(
+                calibration_set_id).observations
+        except NotFoundError:
+            if calibration_set_id == "default":
+                logger.warning(
+                    "No default calibration set available. Will initialize an empty PullaStash.")
+            else:
+                warn = f"Calibration set with id={calibration_set_id} not found. Will initialize an empty PullaStash."
+                logger.warning(warn)
+            calibration_set_observations = []
+        return PullaStash({observation.dut_field: observation for observation in calibration_set_observations})
 
     def fetch_default_calibration_set(self) -> tuple[CalibrationSetValues, UUID]:
         """Fetch the default calibration set from the server, in a minimal format.
@@ -236,7 +271,7 @@ class QPulla:
         *,
         context: dict[str, Any],
         walltime_limit=7200,
-    ) -> "QJob":
+    ) -> "QPullaJob":
         """Submit a Playlist of instruction schedules for execution on the remote quantum computer.
 
         :param playlist: Schedules to execute.
@@ -259,7 +294,8 @@ class QPulla:
             sweep_id=uuid4(),
             playlist=playlist,
             return_parameters=list(
-                extract_readout_controller_result_names(context["readout_mappings"])
+                extract_readout_controller_result_names(
+                    context["readout_mappings"])
             ),
             settings=settings,
             dut_label=self.get_chip_label(),
@@ -274,7 +310,8 @@ class QPulla:
             "tasks": [{"template_parameter_values": []}],
             # Set environment variables for the job
             "environment_variables": [
-                EnvironmentVariableExt(name="Q_COMMAND", value="pulla_submit_playlist")
+                EnvironmentVariableExt(
+                    name="Q_COMMAND", value="pulla_submit_playlist")
             ],
         }
         if self._qclient.provider_token:
@@ -287,7 +324,9 @@ class QPulla:
             job_data, backend=self.remote_pulla, circuits=sweep, run_options=context
         )
 
-        return QJob(self, heappe_job_id, job_type="pulla")
+        # Get shots from settings
+        controller_settings = settings["controllers"] if "controllers" in settings.children else settings
+        return QPullaJob(self, controller_settings.options.playlist_repeats, heappe_job_id)
 
 
 class QPullaBackendIQM(QBackendIQM, IQMBackendBase):
@@ -315,7 +354,7 @@ class QPullaBackendIQM(QBackendIQM, IQMBackendBase):
         run_input: QuantumCircuit | list[QuantumCircuit],
         shots: int = 1024,
         **options,
-    ) -> DummyJob:
+    ) -> QPullaJob:
         # Convert Qiskit circuits to Pulla circuits
         pulla_circuits = qiskit_circuits_to_pulla(run_input, self._idx_to_qb)
 
@@ -327,20 +366,7 @@ class QPullaBackendIQM(QBackendIQM, IQMBackendBase):
         job = self.pulla.submit_playlist(
             playlist, settings, context=copy.deepcopy(context)
         )
-        # wait for the job to finish, no timeout (user can use Ctrl-C to stop)
-        # TODO it would be better if we did not wait and instead returned a Qiskit JobV1 containing
-        # a SweepJob that can be used to actually track the job.
-        job.result(timeout_secs=0.0)
-
-        # TODO: on remote
-        # Convert the response data to a Qiskit result
-        qiskit_result = sweep_job_to_qiskit(
-            job.remote_job, shots=shots, execution_options=context["options"]
-        )
-
-        # Return a dummy job object that can be used to retrieve the result
-        dummy_job = DummyJob(self, qiskit_result)
-        return dummy_job
+        return job
 
     @classmethod
     def _default_options(cls) -> Options:
@@ -381,7 +407,8 @@ def qiskit_to_pulla(
     )
 
     qiskit_circuits = (
-        qiskit_circuits if isinstance(qiskit_circuits, list) else [qiskit_circuits]
+        qiskit_circuits if isinstance(qiskit_circuits, list) else [
+            qiskit_circuits]
     )
 
     # We can be certain run_request contains only Circuit objects, because we created it
