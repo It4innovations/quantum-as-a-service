@@ -1981,7 +1981,6 @@ nxS2PFOiTAZpffpskcYqSUXm7LcT4Tps
 
         qinit_template_name = template_name_qinit
         qexecute_template_name = template_name_qexecute
-        
 
         def get_command_template_call(target_template_name):
             try:
