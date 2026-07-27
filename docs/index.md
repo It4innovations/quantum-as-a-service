@@ -18,7 +18,7 @@ token = LexisSession().get_access_token()
 
 # Connect to hardware
 provider = QProvider(token, "my_lexis_project")
-backend  = provider.get_backend("EQE1-CZ-P0001")
+backend = provider.get_backend("EQE1-CZ-P0001")
 
 # Run a Bell-state circuit
 qc = QuantumCircuit(2, 2)
@@ -26,7 +26,7 @@ qc.h(0)
 qc.cx(0, 1)
 qc.measure_all()
 
-job    = backend.run(backend.transpile(qc), shots=1000)
+job = backend.run(backend.transpile(qc), shots=1000)
 counts = job.result().get_counts()
 print(counts)
 ```

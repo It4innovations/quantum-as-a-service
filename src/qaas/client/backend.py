@@ -25,10 +25,7 @@ from qiskit.qasm3 import dumps as qasm3dumps
 
 from iqm.station_control.interface.models import CircuitMeasurementResultsBatch
 
-from iqm.pulla.utils_qiskit import (
-    qiskit_circuits_to_pulla,
-    sweep_job_to_qiskit
-)
+from iqm.pulla.utils_qiskit import qiskit_circuits_to_pulla, sweep_job_to_qiskit
 
 from py4heappe.heappe_v6.core.models import EnvironmentVariableExt
 
@@ -54,6 +51,7 @@ else:
 handler.setFormatter(formatter)
 log.addHandler(handler)
 
+
 def export_qasm3_with_custom_move(circuit: QuantumCircuit) -> str:
     # 1. Export using basis_gates so qasm3dumps bypasses missing .definition checks
     qasm_str = qasm3dumps(circuit, basis_gates=["move", "Move"])
@@ -77,9 +75,7 @@ def export_qasm3_with_custom_move(circuit: QuantumCircuit) -> str:
             'include "stdgates.inc";', f'include "stdgates.inc";\n{gate_decl}'
         )
     elif "OPENQASM 3.0;" in qasm_str:
-        qasm_str = qasm_str.replace(
-            "OPENQASM 3.0;", f"OPENQASM 3.0;\n{gate_decl}"
-        )
+        qasm_str = qasm_str.replace("OPENQASM 3.0;", f"OPENQASM 3.0;\n{gate_decl}")
     else:
         qasm_str = gate_decl + qasm_str
 
@@ -263,7 +259,6 @@ class QBackend:
         run_circuits_qasm = []
         for c in run_circuits:
             if isinstance(c, QuantumCircuit):
-
                 if self.backend_name == "VLQ" or self.backend_name.startswith("VLQ-"):
                     c_qaas = export_qasm3_with_custom_move(c)
                 else:
@@ -803,11 +798,13 @@ class QJob:
         """Getter of transpiled Quantum circuits used to run a Job"""
         return self._transpiled_circuits
 
+
 class QPullaJob(QJob):
     """
-        Implements results for Pulla
+    Implements results for Pulla
     """
-    def __init__(self, shots:int, backend: QBackend, heappe_job_id: int):
+
+    def __init__(self, shots: int, backend: QBackend, heappe_job_id: int):
         """
         Initialize QJob with backend and HEAppE job identifier.
 
@@ -827,11 +824,12 @@ class QPullaJob(QJob):
         """
         self._shots = shots
         super().__init__(backend, heappe_job_id, job_type="pulla")
+
     def result(
         self, timeout_secs: float = 600, cancel_after_timeout: bool = False
     ) -> QiskitResult | CircuitMeasurementResultsBatch:  # pylint: disable=W0221
-        QJob.result(self, timeout_secs=timeout_secs, cancel_after_timeout=cancel_after_timeout)
-        qiskit_result = sweep_job_to_qiskit(
-            self.remote_job, shots=self._shots
+        QJob.result(
+            self, timeout_secs=timeout_secs, cancel_after_timeout=cancel_after_timeout
         )
+        qiskit_result = sweep_job_to_qiskit(self.remote_job, shots=self._shots)
         return qiskit_result

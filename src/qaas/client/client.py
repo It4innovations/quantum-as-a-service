@@ -199,7 +199,8 @@ class QClient:
             "lexis_userorg_api_url", self.DEFAULT_USERORG_BASE_URL
         )
         self._lexis_aggregation_name = kwargs.get(
-            "lexis_aggregation_name", self.DEFAULT_LEXIS_AGGREGATION_NAME # list[str]
+            "lexis_aggregation_name",
+            self.DEFAULT_LEXIS_AGGREGATION_NAME,  # list[str]
         )
 
         # Authenticate on initialization
@@ -498,10 +499,7 @@ class QClient:
                             location_type_id == QClient.DEFAULT_QUANTUM_LOCATION_TYPE
                         ):  # LocationTypeId 7 corresponds to locations in LEXIS, which we use for quantum backends
                             aggregation_name = resource.get("AggregationName")
-                            if (
-                                aggregation_name
-                                in self._lexis_aggregation_name
-                            ):
+                            if aggregation_name in self._lexis_aggregation_name:
                                 if quantum_computer_name is None:
                                     assignment_info = assignment
                                     project_resource_info = resource
@@ -1910,10 +1908,14 @@ class QClient:
             resource specified during client initialization.
         """
 
-        qinit_template_name = self.lexis_project+"_"+template_name_qinit
-        qexecute_template_name = self.lexis_project+"_"+template_name_qexecute
+        qinit_template_name = self.lexis_project + "_" + template_name_qinit
+        qexecute_template_name = self.lexis_project + "_" + template_name_qexecute
 
-        log.debug("Target command template names: %s, %s", qinit_template_name, qexecute_template_name)
+        log.debug(
+            "Target command template names: %s, %s",
+            qinit_template_name,
+            qexecute_template_name,
+        )
 
         def get_command_template_call(target_template_name):
             try:

@@ -44,14 +44,14 @@ from iqm.cpc.compiler.standard_stages import (
 )
 
 from iqm.cpc.interface.circuit_execution import Circuit
-from iqm.cpc.compiler.post_process import _STANDARD_POST_PROCESSING_STAGES, _STANDARD_CIRCUIT_POST_PROCESSING_STAGES
+from iqm.cpc.compiler.post_process import (
+    _STANDARD_POST_PROCESSING_STAGES,
+    _STANDARD_CIRCUIT_POST_PROCESSING_STAGES,
+)
 from iqm.cpc.core.observation.observation_loading_rules import LatestFromStash, RuleType
 from exa.common.data.setting_node import SettingNode
 from iqm.qiskit_iqm.iqm_backend import IQMBackendBase
-from iqm.pulla.utils_qiskit import (
-    qiskit_circuits_to_pulla,
-    sweep_job_to_qiskit
-)
+from iqm.pulla.utils_qiskit import qiskit_circuits_to_pulla, sweep_job_to_qiskit
 from iqm.pulla.utils import calset_to_cal_data_tree
 
 from iqm.pulse.quantum_ops import QuantumOp
@@ -90,8 +90,7 @@ class CalibrationDataProvider:
         try:
             if calibration_set_id not in self._calibration_sets:
                 self._calibration_sets[calibration_set_id] = calset_from_observations(
-                    self._qclient.get_calibration_set(
-                        calibration_set_id).observations
+                    self._qclient.get_calibration_set(calibration_set_id).observations
                 )
             return deepcopy(self._calibration_sets[calibration_set_id])
         except Exception as e:
@@ -199,8 +198,11 @@ class QPulla:
             if exa_style_pp
             else deepcopy(_STANDARD_CIRCUIT_POST_PROCESSING_STAGES)
         )
-        loading_rules = loading_rules if loading_rules is not None else [
-            LatestFromStash(self.get_calibration_stash())]
+        loading_rules = (
+            loading_rules
+            if loading_rules is not None
+            else [LatestFromStash(self.get_calibration_stash())]
+        )
 
         return Compiler(
             dut_label=self._duts.get_chip_label(),
@@ -217,20 +219,29 @@ class QPulla:
             pp_stages=pp_stages,
         )
 
-    def get_calibration_stash(self, calibration_set_id: StrUUIDOrDefault = "default") -> PullaStash:
+    def get_calibration_stash(
+        self, calibration_set_id: StrUUIDOrDefault = "default"
+    ) -> PullaStash:
         """Contents of a calibration set as a stash object."""
         try:
             calibration_set_observations = self._qclient.get_calibration_set(
-                calibration_set_id).observations
+                calibration_set_id
+            ).observations
         except NotFoundError:
             if calibration_set_id == "default":
                 logger.warning(
-                    "No default calibration set available. Will initialize an empty PullaStash.")
+                    "No default calibration set available. Will initialize an empty PullaStash."
+                )
             else:
                 warn = f"Calibration set with id={calibration_set_id} not found. Will initialize an empty PullaStash."
                 logger.warning(warn)
             calibration_set_observations = []
-        return PullaStash({observation.dut_field: observation for observation in calibration_set_observations})
+        return PullaStash(
+            {
+                observation.dut_field: observation
+                for observation in calibration_set_observations
+            }
+        )
 
     def fetch_default_calibration_set(self) -> tuple[CalibrationSetValues, UUID]:
         """Fetch the default calibration set from the server, in a minimal format.
@@ -294,8 +305,7 @@ class QPulla:
             sweep_id=uuid4(),
             playlist=playlist,
             return_parameters=list(
-                extract_readout_controller_result_names(
-                    context["readout_mappings"])
+                extract_readout_controller_result_names(context["readout_mappings"])
             ),
             settings=settings,
             dut_label=self.get_chip_label(),
@@ -310,8 +320,7 @@ class QPulla:
             "tasks": [{"template_parameter_values": []}],
             # Set environment variables for the job
             "environment_variables": [
-                EnvironmentVariableExt(
-                    name="Q_COMMAND", value="pulla_submit_playlist")
+                EnvironmentVariableExt(name="Q_COMMAND", value="pulla_submit_playlist")
             ],
         }
         if self._qclient.provider_token:
@@ -325,8 +334,12 @@ class QPulla:
         )
 
         # Get shots from settings
-        controller_settings = settings["controllers"] if "controllers" in settings.children else settings
-        return QPullaJob(self, controller_settings.options.playlist_repeats, heappe_job_id)
+        controller_settings = (
+            settings["controllers"] if "controllers" in settings.children else settings
+        )
+        return QPullaJob(
+            self, controller_settings.options.playlist_repeats, heappe_job_id
+        )
 
 
 class QPullaBackendIQM(QBackendIQM, IQMBackendBase):
@@ -407,8 +420,7 @@ def qiskit_to_pulla(
     )
 
     qiskit_circuits = (
-        qiskit_circuits if isinstance(qiskit_circuits, list) else [
-            qiskit_circuits]
+        qiskit_circuits if isinstance(qiskit_circuits, list) else [qiskit_circuits]
     )
 
     # We can be certain run_request contains only Circuit objects, because we created it
