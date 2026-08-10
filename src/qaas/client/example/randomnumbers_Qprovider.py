@@ -90,3 +90,30 @@ for key, count in results_dict.items():
         ## Only convert to int if key is actually a binary string
         if all(c in "01" for c in key):
             print(f"  -> Decimal value: {int(key, 2)}")
+
+
+
+# --------------
+# OpenQASM3 Approach
+# --------------
+from qaas import export_qasm3_with_custom_move as qasm3dumps
+
+qasm_circuit_transpiled = qasm3dumps(qc_transpiled)
+print(qasm_circuit_transpiled)
+
+# Run circuit with number of SHOTS
+SHOTS = 100
+
+# Passing as argument not transpiled circuit
+qasm_job = backend.run([qasm_circuit_transpiled], shots=SHOTS)
+qasm_result = qasm_job.result()
+qasm_results_dict = qasm_result.get_counts()
+print("Raw counts:", qasm_results_dict)
+
+# Print non-zero results
+for key, count in qasm_results_dict.items():
+    if count > 0:
+        print(f"State '{key}': {count} counts")
+        # Only convert to int if key is actually a binary string
+        if all(c in "01" for c in key):
+            print(f"  -> Decimal value: {int(key, 2)}")

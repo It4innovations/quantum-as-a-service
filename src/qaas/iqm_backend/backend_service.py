@@ -19,6 +19,8 @@ from qiskit.qasm3 import load as qasm3load
 from iqm.qiskit_iqm import IQMBackend, IQMProvider
 from iqm.qiskit_iqm.iqm_job import IQMJob
 from iqm.iqm_client import JobStatus as IQMJobStatus
+from iqm.station_control.interface.models import RunDefinition
+
 
 # from iqm.iqm_server_client.models import TimelineEntry
 from iqm.pulla.pulla import PullaJob, Pulla
@@ -777,15 +779,25 @@ class IQMBackendService:
 
         p = Pulla(server_url, quantum_computer=quantum_computer)
 
-        channel_prop, component_channels = p._iqm_server_client.get_channel_properties()
+        chip_design_record = p._iqm_server_client.get_chip_design_records()[0]
+        node_settings = p._iqm_server_client.get_settings()
+        node_settings["controllers"] = node_settings
+
+        from iqm.cpc.compiler._utils.stages import get_default_channel_properties
+        from exa.common.qcm_data.chip_topology import ChipTopology
+
+        # channel_properties = p._iqm_server_client.get_channel_properties(chip_design_record)
+        channel_properties, component_channels = get_default_channel_properties(node_settings, chip_topology=ChipTopology.from_chip_design_record(chip_design_record))
+
+        calibration_set = p._iqm_server_client.get_calibration_set("default")
 
         pulla_data = {
-            "calibration_sets": p._iqm_server_client.get_calibration_set("default"),
-            "station_control_settings": p._iqm_server_client.get_settings(),
+            "calibration_sets": {calibration_set.observation_set_id: calibration_set},
+            "station_control_settings": node_settings,
             "chip_label": p.get_chip_label(),
-            "channel_properties": channel_prop,
-            "component_channels": component_channels,
-            "chip_design_record": p._iqm_server_client.get_chip_design_records()[0],
+            "channel_properties": channel_properties,
+            "component_channels": component_channels, # qubit_to_channel
+            "chip_design_record": chip_design_record,
             "duts": p._iqm_server_client.get_duts(),
         }
         # Cache backend
@@ -818,11 +830,11 @@ class IQMBackendService:
         pulla_submit_pl_initialization_started = time.time()
 
         # Load sweep
-        sweep_path = task_dir / "sweep.pkl"
-        if not sweep_path.exists():
+        run_definition_path = task_dir / "run_definition.pkl"
+        if not run_definition_path.exists():
             raise FileNotFoundError(f"circuits.pkl not found in {task_dir}")
 
-        sweep = IQMBackendService.load_python_obj(sweep_path, use_dill=True)
+        run_definition:RunDefinition = IQMBackendService.load_python_obj(run_definition_path, use_dill=True)
 
         # Context
         context_path = task_dir / "run_kwargs.pkl"
@@ -850,7 +862,7 @@ class IQMBackendService:
         )
 
         iqm_client_run_started = pulla_submit_pl_initialization_ended
-        job_data = pulla._iqm_server_client.submit_sweep(sweep)
+        job_data = pulla._iqm_server_client.submit_run(run_definition)
         iqm_client_run_ended = time.time()
         iqm_client_job_runtime = iqm_client_run_ended - iqm_client_run_started
 
@@ -863,6 +875,7 @@ class IQMBackendService:
         print(f"Job submitted: {sw_job.job_id}")
         sw_job.wait_for_completion(timeout_secs=0.0)
         result = sw_job.result()
+        print(f"Job finished: {sw_job.job_id}")
         iqm_client_run_results_fetching_ended = time.time()
         iqm_client_results_fetching_runtime = (
             iqm_client_run_results_fetching_ended - iqm_client_results_fetching_started

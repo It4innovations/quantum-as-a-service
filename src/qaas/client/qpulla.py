@@ -3,8 +3,11 @@
 - Currently supports only IQM
 
 """
+import os
+import sys
 
 from typing import TYPE_CHECKING, Any
+
 
 if TYPE_CHECKING:
     from .client import QClient
@@ -53,6 +56,7 @@ from exa.common.data.setting_node import SettingNode
 from iqm.qiskit_iqm.iqm_backend import IQMBackendBase
 from iqm.pulla.utils_qiskit import qiskit_circuits_to_pulla, sweep_job_to_qiskit
 from iqm.pulla.utils import calset_to_cal_data_tree
+from iqm.station_control.interface.models import RunDefinition
 
 from iqm.pulse.quantum_ops import QuantumOp
 from iqm.pulse.builder import ScheduleBuilder, build_quantum_ops
@@ -64,7 +68,22 @@ from .backend import QJob, QPullaJob
 from .backend_iqm import QBackendIQM
 
 
-logger = logging.getLogger(__name__)
+log = logging.getLoggerClass()(
+    __name__, os.environ.get("QPROVIDER_LOGLEVEL", "INFO").upper()
+)
+
+# Formatter for consistent output
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+
+# Decide handler: file or stderr
+logfile = os.environ.get("QPROVIDER_LOGFILE")
+if logfile:
+    handler = logging.FileHandler(logfile, mode="a")
+else:
+    handler = logging.StreamHandler(sys.stderr)
+
+handler.setFormatter(formatter)
+log.addHandler(handler)
 
 CalibrationDataFetchException = RuntimeError
 
@@ -83,7 +102,7 @@ class CalibrationDataProvider:
         self, calibration_set_id: UUID
     ) -> CalibrationSetValues:
         """Get the calibration set contents from the database and cache it."""
-        logger.debug(
+        log.debug(
             "Get the calibration set from the database: cal_set_id=%s",
             calibration_set_id,
         )
@@ -100,7 +119,7 @@ class CalibrationDataProvider:
 
     def get_default_calibration_set(self) -> tuple[CalibrationSetValues, UUID]:
         """Get the default calibration set id from the database, return it and the set contents."""
-        logger.debug("Get the default calibration set")
+        log.debug("Get the default calibration set")
         try:
             default_calibration_set = self._qclient.get_calibration_set(None)
             default_calibration_set_values = calset_from_observations(
@@ -121,16 +140,18 @@ class QPulla:
         self,
         qclient: "QClient",
         remote_pulla: Pulla,
+        qbackend: QBackendIQM,
         calibration_sets,
         station_control_settings,
         chip_label,
         channel_properties,
         component_channels,
         chip_design_record,
-        duts,
+        duts
     ):
 
         self._qclient: "QClient" = qclient
+
 
         self._calibration_data_provider: CalibrationDataProvider = (
             CalibrationDataProvider(self._qclient, calibration_sets)
@@ -146,6 +167,41 @@ class QPulla:
         self._chip_design_record = chip_design_record
         self._duts = duts
         self._software_version_set_id = 0
+
+        self._qbackend: QBackendIQM = qbackend
+        self._qpulla_backend:"QPullaBackendIQM" = self.get_new_qpulla_backend()
+
+    def get_new_qpulla_backend(self) -> "QPullaBackendIQM":
+        """Creates and returns a new QPullaBackendIQM instance.
+
+        This method queries the dynamic architecture from the Q client, gets the
+        standard compiler, and constructs a fresh backend using those values.
+
+        Returns:
+            QPullaBackendIQM: A newly created backend instance.
+        """
+        dqa = self._qclient.get_dynamic_architecture()
+        compiler = self.get_standard_compiler()
+        qpulla_backend: "QPullaBackendIQM" = QPullaBackendIQM(dqa, self, compiler)
+        return qpulla_backend
+
+
+    def get_qpulla_backend(self) -> "QPullaBackendIQM":
+        """Returns the cached QPullaBackendIQM instance.
+
+        Returns:
+            QPullaBackendIQM: The backend stored on self._qpulla_backend.
+        """
+        return self._qpulla_backend
+
+    def get_qbackend(self) -> QBackendIQM:
+        """Returns the cached QBackendIQM instance.
+
+        Returns:
+            QPullaBackendIQM: The backend stored on self._qpulla_backend.
+        """
+        return self._qbackend
+
 
     def get_chip_label(self) -> str:
         if len(self._duts) != 1:
@@ -205,7 +261,7 @@ class QPulla:
         )
 
         return Compiler(
-            dut_label=self._duts.get_chip_label(),
+            dut_label=self.get_chip_label(),
             loading_rules=loading_rules,  # type:ignore[arg-type]
             chip_topology=self.get_chip_topology(),
             software_version_set_id=self._software_version_set_id,
@@ -229,12 +285,12 @@ class QPulla:
             ).observations
         except NotFoundError:
             if calibration_set_id == "default":
-                logger.warning(
+                log.warning(
                     "No default calibration set available. Will initialize an empty PullaStash."
                 )
             else:
                 warn = f"Calibration set with id={calibration_set_id} not found. Will initialize an empty PullaStash."
-                logger.warning(warn)
+                log.warning(warn)
             calibration_set_observations = []
         return PullaStash(
             {
@@ -277,8 +333,7 @@ class QPulla:
 
     def submit_playlist(
         self,
-        playlist: Playlist,
-        settings: SettingNode,
+        playlist: RunDefinition,
         *,
         context: dict[str, Any],
         walltime_limit=7200,
@@ -301,17 +356,6 @@ class QPulla:
                 if k == "readout":
                     readout_components.append(v)
 
-        sweep = SweepDefinition(
-            sweep_id=uuid4(),
-            playlist=playlist,
-            return_parameters=list(
-                extract_readout_controller_result_names(context["readout_mappings"])
-            ),
-            settings=settings,
-            dut_label=self.get_chip_label(),
-            sweeps=[],
-        )
-
         job_data = {
             "name": "quantum_run_sweep",
             "walltime_limit": walltime_limit,
@@ -328,17 +372,20 @@ class QPulla:
                 name="IQM_TOKEN", value=self._qclient.provider_token
             )
 
+        log.debug("playlist - context: %s\n", str(context))
+
         # Submit job using QClient
         heappe_job_id = self._qclient.submit_quantum_job(
-            job_data, backend=self.remote_pulla, circuits=sweep, run_options=context
+            job_data, backend=self.remote_pulla, circuits=deepcopy(playlist), run_options=deepcopy(context)
         )
 
-        # Get shots from settings
-        controller_settings = (
-            settings["controllers"] if "controllers" in settings.children else settings
-        )
+        # # Get shots from settings
+        # controller_settings = (
+        #     settings["controllers"] if "controllers" in settings.children else settings
+        # )
+
         return QPullaJob(
-            self, controller_settings.options.playlist_repeats, heappe_job_id
+            1, self._qbackend, heappe_job_id
         )
 
 
@@ -413,11 +460,7 @@ def qiskit_to_pulla(
     _calibration_set_id = dynamic_arch.calibration_set_id
 
     # create a compiler containing all the required station information
-    compiler = pulla.get_standard_compiler(
-        calibration_set_values=pulla.fetch_calibration_set_values_by_id(
-            _calibration_set_id
-        ),
-    )
+    compiler = pulla.get_standard_compiler()
 
     qiskit_circuits = (
         qiskit_circuits if isinstance(qiskit_circuits, list) else [qiskit_circuits]

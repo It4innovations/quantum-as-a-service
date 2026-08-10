@@ -21,7 +21,7 @@ dependencies = [
     "iqm-client[qiskit]==34.0.*",
     "iqm-exa-common==27.5.*",
     "iqm-station-control-client==12.1.*",
-    "iqm-data-definitions==2.25",
+    "iqm-data-definitions==2.24",
     "iqm-pulla==13.0.*",
     "qiskit_aer>=0.15.0,<1.0.0",
     "Py4HEAppE>=2.5.0",
@@ -34,7 +34,8 @@ dependencies = [
     "numpy>2.0.0",
     "truststore",
     "qiskit_qasm3_import",
-    "symengine"
+    "symengine",
+    "protobuf<7.0"
 ]
 
 # --- Optional Subpackages (Extras) ---

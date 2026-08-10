@@ -366,6 +366,9 @@ class QBackend:
         self.remote_backend = remote_backend_instance
         return self
 
+    def cancel_job(self, job_id):
+        return self._qclient.cancel_job(job_id)
+
     @abstractmethod
     def transpile(self, circuit: QuantumCircuit, **kwargs) -> QuantumCircuit:  # pylint: disable=c0103
         """Customized transpilation to Quantum backends."""
@@ -625,7 +628,7 @@ class QJob:
         log.debug("job files fetched in: %f s", self.qaas_fetching_runtime)
 
         # Extract the QJob from results and update this instance
-        if "job" in heappe_results and heappe_results["job"]:
+        if heappe_results.get("job", False):
             instance_update_started = time.time()
             self.update_from_remotejob(heappe_results["job"])
             if self._type == "circuit":
@@ -764,6 +767,10 @@ class QJob:
     def cancel_heappe_job(self, heappe_job_id: int) -> bool:
         """See doc QClient:cancel_job"""
         return self._qclient.cancel_job(heappe_job_id)
+
+    def cancel_job(self, heappe_job_id: int) -> bool:
+            """See doc QClient:cancel_job"""
+            return self._qclient.cancel_job(heappe_job_id)
 
     def update_from_remotejob(self, remote_job_instance):
         """

@@ -78,7 +78,7 @@ class QProvider:
         """
 
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource_name: str = lexis_resource.lexis_resource_name
+            lexis_resource_name: str = lexis_resource.lexis_resource.resource_name
         else:
             lexis_resource_name: str = lexis_resource
 
@@ -104,8 +104,9 @@ class QProvider:
         return NotImplemented
 
     def get_pulla(self, lexis_resource: str | QBackendMetadata) -> QPulla:
+        print("WARNING: Pulla may not work correctly due to the bugs in iqm-pulla package!")
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource: str = lexis_resource.lexis_resource_name
+            lexis_resource: str = lexis_resource.lexis_resource.resource_name
         else:
             lexis_resource: str = lexis_resource
 
@@ -117,7 +118,7 @@ class QProvider:
 
     def get_client(self, lexis_resource: str | QBackendMetadata) -> QClient:
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource: str = lexis_resource.lexis_resource_name
+            lexis_resource: str = lexis_resource.lexis_resource.resource_name
         else:
             lexis_resource: str = lexis_resource
 
@@ -156,7 +157,7 @@ class QProviderDev(QProvider):
         """
 
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource_name: str = lexis_resource.lexis_resource_name
+            lexis_resource_name: str = lexis_resource.lexis_resource.resource_name
         else:
             lexis_resource_name: str = lexis_resource
 
@@ -187,9 +188,10 @@ class QProviderDev(QProvider):
 
     def get_pulla(self, lexis_resource: str | QBackendMetadata, **kwargs) -> QPulla:
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource_name: str = lexis_resource.lexis_resource_name
+            lexis_resource_name: str = lexis_resource.lexis_resource.resource_name
         else:
             lexis_resource_name: str = lexis_resource
+
 
         client = QClient(
             self._token,
@@ -198,12 +200,20 @@ class QProviderDev(QProvider):
             self._provider_token,
             **kwargs,
         )
-        pulla_data, pulla = client.get_pulla()
-        return QPulla(client, pulla, **pulla_data)
+
+        backend_metadata = client.get_quantum_backend_info()
+
+        if backend_metadata.software_stack == "IQM":
+            pulla_data, pulla = client.get_pulla()
+            qbackend = self.get_backend(lexis_resource=backend_metadata,**kwargs)
+            return QPulla(client, pulla, qbackend, **pulla_data)
+        else:
+            return NotImplemented
+
 
     def get_client(self, lexis_resource: str | QBackendMetadata, **kwargs) -> QClient:
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource_name: str = lexis_resource.lexis_resource_name
+            lexis_resource_name: str = lexis_resource.lexis_resource.resource_name
         else:
             lexis_resource_name: str = lexis_resource
 

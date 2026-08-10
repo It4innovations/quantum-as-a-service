@@ -16,7 +16,7 @@ import dill
 import requests
 import jwt
 from jwt import PyJWKClient
-from iqm.station_control.interface.models import SweepDefinition
+from iqm.station_control.interface.models import SweepDefinition, RunDefinition
 from iqm.iqm_server_client.models import CalibrationSet
 from iqm.pulla.pulla import Pulla
 
@@ -66,7 +66,7 @@ log = logging.getLoggerClass()(
 formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
 
 # Decide handler: file or stderr
-logfile = os.environ.get("QPROVIDER_LOGFILE")
+logfile = os.environ.get("QPROVIDER_LOGFILE", None)
 if logfile:
     handler = logging.FileHandler(logfile, mode="a")
 else:
@@ -1057,17 +1057,17 @@ class QClient:
                 # if circuits is set, upload it to execution directory of job
                 if (
                     circuits
-                    and isinstance(circuits, SweepDefinition)
+                    and isinstance(circuits, RunDefinition)
                     or (
                         isinstance(circuits, list)
-                        and isinstance(circuits[0], SweepDefinition)
+                        and isinstance(circuits[0], RunDefinition)
                     )
                 ):
                     upload_futures.append(
                         executor.submit(
                             self._python_object_upload_to_cluster,
                             circuits,
-                            "sweep",
+                            "run_definition",
                             job_info,
                             True,
                         )

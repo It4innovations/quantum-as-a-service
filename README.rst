@@ -52,7 +52,7 @@ Also OpenQASM is supported on input:
 
 .. code-block:: python
 
-   from qiskit.qasm3 import dumps as qasm3dumps
+   from qaas import export_qasm3_with_custom_move as qasm3dumps
 
    qc = QuantumCircuit(2, 2)
    qc.h(0); qc.cx(0, 1); qc.measure_all()
@@ -93,9 +93,13 @@ IQM Pulla
    qc_optimized = optimize_single_qubit_gates(qc_transpiled)
 
    circuits, compiler = qiskit_to_pulla(p, pulla_backend, [qc_optimized])
-   playlist, context = compiler.compile(circuits[0])
+   
    # Build settings for execution
-   settings, context = compiler.build_settings(context, shots=100)
+   settings = compiler.get_settings(circuits[0])
+   settings.set_shots(shots) # optional
+   # Compile to playlist
+   playlist, context = compiler.compile(circuits[0])
+   
    # Submit playlist returns SweepJob
    job = p.submit_playlist(playlist, settings, context=context)
    job.wait_for_completion()
