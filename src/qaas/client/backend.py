@@ -25,11 +25,9 @@ from qiskit.qasm3 import dumps as qasm3dumps
 
 from iqm.station_control.interface.models import CircuitMeasurementResultsBatch
 
-from iqm.pulla.utils_qiskit import qiskit_circuits_to_pulla, sweep_job_to_qiskit
-
 from py4heappe.heappe_v6.core.models import EnvironmentVariableExt
 
-from .utils import QException
+from .utils import QException, sweep_job_to_qiskit
 from .client import QClient
 from .backend_metadata import QBackendMetadata
 
@@ -769,8 +767,8 @@ class QJob:
         return self._qclient.cancel_job(heappe_job_id)
 
     def cancel_job(self, heappe_job_id: int) -> bool:
-            """See doc QClient:cancel_job"""
-            return self._qclient.cancel_job(heappe_job_id)
+        """See doc QClient:cancel_job"""
+        return self._qclient.cancel_job(heappe_job_id)
 
     def update_from_remotejob(self, remote_job_instance):
         """
@@ -833,10 +831,16 @@ class QPullaJob(QJob):
         super().__init__(backend, heappe_job_id, job_type="pulla")
 
     def result(
-        self, timeout_secs: float = 600, cancel_after_timeout: bool = False
+        self,
+        timeout_secs: float = 600,
+        cancel_after_timeout: bool = False,
+        raw_results=True,
     ) -> QiskitResult | CircuitMeasurementResultsBatch:  # pylint: disable=W0221
         QJob.result(
             self, timeout_secs=timeout_secs, cancel_after_timeout=cancel_after_timeout
         )
-        qiskit_result = sweep_job_to_qiskit(self.remote_job, shots=self._shots)
-        return qiskit_result
+
+        if raw_results:
+            return self.remote_job.result()
+        else:  # Qiskit Result
+            return sweep_job_to_qiskit(self.remote_job, shots=self._shots)

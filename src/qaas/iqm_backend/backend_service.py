@@ -8,7 +8,7 @@ import socket
 from copy import deepcopy
 from pathlib import Path
 from datetime import timezone, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 import dill
 import jwt
 from cachetools import TTLCache
@@ -787,7 +787,10 @@ class IQMBackendService:
         from exa.common.qcm_data.chip_topology import ChipTopology
 
         # channel_properties = p._iqm_server_client.get_channel_properties(chip_design_record)
-        channel_properties, component_channels = get_default_channel_properties(node_settings, chip_topology=ChipTopology.from_chip_design_record(chip_design_record))
+        channel_properties, component_channels = get_default_channel_properties(
+            node_settings,
+            chip_topology=ChipTopology.from_chip_design_record(chip_design_record),
+        )
 
         calibration_set = p._iqm_server_client.get_calibration_set("default")
 
@@ -796,7 +799,7 @@ class IQMBackendService:
             "station_control_settings": node_settings,
             "chip_label": p.get_chip_label(),
             "channel_properties": channel_properties,
-            "component_channels": component_channels, # qubit_to_channel
+            "component_channels": component_channels,  # qubit_to_channel
             "chip_design_record": chip_design_record,
             "duts": p._iqm_server_client.get_duts(),
         }
@@ -834,7 +837,13 @@ class IQMBackendService:
         if not run_definition_path.exists():
             raise FileNotFoundError(f"circuits.pkl not found in {task_dir}")
 
-        run_definition:RunDefinition = IQMBackendService.load_python_obj(run_definition_path, use_dill=True)
+        run_definition: RunDefinition = IQMBackendService.load_python_obj(
+            run_definition_path, use_dill=True
+        )
+
+        # Assign UUID to definitions (follows approach which is implemented in iqm-pulla)
+        run_definition.run_id = uuid4()
+        run_definition.sweep_definition.sweep_id = uuid4()
 
         # Context
         context_path = task_dir / "run_kwargs.pkl"

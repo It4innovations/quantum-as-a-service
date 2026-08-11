@@ -900,7 +900,7 @@ class QClient:
         self,
         job_data: Dict[str, Any],
         backend: IQMBackend | Pulla = None,
-        circuits: SweepDefinition | str | list[str] | None = None,
+        circuits: RunDefinition | str | list[str] | None = None,
         run_options: dict[str, Any] | None = None,
     ) -> int:
         """
@@ -922,7 +922,7 @@ class QClient:
         :type job_data: Dict[str, Any]
 
         :param circuits: Quantum circuit or list of circuits. OpenQASM serialized string.
-        :type circuits: SweepDefinition|str|list[str]|None
+        :type circuits: RunDefinition|str|list[str]|None
         :param run_options: Dictionary of quantum circuit execution
         :type run_options: dict[str, Any]
 
@@ -954,7 +954,7 @@ class QClient:
         # if (
         #     backend
         #     and isinstance(backend, Pulla)
-        #     or (isinstance(circuits, list) and isinstance(circuits[0], SweepDefinition))
+        #     or (isinstance(circuits, list) and isinstance(circuits[0], RunDefinition))
         # ):
         #     log.warning(
         #         "We are sorry for inconvenience, Pulla is currently not supported. We are working on this feature"
@@ -986,8 +986,13 @@ class QClient:
             env_variables = [
                 *job_data.get("environment_variables", []),
                 # For PULLA
-                # EnvironmentVariableExt("Q_COMMAND","pulla_submit_playlist" if isinstance(circuits, SweepDefinition) else "backend_run")
-                EnvironmentVariableExt("Q_COMMAND", "backend_run"),
+                EnvironmentVariableExt(
+                    "Q_COMMAND",
+                    "pulla_submit_playlist"
+                    if isinstance(circuits, RunDefinition)
+                    else "backend_run",
+                ),
+                # EnvironmentVariableExt("Q_COMMAND", "backend_run"),
                 EnvironmentVariableExt("USER_JWT_PWD", encoded_pwd),
                 EnvironmentVariableExt("LEXIS_PROJECT", self.lexis_project),
                 EnvironmentVariableExt(

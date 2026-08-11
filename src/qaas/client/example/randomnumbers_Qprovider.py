@@ -92,7 +92,6 @@ for key, count in results_dict.items():
             print(f"  -> Decimal value: {int(key, 2)}")
 
 
-
 # --------------
 # OpenQASM3 Approach
 # --------------

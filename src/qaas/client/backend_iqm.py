@@ -4,6 +4,10 @@ import logging
 import copy
 from uuid import UUID
 from iqm.qiskit_iqm import IQMBackend, transpile_to_IQM as transpile_to_IQM_orig
+from iqm.iqm_client.models import CircuitCompilationOptions
+from iqm.iqm_client.iqm_client import validate_circuit_instructions
+from iqm.station_control.interface.models.circuit import RunRequest
+from iqm.pulla.utils_qiskit import qiskit_circuits_to_pulla
 
 from qiskit import QuantumCircuit
 
@@ -314,6 +318,54 @@ class QBackendIQM(QBackend, IQMBackend):
         # Transpile locally
         return transpile_to_IQM_orig(
             circuit=circuit, backend=self.remote_backend, **kwargs
+        )
+
+    def create_run_request(
+        self,
+        run_input: QuantumCircuit | list[QuantumCircuit],
+        shots: int = 1024,
+        circuit_compilation_options: CircuitCompilationOptions | None = None,
+        circuit_callback=None,
+        qubit_index_to_name: dict[int, str] | None = None,
+        **unknown_options,
+    ) -> RunRequest:
+        """Build a RunRequest locally, without contacting IQM Server."""
+        circuits = (
+            [run_input] if isinstance(run_input, QuantumCircuit) else list(run_input)
+        )
+        if not circuits:
+            raise ValueError("Empty list of circuits submitted for execution.")
+        if unknown_options:
+            log.warning("Unknown backend option(s): %s", unknown_options)
+        if circuit_callback:
+            circuit_callback(circuits)
+
+        options = circuit_compilation_options or CircuitCompilationOptions()
+
+        calibration_set_id = self.architecture.calibration_set_id
+        if calibration_set_id is None:
+            calibration_set_id = (
+                self.pulla._qclient.get_dynamic_architecture().calibration_set_id
+            )
+        if calibration_set_id is None:
+            raise ValueError("Could not determine the calibration set id to use.")
+
+        serialized = qiskit_circuits_to_pulla(
+            circuits, qubit_index_to_name or self._idx_to_qb
+        )
+        # qubit_mapping is None because the circuits already use physical component names
+        validate_circuit_instructions(
+            self.architecture,
+            serialized,
+            qubit_mapping=None,
+            validate_moves=options.move_gate_validation,
+        )
+
+        return RunRequest(
+            circuits=serialized,
+            calibration_set_id=calibration_set_id,
+            qubit_mapping=None,
+            shots=shots,
         )
 
 

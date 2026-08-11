@@ -3,6 +3,7 @@
 - Currently supports only IQM
 
 """
+
 import os
 import sys
 
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
     from .client import QClient
 from copy import deepcopy
 import logging
-from uuid import UUID, uuid4
+from uuid import UUID
 import copy
 from collections.abc import Sequence
 
@@ -147,11 +148,10 @@ class QPulla:
         channel_properties,
         component_channels,
         chip_design_record,
-        duts
+        duts,
     ):
 
         self._qclient: "QClient" = qclient
-
 
         self._calibration_data_provider: CalibrationDataProvider = (
             CalibrationDataProvider(self._qclient, calibration_sets)
@@ -169,7 +169,7 @@ class QPulla:
         self._software_version_set_id = 0
 
         self._qbackend: QBackendIQM = qbackend
-        self._qpulla_backend:"QPullaBackendIQM" = self.get_new_qpulla_backend()
+        self._qpulla_backend: "QPullaBackendIQM" = self.get_new_qpulla_backend()
 
     def get_new_qpulla_backend(self) -> "QPullaBackendIQM":
         """Creates and returns a new QPullaBackendIQM instance.
@@ -184,7 +184,6 @@ class QPulla:
         compiler = self.get_standard_compiler()
         qpulla_backend: "QPullaBackendIQM" = QPullaBackendIQM(dqa, self, compiler)
         return qpulla_backend
-
 
     def get_qpulla_backend(self) -> "QPullaBackendIQM":
         """Returns the cached QPullaBackendIQM instance.
@@ -201,7 +200,6 @@ class QPulla:
             QPullaBackendIQM: The backend stored on self._qpulla_backend.
         """
         return self._qbackend
-
 
     def get_chip_label(self) -> str:
         if len(self._duts) != 1:
@@ -363,9 +361,7 @@ class QPulla:
             "max_cores": 2,  # NOTE: currently unused
             "tasks": [{"template_parameter_values": []}],
             # Set environment variables for the job
-            "environment_variables": [
-                EnvironmentVariableExt(name="Q_COMMAND", value="pulla_submit_playlist")
-            ],
+            "environment_variables": [],
         }
         if self._qclient.provider_token:
             job_data["environment_variables"] = EnvironmentVariableExt(
@@ -376,7 +372,10 @@ class QPulla:
 
         # Submit job using QClient
         heappe_job_id = self._qclient.submit_quantum_job(
-            job_data, backend=self.remote_pulla, circuits=deepcopy(playlist), run_options=deepcopy(context)
+            job_data,
+            backend=self.remote_pulla,
+            circuits=deepcopy(playlist),
+            run_options=deepcopy(context),
         )
 
         # # Get shots from settings
@@ -384,9 +383,7 @@ class QPulla:
         #     settings["controllers"] if "controllers" in settings.children else settings
         # )
 
-        return QPullaJob(
-            1, self._qbackend, heappe_job_id
-        )
+        return QPullaJob(1, self._qbackend, heappe_job_id)
 
 
 class QPullaBackendIQM(QBackendIQM, IQMBackendBase):
@@ -435,40 +432,3 @@ class QPullaBackendIQM(QBackendIQM, IQMBackendBase):
     @property
     def max_circuits(self) -> int | None:
         return None
-
-
-def qiskit_to_pulla(
-    pulla: QPulla,
-    pulla_backend: QPullaBackendIQM,
-    qiskit_circuits: QuantumCircuit | Sequence[QuantumCircuit],
-) -> tuple[list[Circuit], Compiler]:
-    """Convert transpiled Qiskit quantum circuits to IQM Pulse quantum circuits.
-
-    Also provides the Compiler object for compiling them, with the correct
-    calibration set and component mapping initialized.
-
-    Args:
-        pulla: Quantum computer pulse level access object.
-        qiskit_circuits: One or many transpiled Qiskit QuantumCircuits to convert.
-
-    Returns:
-        Equivalent IQM Pulse circuit(s), compiler for compiling them.
-
-    """
-
-    dynamic_arch: DynamicQuantumArchitecture = pulla._qclient.get_dynamic_architecture()
-    _calibration_set_id = dynamic_arch.calibration_set_id
-
-    # create a compiler containing all the required station information
-    compiler = pulla.get_standard_compiler()
-
-    qiskit_circuits = (
-        qiskit_circuits if isinstance(qiskit_circuits, list) else [qiskit_circuits]
-    )
-
-    # We can be certain run_request contains only Circuit objects, because we created it
-    # right in this method with qiskit.QuantumCircuit objects
-    circuits: list[Circuit] = [
-        qiskit_circuits_to_pulla(c, pulla_backend._idx_to_qb) for c in qiskit_circuits
-    ]
-    return circuits, compiler
