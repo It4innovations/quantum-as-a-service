@@ -400,7 +400,9 @@ class QClient:
         if project_start_date and project_end_date:
             try:
                 # Parse ISO format dates
-                start_dt = datetime.fromisoformat(project_start_date).replace(tzinfo=UTC)
+                start_dt = datetime.fromisoformat(project_start_date).replace(
+                    tzinfo=UTC
+                )
                 end_dt = datetime.fromisoformat(project_end_date).replace(tzinfo=UTC)
                 current_dt = (
                     datetime.now(start_dt.tzinfo)
@@ -551,8 +553,12 @@ class QClient:
             if resource_start_date and resource_end_date:
                 try:
                     # Parse ISO format dates
-                    start_dt = datetime.fromisoformat(resource_start_date).replace(tzinfo=UTC)
-                    end_dt = datetime.fromisoformat(resource_end_date).replace(tzinfo=UTC)
+                    start_dt = datetime.fromisoformat(resource_start_date).replace(
+                        tzinfo=UTC
+                    )
+                    end_dt = datetime.fromisoformat(resource_end_date).replace(
+                        tzinfo=UTC
+                    )
                     current_dt = (
                         datetime.now(start_dt.tzinfo)
                         if start_dt.tzinfo
