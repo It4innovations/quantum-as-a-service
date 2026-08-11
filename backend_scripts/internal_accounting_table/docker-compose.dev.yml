@@ -1,0 +1,21 @@
+services:
+  qaas-accounting-postgres:
+    image: postgres:16-alpine
+    container_name: qaas_accounting_postgres_dev
+    environment:
+      POSTGRES_DB: dev_db
+      POSTGRES_USER: dev_user
+      POSTGRES_PASSWORD: dev_password
+    ports:
+      # Binded to localhost
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # 1. DB Schema definition
+      - ./internal_accounting_table_pgsql_init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      # 2. This script runs second, populates dev_db with the schema, then clones it
+      - ./02_init_clones.sh:/docker-entrypoint-initdb.d/02_init_clones.sh
+      - qaas_accounting_pgdata_dev:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  qaas_accounting_pgdata_dev:

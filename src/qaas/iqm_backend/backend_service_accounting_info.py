@@ -1,7 +1,8 @@
-import sys
-from datetime import datetime, timezone, timedelta
-import aiohttp
 import asyncio
+import sys
+from datetime import UTC, datetime, timedelta
+
+import aiohttp
 import jwt
 import requests
 
@@ -199,12 +200,12 @@ class AccountingInfo:
             exp_timestamp = decoded.get("exp")
             email = decoded.get("email")
             if exp_timestamp and datetime.fromtimestamp(
-                exp_timestamp, tz=timezone.utc
-            ) < datetime.now(timezone.utc):
+                exp_timestamp, tz=UTC
+            ) < datetime.now(UTC):
                 print(f"JWT of user {email} is expired", file=sys.stderr)
                 return False
             return email
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error decoding JWT: {e}", file=sys.stderr)
             return False
 
@@ -214,22 +215,13 @@ class AccountingInfo:
         # Ensure this finishes first so self._heappe_url is populated
         success = await self.fetch_and_verify_assignment_data()
 
-        if not success:
-            return False
-
-        # 2. Concurrent Calls
-        # These run at the same time now that the URL is ready
-
-        # Currently not available
-        # submitter_info_task = asyncio.to_thread(self.fetch_submitter_info_from_heappe, job_id)
-
-        return True
+        return bool(success)
 
     def fetch_all_accounting_info(self, job_id: str) -> bool:
         """The clean public synchronous wrapper."""
         try:
             return asyncio.run(self._internal_fetch_accounting_info_logic(job_id))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             import traceback
 
             traceback.print_exc(file=sys.stderr)
@@ -251,7 +243,7 @@ class AccountingInfo:
         # FIXME: Endpoint is not currently available at HEAppE!!!
         return NotImplemented
         fetch_from = (
-            datetime.now(timezone.utc) - timedelta(days=1)
+            datetime.now(UTC) - timedelta(days=1)
         )  # Fetch jobs from last 30 days to ensure we cover the submitter info for current job, even if it was submitted a while ago
         fetch_from_isoformat = fetch_from.isoformat(timespec="milliseconds").replace(
             "+00:00", "Z"
@@ -343,7 +335,7 @@ class AccountingInfo:
 
                 return assignment_data
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error in fetch_and_verify_assignment_data: {e}", file=sys.stderr)
             return None
 
@@ -397,7 +389,7 @@ class AccountingInfo:
 
                 return heappe_url
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             print(
                 "Timeout while fetching resource assignment data from LEXIS API",
                 file=sys.stderr,
@@ -448,6 +440,6 @@ class AccountingInfo:
 
                 return True
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             print("Timeout while verifying resource ID with LEXIS API", file=sys.stderr)
             return False

@@ -1,28 +1,30 @@
 #!/usr/bin/env python3
 
 import os
-import sys
 import pickle
-import time
 import socket
+import sys
+import time
 from copy import deepcopy
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import timezone, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
+
 import dill
 import jwt
 from cachetools import TTLCache
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from qiskit import QuantumCircuit
-from qiskit.qasm3 import load as qasm3load
-from iqm.qiskit_iqm import IQMBackend, IQMProvider
-from iqm.qiskit_iqm.iqm_job import IQMJob
+from iqm.iqm_client import IQMClient
 from iqm.iqm_client import JobStatus as IQMJobStatus
 
 # from iqm.iqm_server_client.models import TimelineEntry
-from iqm.pulla.pulla import SweepJob, Pulla
-from iqm.iqm_client import IQMClient
+from iqm.pulla.pulla import Pulla, PullaJob
+from iqm.qiskit_iqm import IQMBackend, IQMProvider
+from iqm.qiskit_iqm.iqm_job import IQMJob
+from iqm.station_control.interface.models import RunDefinition
+from qiskit import QuantumCircuit
+from qiskit.qasm3 import load as qasm3load
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from qaas.iqm_backend.backend_env_variables import (
     QAAS_ALLOWED_CLIENT_COUNT,
@@ -30,10 +32,11 @@ from qaas.iqm_backend.backend_env_variables import (
 )
 from qaas.iqm_backend.backend_service_accounting_info import AccountingInfo
 from qaas.iqm_backend.backend_service_consumption import (
-    initializeKafkaProducer,
     fetch_current_consumption_internal,
+    initializeKafkaProducer,
     record_consumption_to_internal_db,
 )
+from qaas.iqm_backend.exceptions import GenericQaaSBackendException
 
 print("Dependencies loaded...")
 
@@ -53,9 +56,7 @@ class CommandParams:
             len(parts) < CommandParams.MIN_NUMBER_OF_PARAMS
             or len(parts) > CommandParams.MAX_NUMBER_OF_PARAMS
         ):
-            self._parsing_error_message = f"ERROR: Invalid command format. Expected: <command> <task_id> <user_jwt> <lexis_project> <lexis_project_resource_id> or <command> <task_id> <user_jwt> <lexis_project> <lexis_project_resource_id> <optional_args>\nGot {parts}".encode(
-                "utf-8"
-            )
+            self._parsing_error_message = f"ERROR: Invalid command format. Expected: <command> <task_id> <user_jwt> <lexis_project> <lexis_project_resource_id> or <command> <task_id> <user_jwt> <lexis_project> <lexis_project_resource_id> <optional_args>\nGot {parts}".encode()
 
         self._optional_args = None
         if len(parts) == CommandParams.MAX_NUMBER_OF_PARAMS:
@@ -153,12 +154,11 @@ class CommandParams:
         try:
             decoded = jwt.decode(self._user_jwt, options={"verify_signature": False})
             exp_timestamp = decoded.get("exp")
-            if exp_timestamp and datetime.fromtimestamp(
-                exp_timestamp, tz=timezone.utc
-            ) < datetime.now(timezone.utc):
-                return False
-            return True
-        except Exception as e:
+            return not (
+                exp_timestamp
+                and datetime.fromtimestamp(exp_timestamp, tz=UTC) < datetime.now(UTC)
+            )
+        except Exception as e:  # noqa: BLE001
             print(f"Error decoding JWT: {e}", file=sys.stderr)
             return False
 
@@ -233,7 +233,7 @@ class IQMBackendService:
 
             return accounting_info
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             import traceback
 
             traceback.print_exc(file=sys.stderr)
@@ -257,11 +257,11 @@ class IQMBackendService:
                 conn, _ = server.accept()
                 try:
                     self.handle_connection(conn)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     print(f"Error handling connection: {e}", file=sys.stderr)
                     try:
-                        conn.sendall(f"ERROR: {str(e)}\n".encode())
-                    except Exception:
+                        conn.sendall(f"ERROR: {e!s}\n".encode())
+                    except Exception:  # noqa: BLE001, S110
                         pass
                 finally:
                     conn.close()
@@ -320,11 +320,9 @@ class IQMBackendService:
 
                     traceback.print_exc(file=sys.stderr)
                     print(f"Error checking resource consumption: {e}", file=sys.stderr)
-                    conn.sendall(
-                        "ERROR: Error occurred while checking consumption!\n".encode()
-                    )
+                    conn.sendall(b"ERROR: Error occurred while checking consumption!\n")
                     return
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     import traceback
 
                     traceback.print_exc(file=sys.stderr)
@@ -333,7 +331,7 @@ class IQMBackendService:
                         file=sys.stderr,
                     )
                     conn.sendall(
-                        "ERROR: Unexpected error occurred while checking consumption!\n".encode()
+                        b"ERROR: Unexpected error occurred while checking consumption!\n"
                     )
                     return
 
@@ -436,40 +434,40 @@ class IQMBackendService:
                 # )
 
         except UnicodeDecodeError as e:
-            error_msg = f"ERROR: Failed to decode message: {str(e)}\n"
+            error_msg = f"ERROR: Failed to decode message: {e!s}\n"
             print(error_msg, file=sys.stderr)
             import traceback
 
             traceback.print_exc(file=sys.stderr)
             try:
                 conn.sendall(error_msg.encode())
-            except Exception:
+            except Exception:  # noqa: BLE001
                 conn.sendall("Unexpected error UnicodeDecodeError")
 
         except FileNotFoundError as e:
-            error_msg = f"ERROR: File not found: {str(e)}\n"
+            error_msg = f"ERROR: File not found: {e!s}\n"
             print(error_msg, file=sys.stderr)
             import traceback
 
             traceback.print_exc(file=sys.stderr)
             try:
                 conn.sendall(error_msg.encode())
-            except Exception:
+            except Exception:  # noqa: BLE001
                 conn.sendall("Unexpected error FileNotFoundError")
 
         except ValueError as e:
-            error_msg = f"ERROR: Invalid value: {str(e)}\n"
+            error_msg = f"ERROR: Invalid value: {e!s}\n"
             print(error_msg, file=sys.stderr)
             import traceback
 
             traceback.print_exc(file=sys.stderr)
             try:
                 conn.sendall(error_msg.encode())
-            except Exception:
+            except Exception:  # noqa: BLE001
                 conn.sendall("Unexpected error ValueError")
 
-        except Exception as e:
-            error_msg = f"ERROR: {type(e).__name__}: {str(e)}\n"
+        except Exception as e:  # noqa: BLE001
+            error_msg = f"ERROR: {type(e).__name__}: {e!s}\n"
             print(
                 f"Unhandled exception in handle_connection: {error_msg}",
                 file=sys.stderr,
@@ -479,7 +477,7 @@ class IQMBackendService:
             traceback.print_exc(file=sys.stderr)
             try:
                 conn.sendall(error_msg.encode())
-            except Exception:
+            except Exception:  # noqa: BLE001
                 conn.sendall("Unexpected error!!!")
 
     def get_calibration_set(
@@ -715,7 +713,9 @@ class IQMBackendService:
             job.allocation_amount = account_info.allocation_amount
         # Check status
         if job.status() == IQMJobStatus.FAILED or not result.success:
-            raise Exception(f"Job failed: {job.error_message() or 'None'}")
+            raise GenericQaaSBackendException(
+                f"Job failed: {job.error_message() or 'None'}"
+            )
 
         # Save results
         backend_run_postprocessing_started = time.time()
@@ -777,15 +777,28 @@ class IQMBackendService:
 
         p = Pulla(server_url, quantum_computer=quantum_computer)
 
-        channel_prop, component_channels = p.get_channel_properties()
+        chip_design_record = p._iqm_server_client.get_chip_design_records()[0]
+        node_settings = p._iqm_server_client.get_settings()
+        node_settings["controllers"] = node_settings
+
+        from exa.common.qcm_data.chip_topology import ChipTopology
+        from iqm.cpc.compiler._utils.stages import get_default_channel_properties
+
+        # channel_properties = p._iqm_server_client.get_channel_properties(chip_design_record)
+        channel_properties, component_channels = get_default_channel_properties(
+            node_settings,
+            chip_topology=ChipTopology.from_chip_design_record(chip_design_record),
+        )
+
+        calibration_set = p._iqm_server_client.get_calibration_set("default")
 
         pulla_data = {
-            "calibration_sets": p._calibration_data_provider._calibration_sets,
-            "station_control_settings": p._get_station_control_settings(),
+            "calibration_sets": {calibration_set.observation_set_id: calibration_set},
+            "station_control_settings": node_settings,
             "chip_label": p.get_chip_label(),
-            "channel_properties": channel_prop,
-            "component_channels": component_channels,
-            "chip_design_record": p._iqm_server_client.get_chip_design_records()[0],
+            "channel_properties": channel_properties,
+            "component_channels": component_channels,  # qubit_to_channel
+            "chip_design_record": chip_design_record,
             "duts": p._iqm_server_client.get_duts(),
         }
         # Cache backend
@@ -818,11 +831,17 @@ class IQMBackendService:
         pulla_submit_pl_initialization_started = time.time()
 
         # Load sweep
-        sweep_path = task_dir / "sweep.pkl"
-        if not sweep_path.exists():
+        run_definition_path = task_dir / "run_definition.pkl"
+        if not run_definition_path.exists():
             raise FileNotFoundError(f"circuits.pkl not found in {task_dir}")
 
-        sweep = IQMBackendService.load_python_obj(sweep_path, use_dill=True)
+        run_definition: RunDefinition = IQMBackendService.load_python_obj(
+            run_definition_path, use_dill=True
+        )
+
+        # Assign UUID to definitions (follows approach which is implemented in iqm-pulla)
+        run_definition.run_id = uuid4()
+        run_definition.sweep_definition.sweep_id = uuid4()
 
         # Context
         context_path = task_dir / "run_kwargs.pkl"
@@ -850,12 +869,12 @@ class IQMBackendService:
         )
 
         iqm_client_run_started = pulla_submit_pl_initialization_ended
-        job_data = pulla._iqm_server_client.submit_sweep(sweep)
+        job_data = pulla._iqm_server_client.submit_run(run_definition)
         iqm_client_run_ended = time.time()
         iqm_client_job_runtime = iqm_client_run_ended - iqm_client_run_started
 
         iqm_client_results_fetching_started = time.time()
-        sw_job = SweepJob(
+        sw_job = PullaJob(
             data=job_data,
             _pulla=pulla,
             _context=deepcopy(context),
@@ -863,6 +882,7 @@ class IQMBackendService:
         print(f"Job submitted: {sw_job.job_id}")
         sw_job.wait_for_completion(timeout_secs=0.0)
         result = sw_job.result()
+        print(f"Job finished: {sw_job.job_id}")
         iqm_client_run_results_fetching_ended = time.time()
         iqm_client_results_fetching_runtime = (
             iqm_client_run_results_fetching_ended - iqm_client_results_fetching_started
@@ -910,7 +930,7 @@ class IQMBackendService:
 
         # Check status
         if sw_job.status == IQMJobStatus.FAILED:
-            raise Exception(
+            raise GenericQaaSBackendException(
                 f"Job failed: {sw_job._errors[0] if sw_job._errors else 'Unknown sweep job error'}"
             )
 

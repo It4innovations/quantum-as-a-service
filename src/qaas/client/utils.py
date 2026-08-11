@@ -1,6 +1,16 @@
+import datetime
+from collections import Counter
 from enum import Enum
-import requests
+
 import jwt
+import requests
+from iqm.iqm_server_client.models import JobStatus
+from iqm.pulla.interface import HERALDING_KEY
+from iqm.pulla.pulla import PullaJob
+from iqm.pulla.utils_qiskit import qiskit_to_pulla as _iqm_qiskit_to_pulla
+from iqm.qiskit_iqm import IQMJob
+from qiskit.result import Counts, Result
+
 # ------------
 # Exceptions
 # ------------
@@ -80,15 +90,15 @@ class QAuthException(QException):
         elif isinstance(cause, jwt.InvalidIssuerError):
             reason = "JWT token has invalid issuer"
         elif isinstance(cause, jwt.InvalidAlgorithmError):
-            reason = f"JWT token uses invalid/unsupported algorithm: {str(cause)}"
+            reason = f"JWT token uses invalid/unsupported algorithm: {cause!s}"
         elif isinstance(cause, jwt.InvalidKeyError):
-            reason = f"JWT validation failed due to invalid key: {str(cause)}"
+            reason = f"JWT validation failed due to invalid key: {cause!s}"
         elif isinstance(cause, jwt.MissingRequiredClaimError):
-            reason = f"JWT token missing required claim: {str(cause)}"
+            reason = f"JWT token missing required claim: {cause!s}"
         elif isinstance(cause, jwt.DecodeError):
-            reason = f"JWT token decode error: {str(cause)}"
+            reason = f"JWT token decode error: {cause!s}"
         elif isinstance(cause, jwt.InvalidTokenError):
-            reason = f"JWT token validation failed: {str(cause)}"
+            reason = f"JWT token validation failed: {cause!s}"
 
         # Handle requests-related exceptions
         elif isinstance(cause, requests.RequestException):
@@ -104,7 +114,7 @@ class QAuthException(QException):
                 else:
                     reason = f"UserOrg API error ({cause.response.status_code}): {cause.response.text}"
             else:
-                reason = f"Failed to connect to UserOrg API: {str(cause)}"
+                reason = f"Failed to connect to UserOrg API: {cause!s}"
 
         return reason
 
@@ -148,3 +158,83 @@ class JobState(Enum):
             return JobState(state).name
         else:
             return f"Unknown state {state}"
+
+
+#########
+# PULLA #
+#########
+
+
+def qiskit_to_pulla(pulla, pulla_backend, qiskit_circuits):
+    """Deprecated alias; delegates to iqm.pulla.utils_qiskit.qiskit_to_pulla."""
+    return _iqm_qiskit_to_pulla(pulla, pulla_backend, qiskit_circuits)
+
+
+def sweep_job_to_qiskit(
+    job: PullaJob,
+    *,
+    shots: int,
+) -> Result:
+    """Convert a completed Pulla job to a Qiskit Result. (Patching function from iqm.pulla.utils_qiskit; Bug with datetime import)
+
+    Args:
+        job: The completed job to convert.
+        shots: Number of shots that was requested. Only used for validating the result.
+
+    Returns:
+        The equivalent Qiskit Result.
+
+    """
+    circuit_execution_results = job.result()
+    if circuit_execution_results is None:
+        raise ValueError(
+            f'Cannot format Qiskit result without result measurements. Job status is "{job.status.upper()}"'
+        )
+
+    if circuit_execution_results.circuit_measurement_results is None:
+        raise ValueError("Cannot format station control result without result.")
+
+    used_heralding = (
+        sum(HERALDING_KEY in key for key in circuit_execution_results.sweep_results) > 0
+    )
+
+    # Convert the measurement results from a batch of circuits into the Qiskit format.
+    batch_results: list[tuple[str, list[str]]] = [
+        # TODO: Proper naming instead of "index"
+        (
+            f"{index}",
+            IQMJob._iqm_format_measurement_results(
+                circuit_measurements,
+                requested_shots=shots,
+                expect_exact_shots=used_heralding,
+            ),
+        )
+        for index, circuit_measurements in enumerate(
+            circuit_execution_results.circuit_measurement_results
+        )
+    ]
+
+    result_dict = {
+        "backend_name": "IQMPullaBackend",
+        "backend_version": "",
+        "qobj_id": "",
+        "job_id": str(job.job_id),
+        "success": job.status == JobStatus.COMPLETED,
+        "date": datetime.datetime.now(tz=datetime.UTC).date().isoformat(),
+        "status": str(job.status),
+        "timeline": job.data.timeline.copy(),
+        "results": [
+            {
+                "shots": len(measurement_results),
+                "success": True,
+                "data": {
+                    "memory": measurement_results,
+                    "counts": Counts(Counter(measurement_results)),
+                    "metadata": {},
+                },
+                "header": {"name": name},
+            }
+            for name, measurement_results in batch_results
+        ],
+    }
+    return Result.from_dict(result_dict)

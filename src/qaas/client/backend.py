@@ -8,28 +8,24 @@
 :raises QException: _description_
 """
 
-from abc import abstractmethod
-from typing import Optional, Callable
-from uuid import UUID
-import time
+import logging
 import os
 import sys
-import logging
+import time
+from abc import abstractmethod
+from collections.abc import Callable
+from uuid import UUID
 
-from qiskit import QuantumCircuit
-from qiskit.result import Result as QiskitResult
 from iqm.qiskit_iqm import IQMJob
-
-from qiskit.qasm3 import dumps as qasm3dumps
-
 from iqm.station_control.interface.models import CircuitMeasurementResultsBatch
-
 from py4heappe.heappe_v6.core.models import EnvironmentVariableExt
+from qiskit import QuantumCircuit
+from qiskit.qasm3 import dumps as qasm3dumps
+from qiskit.result import Result as QiskitResult
 
-from .utils import QException
-from .client import QClient
 from .backend_metadata import QBackendMetadata
-
+from .client import QClient
+from .utils import QException, sweep_job_to_qiskit
 
 log = logging.getLoggerClass()(
     __name__, os.environ.get("QPROVIDER_LOGLEVEL", "INFO").upper()
@@ -47,6 +43,36 @@ else:
 
 handler.setFormatter(formatter)
 log.addHandler(handler)
+
+
+def export_qasm3_with_custom_move(circuit: QuantumCircuit) -> str:
+    # 1. Export using basis_gates so qasm3dumps bypasses missing .definition checks
+    qasm_str = qasm3dumps(circuit, basis_gates=["move", "Move"])
+
+    # 2. Determine how many qubits 'move' uses in this circuit (default to 2)
+    move_qubits = 2
+    for instr in circuit.data:
+        if instr.operation.name.lower() == "move":
+            move_qubits = instr.operation.num_qubits
+            break
+
+    args_str = ", ".join([f"q{i}" for i in range(move_qubits)])
+
+    # 3. Create a valid, non-empty OpenQASM 3 gate declaration.
+    # 'gphase(0);' gives the body a valid statement so qasm3load registers it.
+    gate_decl = f"\ngate move {args_str} {{\n    gphase(0);\n}}\n"
+
+    # 4. Inject immediately after the header/include
+    if 'include "stdgates.inc";' in qasm_str:
+        qasm_str = qasm_str.replace(
+            'include "stdgates.inc";', f'include "stdgates.inc";\n{gate_decl}'
+        )
+    elif "OPENQASM 3.0;" in qasm_str:
+        qasm_str = qasm_str.replace("OPENQASM 3.0;", f"OPENQASM 3.0;\n{gate_decl}")
+    else:
+        qasm_str = gate_decl + qasm_str
+
+    return qasm_str
 
 
 class QBackend:
@@ -75,9 +101,9 @@ class QBackend:
     def __init__(
         self,
         client: QClient,
-        backend_name: str = None,
+        backend_name: str | None = None,
         backend_metadata: QBackendMetadata = None,
-        calibration_set_id: UUID = None,
+        calibration_set_id: UUID | None = None,
         **kwargs,
     ):
         """
@@ -226,20 +252,12 @@ class QBackend:
         run_circuits_qasm = []
         for c in run_circuits:
             if isinstance(c, QuantumCircuit):
-                if self.backend_name == "VLQ":
-                    # We must give 'move' a definition so the exporter accepts it.
-                    # We use an 'opaque' definition (empty circuit) to keep it as a single block.
-                    for instr in c.data:
-                        if instr.operation.name == "move":
-                            if (
-                                not hasattr(instr.operation, "definition")
-                                or instr.operation.definition is None
-                            ):
-                                # IQM 'move' usually involves 2 qubits (or a qubit and a resonator)
-                                dummy_circ = QuantumCircuit(instr.operation.num_qubits)
-                                instr.operation.definition = dummy_circ
+                if self.backend_name == "VLQ" or self.backend_name.startswith("VLQ-"):
+                    c_qaas = export_qasm3_with_custom_move(c)
+                else:
+                    c_qaas = qasm3dumps(c)
                 # Export to OpenQASM3 with mapping aware transpilation
-                run_circuits_qasm.append(qasm3dumps(c))
+                run_circuits_qasm.append(c_qaas)
             else:
                 run_circuits_qasm.append(c)
 
@@ -340,6 +358,9 @@ class QBackend:
             setattr(self, key, value)
         self.remote_backend = remote_backend_instance
         return self
+
+    def cancel_job(self, job_id):
+        return self._qclient.cancel_job(job_id)
 
     @abstractmethod
     def transpile(self, circuit: QuantumCircuit, **kwargs) -> QuantumCircuit:  # pylint: disable=c0103
@@ -600,7 +621,7 @@ class QJob:
         log.debug("job files fetched in: %f s", self.qaas_fetching_runtime)
 
         # Extract the QJob from results and update this instance
-        if "job" in heappe_results and heappe_results["job"]:
+        if heappe_results.get("job", False):
             instance_update_started = time.time()
             self.update_from_remotejob(heappe_results["job"])
             if self._type == "circuit":
@@ -691,7 +712,7 @@ class QJob:
         self,
         timeout: float = 600,
         cancel_after_timeout=True,
-        callback: Optional[Callable] = None,
+        callback: Callable | None = None,
         wait: float = QClient.DEFAULT_POLL_TIME,
     ) -> None:
         """Waits until job results are ready or job fails.
@@ -705,7 +726,7 @@ class QJob:
         # Fetching of results started
         timeout_start = time.time()
 
-        job_heappe_status, _, task_ids = self._qclient.get_job_status(self.job_id)
+        job_heappe_status, _, _task_ids = self._qclient.get_job_status(self.job_id)
 
         while job_heappe_status not in ["FINISHED", "FAILED"]:
             time.sleep(wait)
@@ -720,7 +741,6 @@ class QJob:
                 HEAppE_QISKIT_STATUS_MAPPING.get(job_heappe_status, "ERROR"),
                 self,
             )
-        return
 
     def wait_for_completion(
         self,
@@ -737,6 +757,10 @@ class QJob:
         )
 
     def cancel_heappe_job(self, heappe_job_id: int) -> bool:
+        """See doc QClient:cancel_job"""
+        return self._qclient.cancel_job(heappe_job_id)
+
+    def cancel_job(self, heappe_job_id: int) -> bool:
         """See doc QClient:cancel_job"""
         return self._qclient.cancel_job(heappe_job_id)
 
@@ -772,3 +796,45 @@ class QJob:
     def get_transpiled_circuits(self):
         """Getter of transpiled Quantum circuits used to run a Job"""
         return self._transpiled_circuits
+
+
+class QPullaJob(QJob):
+    """
+    Implements results for Pulla
+    """
+
+    def __init__(self, shots: int, backend: QBackend, heappe_job_id: int):
+        """
+        Initialize QJob with backend and HEAppE job identifier.
+
+        Creates a QJob instance that wraps HEAppE job management with QJob
+        functionality. The job starts with a placeholder ID and is later updated
+        with the actual QJob when execution completes.
+
+        :param backend: The quantum backend instance for job execution
+        :type backend: QBackend
+        :param heappe_job_id: HEAppE job identifier for remote tracking
+        :type heappe_job_id: str
+        :param kwargs: Additional keyword arguments passed to QJob parent class
+        :type kwargs: dict
+
+        :raises QException: When backend is invalid or job initialization fails
+        :raises QAuthException: When backend authentication is unsuccessful
+        """
+        self._shots = shots
+        super().__init__(backend, heappe_job_id, job_type="pulla")
+
+    def result(
+        self,
+        timeout_secs: float = 600,
+        cancel_after_timeout: bool = False,
+        raw_results=True,
+    ) -> QiskitResult | CircuitMeasurementResultsBatch:  # pylint: disable=W0221
+        QJob.result(
+            self, timeout_secs=timeout_secs, cancel_after_timeout=cancel_after_timeout
+        )
+
+        if raw_results:
+            return self.remote_job.result()
+        else:  # Qiskit Result
+            return sweep_job_to_qiskit(self.remote_job, shots=self._shots)

@@ -12,7 +12,7 @@ Access IQM quantum hardware through the `LEXIS platform <https://lexis-project.e
 Requirements
 ------------
 
-- Python 3.11+
+- Python 3.12
 - required Python packages: see `dependencies` in `pyproject.toml <pyproject.toml>`_
 
 Quick start
@@ -52,7 +52,7 @@ Also OpenQASM is supported on input:
 
 .. code-block:: python
 
-   from qiskit.qasm3 import dumps as qasm3dumps
+   from qaas import export_qasm3_with_custom_move as qasm3dumps
 
    qc = QuantumCircuit(2, 2)
    qc.h(0); qc.cx(0, 1); qc.measure_all()
@@ -76,6 +76,8 @@ IQM Pulla
    from qaas.client import QProvider, QBackend
    from qaas.client.qpulla import qiskit_to_pulla, QPullaBackendIQM
 
+   SHOTS = 100
+
    provider = QProvider(lexis_access_token, "my_project")
    client = provider.get_client(lexis_resource_name)
    dqa = client.get_dynamic_architecture()
@@ -93,11 +95,15 @@ IQM Pulla
    qc_optimized = optimize_single_qubit_gates(qc_transpiled)
 
    circuits, compiler = qiskit_to_pulla(p, pulla_backend, [qc_optimized])
-   playlist, context = compiler.compile(circuits[0])
+   
    # Build settings for execution
-   settings, context = compiler.build_settings(context, shots=100)
+   settings = compiler.get_settings(circuits[0])
+   settings.set_shots(SHOTS) # optional
+   # Compile to playlist
+   run_definition, context = compiler.compile(circuits, settings=settings)
+   
    # Submit playlist returns SweepJob
-   job = p.submit_playlist(playlist, settings, context=context)
+   job = p.submit_playlist(run_definition, context=context)
    job.wait_for_completion()
    
    # Get raw results
@@ -106,8 +112,7 @@ IQM Pulla
    # Convert to Qiskit result format
    qiskit_result = sweep_job_to_qiskit(
       job,
-      shots=100,
-      execution_options=context['options']
+      shots=SHOTS
    )
    # Qiskit Counts
    counts = qiskit_result.get_counts()

@@ -1,6 +1,15 @@
 -- Create custom ENUM types for state management
-CREATE TYPE session_state AS ENUM ('Waiting', 'Open', 'Closed');
-CREATE TYPE task_state AS ENUM ('Waiting', 'Running', 'Failed', 'Finished', 'Cancelled');
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'session_state') THEN
+        CREATE TYPE session_state AS ENUM ('Waiting', 'Open', 'Closed');
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'task_state') THEN
+        CREATE TYPE task_state AS ENUM ('Waiting', 'Running', 'Failed', 'Finished', 'Cancelled');
+    END IF;
+END
+$$;
 
 -- 1. Create ConsumptionEntities Table
 CREATE TABLE IF NOT EXISTS ConsumptionEntities (

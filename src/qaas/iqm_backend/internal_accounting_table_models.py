@@ -1,9 +1,19 @@
 import enum
-from sqlalchemy import Column, ForeignKey, Integer, String, Float, UUID, DateTime, text
-from sqlalchemy import Index
+
+from sqlalchemy import (
+    UUID,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    text,
+)
 from sqlalchemy.dialects.postgresql import ENUM
-from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 
 Base = declarative_base()
 

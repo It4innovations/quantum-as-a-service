@@ -1,9 +1,11 @@
-from iqm.qiskit_iqm.iqm_provider import IQMFacadeBackend
 from uuid import UUID
+
+from iqm.qiskit_iqm.iqm_provider import IQMFacadeBackend
+
 from .backend_iqm import QBackendIQM
+from .backend_metadata import QBackendMetadata
 from .client import QClient
 from .qpulla import QPulla
-from .backend_metadata import QBackendMetadata
 
 
 class QProvider:
@@ -78,7 +80,7 @@ class QProvider:
         """
 
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource_name: str = lexis_resource.lexis_resource_name
+            lexis_resource_name: str = lexis_resource.lexis_resource.resource_name
         else:
             lexis_resource_name: str = lexis_resource
 
@@ -105,9 +107,7 @@ class QProvider:
 
     def get_pulla(self, lexis_resource: str | QBackendMetadata) -> QPulla:
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource: str = lexis_resource.lexis_resource_name
-        else:
-            lexis_resource: str = lexis_resource
+            lexis_resource: str = lexis_resource.lexis_resource.resource_name
 
         client = QClient(
             self._token, self._lexis_project, lexis_resource, self._provider_token
@@ -117,9 +117,7 @@ class QProvider:
 
     def get_client(self, lexis_resource: str | QBackendMetadata) -> QClient:
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource: str = lexis_resource.lexis_resource_name
-        else:
-            lexis_resource: str = lexis_resource
+            lexis_resource: str = lexis_resource.lexis_resource.resource_name
 
         c = QClient(
             self._token, self._lexis_project, lexis_resource, self._provider_token
@@ -156,7 +154,7 @@ class QProviderDev(QProvider):
         """
 
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource_name: str = lexis_resource.lexis_resource_name
+            lexis_resource_name: str = lexis_resource.lexis_resource.resource_name
         else:
             lexis_resource_name: str = lexis_resource
 
@@ -187,7 +185,7 @@ class QProviderDev(QProvider):
 
     def get_pulla(self, lexis_resource: str | QBackendMetadata, **kwargs) -> QPulla:
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource_name: str = lexis_resource.lexis_resource_name
+            lexis_resource_name: str = lexis_resource.lexis_resource.resource_name
         else:
             lexis_resource_name: str = lexis_resource
 
@@ -198,12 +196,19 @@ class QProviderDev(QProvider):
             self._provider_token,
             **kwargs,
         )
-        pulla_data, pulla = client.get_pulla()
-        return QPulla(client, pulla, **pulla_data)
+
+        backend_metadata = client.get_quantum_backend_info()
+
+        if backend_metadata.software_stack == "IQM":
+            pulla_data, pulla = client.get_pulla()
+            qbackend = self.get_backend(lexis_resource=backend_metadata, **kwargs)
+            return QPulla(client, pulla, qbackend, **pulla_data)
+        else:
+            return NotImplemented
 
     def get_client(self, lexis_resource: str | QBackendMetadata, **kwargs) -> QClient:
         if isinstance(lexis_resource, QBackendMetadata):
-            lexis_resource_name: str = lexis_resource.lexis_resource_name
+            lexis_resource_name: str = lexis_resource.lexis_resource.resource_name
         else:
             lexis_resource_name: str = lexis_resource
 

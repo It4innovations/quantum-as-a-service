@@ -35,7 +35,7 @@ if QAAS_INTERNAL_ACCOUNTING_DB_URI == "postgresql://user:password@localhost/data
         file=sys.stderr,
         flush=True,
     )
-    exit(-4)
+    sys.exit(-4)
 
 CYCLOPS_KAFKA_SERVER = os.getenv("CYCLOPS_KAFKA_SERVER")
 CYCLOPS_API_URL = os.getenv("CYCLOPS_API_URL")

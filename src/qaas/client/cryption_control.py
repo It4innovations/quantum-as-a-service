@@ -1,12 +1,12 @@
-import os
-import sys
 import base64
 import hashlib
+import logging
+import os
 import secrets
 import string
-from cryptography.fernet import Fernet
-import logging
+import sys
 
+from cryptography.fernet import Fernet
 
 # -----------
 # Set Logging

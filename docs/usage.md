@@ -28,7 +28,7 @@ QaaS requires a valid LEXIS access token. The recommended approach is automatic 
 from qaas import QProvider
 
 provider = QProvider(token, project_name="my_lexis_project")
-backend  = provider.get_backend("EQE1-CZ-P0001")
+backend = provider.get_backend("EQE1-CZ-P0001")
 ```
 
 The `resource_name` string (e.g. `"EQE1-CZ-P0001"`) maps to a specific quantum backend. Contact your LEXIS project manager for the resource name available to your project.
@@ -81,16 +81,16 @@ from py4lexis.session import LexisSession
 from qaas import QProvider
 from qiskit import QuantumCircuit
 
-token    = LexisSession().get_access_token()
+token = LexisSession().get_access_token()
 provider = QProvider(token, "vlq_demo_project")
-backend  = provider.get_backend("qaas_user")
+backend = provider.get_backend("qaas_user")
 
 qc = QuantumCircuit(2, 2)
 qc.h(0)
 qc.cx(0, 1)
 qc.measure_all()
 
-job    = backend.run(backend.transpile(qc, optimize_single_qubits=False), shots=1000)
+job = backend.run(backend.transpile(qc, optimize_single_qubits=False), shots=1000)
 counts = job.result().get_counts()
 
 for state, count in counts.items():
@@ -107,8 +107,8 @@ from qaas import QProvider, QException
 
 try:
     provider = QProvider(token, project)
-    backend  = provider.get_backend(resource)
-    result   = backend.run(circuit, shots=1000).result()
+    backend = provider.get_backend(resource)
+    result = backend.run(circuit, shots=1000).result()
 except QException as e:
     print(f"QaaS error: {e}")
 ```

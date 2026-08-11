@@ -1,15 +1,17 @@
-import os
+import csv
 import glob
 import json
+import os
+import sys
 import time
-import csv
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+from iqm.qiskit_iqm import IQMProvider, transpile_to_IQM
 from qiskit import QuantumCircuit
 from qiskit.qasm2 import dump as dump_qasm2
-import numpy as np
-import matplotlib.pyplot as plt
-from iqm.qiskit_iqm import IQMProvider
-from iqm.qiskit_iqm import transpile_to_IQM
+from qiskit.visualization import VisualizationError
 
 # ------------------------------
 # Setup QProvider and QBackend
@@ -35,7 +37,7 @@ os.makedirs(output_dir, exist_ok=True)
 qasm_files = glob.glob(os.path.join(input_dir, "*.qasm2"))
 if not qasm_files:
     print(f"No .qasm2 files found in {input_dir} directory")
-    exit(1)
+    sys.exit(1)
 
 print(f"Found {len(qasm_files)} .qasm2 files to process")
 
@@ -73,8 +75,16 @@ for f_idx, qasm_file in enumerate(qasm_files):
                 bbox_inches="tight",
             )
             plt.close(fig)
-        except Exception as e:
-            print(f"Warning: Could not save original circuit diagram: {e}")
+
+        except (VisualizationError, ImportError) as e:
+            print(
+                f"Warning: Qiskit visualization failed to render circuit diagram: {e}"
+            )
+
+        except OSError as e:
+            print(
+                f"Warning: Failed to save circuit diagram to disk ({e.filename}): {e.strerror}"
+            )
 
         if os.getenv("QC_TRANSPILED", "FALSE") == "TRUE":
             qc_transpiled = qc
@@ -96,8 +106,16 @@ for f_idx, qasm_file in enumerate(qasm_files):
                 bbox_inches="tight",
             )
             plt.close(fig)
-        except Exception as e:
-            print(f"Warning: Could not save transpiled circuit diagram: {e}")
+
+        except (VisualizationError, ImportError) as e:
+            print(
+                f"Warning: Qiskit visualization failed to render transpiled circuit: {e}"
+            )
+
+        except OSError as e:
+            print(
+                f"Warning: Could not save transpiled circuit diagram to disk ({e.filename}): {e.strerror}"
+            )
 
         # Save transpiled circuit qasm
         transpiled_qc_filename = os.path.join(
@@ -174,7 +192,9 @@ for f_idx, qasm_file in enumerate(qasm_files):
         with open(results_file, "w", encoding="utf-8") as f:
             json.dump(detailed_results, f, indent=2)
 
-        # Save histogram plot
+        # -------------------------------------------------------------------------
+        # Plotting Block
+        # -------------------------------------------------------------------------
         if results_dict:
             try:
                 states = list(results_dict.keys())
@@ -193,11 +213,6 @@ for f_idx, qasm_file in enumerate(qasm_files):
                 ax.set_xticks(range(len(states)))
                 ax.set_xticklabels(states, rotation=45, ha="right")
 
-                # Option 2: vertical bars (better for many states)
-                # ax.barh(states, counts)
-                # ax.set_xlabel("Counts")
-                # ax.set_ylabel("State")
-
                 plt.tight_layout()
                 plt.savefig(
                     os.path.join(output_dir, f"{base_name}_histogram.png"),
@@ -206,22 +221,41 @@ for f_idx, qasm_file in enumerate(qasm_files):
                 )
                 plt.close(fig)
 
-            except Exception as e:
-                print(f"Warning: Could not save histogram: {e}")
+            except (ValueError, TypeError, RuntimeError) as e:
+                print(
+                    f"Warning: Matplotlib failed to render histogram for {base_name}: {e}"
+                )
+                plt.close(fig)  # Ensure figure memory is released on rendering error
+
+            except OSError as e:
+                print(
+                    f"Warning: Could not save histogram image to disk ({e.filename}): {e.strerror}"
+                )
 
         print(f"Results saved to output/ directory with prefix '{base_name}'")
 
+    # -------------------------------------------------------------------------
+    # Outer Processing Error Catch & JSON Dump
+    # -------------------------------------------------------------------------
     except Exception as e:
+        # Explicitly allow user interrupts and exit calls to pass through
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+
         print(f"Error processing {qasm_file}: {e}")
-        # Save error information
+
         error_info = {
             "file": os.path.basename(qasm_file),
             "error": str(e),
             "error_type": type(e).__name__,
         }
         error_file = os.path.join(output_dir, f"{base_name}_error.json")
-        with open(error_file, "w", encoding="utf-8") as f:
-            json.dump(error_info, f, indent=2)
+
+        try:
+            with open(error_file, "w", encoding="utf-8") as f:
+                json.dump(error_info, f, indent=2)
+        except OSError as io_err:
+            print(f"Critical: Failed to write error details to {error_file}: {io_err}")
 
 print(f"\n{'=' * 50}")
 print("Batch processing completed!")
