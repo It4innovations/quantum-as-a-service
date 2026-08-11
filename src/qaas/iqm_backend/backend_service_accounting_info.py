@@ -205,7 +205,7 @@ class AccountingInfo:
                 print(f"JWT of user {email} is expired", file=sys.stderr)
                 return False
             return email
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error decoding JWT: {e}", file=sys.stderr)
             return False
 
@@ -215,22 +215,13 @@ class AccountingInfo:
         # Ensure this finishes first so self._heappe_url is populated
         success = await self.fetch_and_verify_assignment_data()
 
-        if not success:
-            return False
-
-        # 2. Concurrent Calls
-        # These run at the same time now that the URL is ready
-
-        # Currently not available
-        # submitter_info_task = asyncio.to_thread(self.fetch_submitter_info_from_heappe, job_id)
-
-        return True
+        return bool(success)
 
     def fetch_all_accounting_info(self, job_id: str) -> bool:
         """The clean public synchronous wrapper."""
         try:
             return asyncio.run(self._internal_fetch_accounting_info_logic(job_id))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             import traceback
 
             traceback.print_exc(file=sys.stderr)
@@ -344,7 +335,7 @@ class AccountingInfo:
 
                 return assignment_data
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error in fetch_and_verify_assignment_data: {e}", file=sys.stderr)
             return None
 

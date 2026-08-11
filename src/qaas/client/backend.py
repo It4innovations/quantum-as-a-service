@@ -101,9 +101,9 @@ class QBackend:
     def __init__(
         self,
         client: QClient,
-        backend_name: str = None,
+        backend_name: str | None = None,
         backend_metadata: QBackendMetadata = None,
-        calibration_set_id: UUID = None,
+        calibration_set_id: UUID | None = None,
         **kwargs,
     ):
         """
@@ -726,7 +726,7 @@ class QJob:
         # Fetching of results started
         timeout_start = time.time()
 
-        job_heappe_status, _, task_ids = self._qclient.get_job_status(self.job_id)
+        job_heappe_status, _, _task_ids = self._qclient.get_job_status(self.job_id)
 
         while job_heappe_status not in ["FINISHED", "FAILED"]:
             time.sleep(wait)

@@ -36,6 +36,7 @@ from qaas.iqm_backend.backend_service_consumption import (
     initializeKafkaProducer,
     record_consumption_to_internal_db,
 )
+from qaas.iqm_backend.exceptions import GenericQaaSBackendException
 
 print("Dependencies loaded...")
 
@@ -153,12 +154,11 @@ class CommandParams:
         try:
             decoded = jwt.decode(self._user_jwt, options={"verify_signature": False})
             exp_timestamp = decoded.get("exp")
-            if exp_timestamp and datetime.fromtimestamp(
-                exp_timestamp, tz=UTC
-            ) < datetime.now(UTC):
-                return False
-            return True
-        except Exception as e:
+            return not (
+                exp_timestamp
+                and datetime.fromtimestamp(exp_timestamp, tz=UTC) < datetime.now(UTC)
+            )
+        except Exception as e:  # noqa: BLE001
             print(f"Error decoding JWT: {e}", file=sys.stderr)
             return False
 
@@ -233,7 +233,7 @@ class IQMBackendService:
 
             return accounting_info
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             import traceback
 
             traceback.print_exc(file=sys.stderr)
@@ -257,11 +257,11 @@ class IQMBackendService:
                 conn, _ = server.accept()
                 try:
                     self.handle_connection(conn)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     print(f"Error handling connection: {e}", file=sys.stderr)
                     try:
                         conn.sendall(f"ERROR: {e!s}\n".encode())
-                    except Exception:
+                    except Exception:  # noqa: BLE001, S110
                         pass
                 finally:
                     conn.close()
@@ -320,11 +320,9 @@ class IQMBackendService:
 
                     traceback.print_exc(file=sys.stderr)
                     print(f"Error checking resource consumption: {e}", file=sys.stderr)
-                    conn.sendall(
-                        b"ERROR: Error occurred while checking consumption!\n"
-                    )
+                    conn.sendall(b"ERROR: Error occurred while checking consumption!\n")
                     return
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     import traceback
 
                     traceback.print_exc(file=sys.stderr)
@@ -443,7 +441,7 @@ class IQMBackendService:
             traceback.print_exc(file=sys.stderr)
             try:
                 conn.sendall(error_msg.encode())
-            except Exception:
+            except Exception:  # noqa: BLE001
                 conn.sendall("Unexpected error UnicodeDecodeError")
 
         except FileNotFoundError as e:
@@ -454,7 +452,7 @@ class IQMBackendService:
             traceback.print_exc(file=sys.stderr)
             try:
                 conn.sendall(error_msg.encode())
-            except Exception:
+            except Exception:  # noqa: BLE001
                 conn.sendall("Unexpected error FileNotFoundError")
 
         except ValueError as e:
@@ -465,10 +463,10 @@ class IQMBackendService:
             traceback.print_exc(file=sys.stderr)
             try:
                 conn.sendall(error_msg.encode())
-            except Exception:
+            except Exception:  # noqa: BLE001
                 conn.sendall("Unexpected error ValueError")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error_msg = f"ERROR: {type(e).__name__}: {e!s}\n"
             print(
                 f"Unhandled exception in handle_connection: {error_msg}",
@@ -479,7 +477,7 @@ class IQMBackendService:
             traceback.print_exc(file=sys.stderr)
             try:
                 conn.sendall(error_msg.encode())
-            except Exception:
+            except Exception:  # noqa: BLE001
                 conn.sendall("Unexpected error!!!")
 
     def get_calibration_set(
@@ -715,7 +713,9 @@ class IQMBackendService:
             job.allocation_amount = account_info.allocation_amount
         # Check status
         if job.status() == IQMJobStatus.FAILED or not result.success:
-            raise Exception(f"Job failed: {job.error_message() or 'None'}")
+            raise GenericQaaSBackendException(
+                f"Job failed: {job.error_message() or 'None'}"
+            )
 
         # Save results
         backend_run_postprocessing_started = time.time()
@@ -930,7 +930,7 @@ class IQMBackendService:
 
         # Check status
         if sw_job.status == IQMJobStatus.FAILED:
-            raise Exception(
+            raise GenericQaaSBackendException(
                 f"Job failed: {sw_job._errors[0] if sw_job._errors else 'Unknown sweep job error'}"
             )
 

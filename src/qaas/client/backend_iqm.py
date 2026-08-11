@@ -72,7 +72,7 @@ class QBackendIQM(QBackend, IQMBackend):
         self,
         client: QClient,
         backend_metadata: QBackendMetadata,
-        calibration_set_id: UUID = None,
+        calibration_set_id: UUID | None = None,
         **kwargs,
     ):
         """

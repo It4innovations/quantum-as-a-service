@@ -108,8 +108,6 @@ class QProvider:
     def get_pulla(self, lexis_resource: str | QBackendMetadata) -> QPulla:
         if isinstance(lexis_resource, QBackendMetadata):
             lexis_resource: str = lexis_resource.lexis_resource.resource_name
-        else:
-            lexis_resource: str = lexis_resource
 
         client = QClient(
             self._token, self._lexis_project, lexis_resource, self._provider_token
@@ -120,8 +118,6 @@ class QProvider:
     def get_client(self, lexis_resource: str | QBackendMetadata) -> QClient:
         if isinstance(lexis_resource, QBackendMetadata):
             lexis_resource: str = lexis_resource.lexis_resource.resource_name
-        else:
-            lexis_resource: str = lexis_resource
 
         c = QClient(
             self._token, self._lexis_project, lexis_resource, self._provider_token

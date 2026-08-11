@@ -7,7 +7,7 @@ import pickle
 import ssl
 import sys
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -129,7 +129,6 @@ class QClient:
         >>> job_id = client.submit_quantum_job(job_specification)
     """
 
-    DEFAULT_LEXIS_AGGREGATION_NAME = ["VLQ", "EQE1", "QLM"]
     # Two templates for two different queues are required by HEAppE architecture
     DEFAULT_QINIT_TEMPLATE_NAME = "RunQInit"
     DEFAULT_QEXECUTE_TEMPLATE_NAME = "RunQExecute"
@@ -152,7 +151,7 @@ class QClient:
         lexis_project: str,
         lexis_resource_name: str | None = None,
         quantum_computer_name: str | None = None,
-        provider_token: str = None,
+        provider_token: str | None = None,
         **kwargs,
     ):
         """
@@ -185,6 +184,10 @@ class QClient:
             Initialization may take several seconds as it involves multiple API calls
             to LEXIS UserOrg service and HEAppE authentication workflow.
         """
+
+        # Constants
+        self.DEFAULT_LEXIS_AGGREGATION_NAME = ["VLQ", "EQE1", "QLM"]
+
         self._token = token
         self._lexis_project = lexis_project
         self.provider_token = provider_token
@@ -397,12 +400,12 @@ class QClient:
         if project_start_date and project_end_date:
             try:
                 # Parse ISO format dates
-                start_dt = datetime.fromisoformat(
-                    project_start_date.replace("Z", "+00:00")
-                )
-                end_dt = datetime.fromisoformat(project_end_date.replace("Z", "+00:00"))
+                start_dt = datetime.fromisoformat(project_start_date).replace(tzinfo=UTC)
+                end_dt = datetime.fromisoformat(project_end_date).replace(tzinfo=UTC)
                 current_dt = (
-                    datetime.now(start_dt.tzinfo) if start_dt.tzinfo else datetime.now()
+                    datetime.now(start_dt.tzinfo)
+                    if start_dt.tzinfo
+                    else datetime.now(UTC)
                 )
 
                 if current_dt < start_dt:
@@ -503,11 +506,13 @@ class QClient:
                             location_type_id == QClient.DEFAULT_QUANTUM_LOCATION_TYPE
                         ):  # LocationTypeId 7 corresponds to locations in LEXIS, which we use for quantum backends
                             aggregation_name = resource.get("AggregationName")
-                            if aggregation_name in self._lexis_aggregation_name:
-                                if quantum_computer_name is None or quantum_computer_name == aggregation_name:
-                                    assignment_info = assignment
-                                    project_resource_info = resource
-                                    break
+                            if aggregation_name in self._lexis_aggregation_name and (
+                                quantum_computer_name is None
+                                or quantum_computer_name == aggregation_name
+                            ):
+                                assignment_info = assignment
+                                project_resource_info = resource
+                                break
                     if assignment_info and project_resource_info:
                         break
 
@@ -546,16 +551,12 @@ class QClient:
             if resource_start_date and resource_end_date:
                 try:
                     # Parse ISO format dates
-                    start_dt = datetime.fromisoformat(
-                        resource_start_date.replace("Z", "+00:00")
-                    )
-                    end_dt = datetime.fromisoformat(
-                        resource_end_date.replace("Z", "+00:00")
-                    )
+                    start_dt = datetime.fromisoformat(resource_start_date).replace(tzinfo=UTC)
+                    end_dt = datetime.fromisoformat(resource_end_date).replace(tzinfo=UTC)
                     current_dt = (
                         datetime.now(start_dt.tzinfo)
                         if start_dt.tzinfo
-                        else datetime.now()
+                        else datetime.now(UTC)
                     )
 
                     if current_dt < start_dt:
@@ -1166,8 +1167,8 @@ class QClient:
                 ) from e
             return job_info.id
 
-        except QException as e:
-            raise e
+        except QException:
+            raise
         except Exception as e:
             import traceback
 
@@ -1252,8 +1253,8 @@ class QClient:
     def get_job_results(
         self,
         job_id: int,
-        file_names_to_fetch: list[str] = None,
-        use_dill: list[bool] = None,
+        file_names_to_fetch: list[str] | None = None,
+        use_dill: list[bool] | None = None,
         job_status=None,
         task_ids=None,
         wait=False,
@@ -1388,9 +1389,7 @@ class QClient:
         except QException:
             raise
         except Exception as e:
-            raise QResultsFailed(
-                f"Failed to get job ({job_id}) results: {e!s}"
-            ) from e
+            raise QResultsFailed(f"Failed to get job ({job_id}) results: {e!s}") from e
 
     def get_pulla(self) -> tuple[dict[str, Any], Pulla]:
         """Initialize Pulla and returns it data to be able to instantiate QPulla, to avoid calling API from client
@@ -1502,8 +1501,8 @@ class QClient:
             )
             return results["pulla_data"], results["pulla"]
 
-        except QException as e:
-            raise e
+        except QException:
+            raise
         except Exception as e:
             raise QException("Failed to initialize Pulla!!!") from e
 
@@ -1615,8 +1614,8 @@ class QClient:
             )
             return results["calibration_set"]
 
-        except QException as e:
-            raise e
+        except QException:
+            raise
         except Exception as e:
             raise QException("Failed to fetch calibration set!!!") from e
 
@@ -1744,8 +1743,8 @@ class QClient:
 
             return dynamic_quantum_architecture
 
-        except QException as e:
-            raise e
+        except QException:
+            raise
         except Exception as e:
             raise QException("Failed to fetch calibration set!!!") from e
 
@@ -1817,7 +1816,7 @@ class QClient:
             return {
                 metadata.backend_name: metadata for metadata in backend_metadata_list
             }
-        except Exception:
+        except Exception:  # noqa: BLE001
             raise QAuthException(
                 reason=f"Failed to retrieve resources for LEXIS project '{self._lexis_project}', please verify your assignment and try again!",
                 user_id=self._username,
@@ -2045,7 +2044,7 @@ class QClient:
             raise QException(
                 f"Unable to cancel job: {e.reason}; API status: {e.status}"
             ) from e
-        except Exception as e:  # pylint: disable=W0718
+        except Exception as e:  # pylint: disable=W0718  # noqa: BLE001
             log.error("Error cancelling job: %s", str(e))
             return False
 

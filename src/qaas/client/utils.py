@@ -195,11 +195,7 @@ def sweep_job_to_qiskit(
         raise ValueError("Cannot format station control result without result.")
 
     used_heralding = (
-        sum(
-            HERALDING_KEY in key
-            for key in circuit_execution_results.sweep_results.keys()
-        )
-        > 0
+        sum(HERALDING_KEY in key for key in circuit_execution_results.sweep_results) > 0
     )
 
     # Convert the measurement results from a batch of circuits into the Qiskit format.

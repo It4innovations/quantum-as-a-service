@@ -333,7 +333,7 @@ class QPulla:
 
         """
         readout_components = []
-        for _, channel in self._component_channels.items():
+        for channel in self._component_channels.values():
             for k, v in channel.items():
                 if k == "readout":
                     readout_components.append(v)

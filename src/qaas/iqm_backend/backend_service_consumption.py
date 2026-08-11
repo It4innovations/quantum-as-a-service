@@ -60,7 +60,7 @@ def fetch_current_consumption_internal(
 
         return consumption_summary.TotalCalculatedConsumption
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"[fetch_current_consumption_internal] Error fetching consumption: {e}")
         return -1.0
 
@@ -69,9 +69,9 @@ def record_consumption_to_internal_db(
     session: AsyncSession,
     accounting_info: AccountingInfo,
     new_consumption: float,
-    session_id: UUID = None,
-    iqm_job_id: UUID = None,
-    heappe_id: int = None,
+    session_id: UUID | None = None,
+    iqm_job_id: UUID | None = None,
+    heappe_id: int | None = None,
 ):
     """Records granular consumption to the internal DB by creating/updating a unique Task log"""
 
@@ -131,7 +131,7 @@ def record_consumption_to_internal_db(
 
         session.commit()
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         session.rollback()
         print(f"[record_consumption_to_internal_db] Error recording consumption: {e}")
 
@@ -356,7 +356,7 @@ def _fetch_and_calculate_usage(
             usage_data, resource_id, lexis_resource_name, lexis_location_name
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(
             f"Error fetching usage data for {time_from} to {time_to}: {e}",
             file=sys.stderr,
