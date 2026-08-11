@@ -8,29 +8,24 @@
 :raises QException: _description_
 """
 
-from abc import abstractmethod
-from typing import Optional, Callable
-from uuid import UUID
-import time
+import logging
 import os
 import sys
-import logging
+import time
+from abc import abstractmethod
+from collections.abc import Callable
+from uuid import UUID
 
-from qiskit import QuantumCircuit
-from qiskit.circuit import Gate
-from qiskit.result import Result as QiskitResult
 from iqm.qiskit_iqm import IQMJob
-
-from qiskit.qasm3 import dumps as qasm3dumps
-
 from iqm.station_control.interface.models import CircuitMeasurementResultsBatch
-
 from py4heappe.heappe_v6.core.models import EnvironmentVariableExt
+from qiskit import QuantumCircuit
+from qiskit.qasm3 import dumps as qasm3dumps
+from qiskit.result import Result as QiskitResult
 
-from .utils import QException, sweep_job_to_qiskit
-from .client import QClient
 from .backend_metadata import QBackendMetadata
-
+from .client import QClient
+from .utils import QException, sweep_job_to_qiskit
 
 log = logging.getLoggerClass()(
     __name__, os.environ.get("QPROVIDER_LOGLEVEL", "INFO").upper()
@@ -717,7 +712,7 @@ class QJob:
         self,
         timeout: float = 600,
         cancel_after_timeout=True,
-        callback: Optional[Callable] = None,
+        callback: Callable | None = None,
         wait: float = QClient.DEFAULT_POLL_TIME,
     ) -> None:
         """Waits until job results are ready or job fails.
@@ -746,7 +741,6 @@ class QJob:
                 HEAppE_QISKIT_STATUS_MAPPING.get(job_heappe_status, "ERROR"),
                 self,
             )
-        return
 
     def wait_for_completion(
         self,

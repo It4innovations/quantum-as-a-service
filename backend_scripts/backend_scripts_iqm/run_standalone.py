@@ -1,15 +1,15 @@
-import os
+import csv
 import glob
 import json
+import os
 import time
-import csv
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+from iqm.qiskit_iqm import IQMProvider, transpile_to_IQM
 from qiskit import QuantumCircuit
 from qiskit.qasm2 import dump as dump_qasm2
-import numpy as np
-import matplotlib.pyplot as plt
-from iqm.qiskit_iqm import IQMProvider
-from iqm.qiskit_iqm import transpile_to_IQM
 
 # ------------------------------
 # Setup QProvider and QBackend

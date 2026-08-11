@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
 
 import os
-import sys
 import pickle
-import time
 import socket
+import sys
+import time
 from copy import deepcopy
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import timezone, datetime
 from uuid import UUID, uuid4
+
 import dill
 import jwt
 from cachetools import TTLCache
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from qiskit import QuantumCircuit
-from qiskit.qasm3 import load as qasm3load
-from iqm.qiskit_iqm import IQMBackend, IQMProvider
-from iqm.qiskit_iqm.iqm_job import IQMJob
+from iqm.iqm_client import IQMClient
 from iqm.iqm_client import JobStatus as IQMJobStatus
-from iqm.station_control.interface.models import RunDefinition
-
 
 # from iqm.iqm_server_client.models import TimelineEntry
-from iqm.pulla.pulla import PullaJob, Pulla
-from iqm.iqm_client import IQMClient
+from iqm.pulla.pulla import Pulla, PullaJob
+from iqm.qiskit_iqm import IQMBackend, IQMProvider
+from iqm.qiskit_iqm.iqm_job import IQMJob
+from iqm.station_control.interface.models import RunDefinition
+from qiskit import QuantumCircuit
+from qiskit.qasm3 import load as qasm3load
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from qaas.iqm_backend.backend_env_variables import (
     QAAS_ALLOWED_CLIENT_COUNT,
@@ -32,8 +32,8 @@ from qaas.iqm_backend.backend_env_variables import (
 )
 from qaas.iqm_backend.backend_service_accounting_info import AccountingInfo
 from qaas.iqm_backend.backend_service_consumption import (
-    initializeKafkaProducer,
     fetch_current_consumption_internal,
+    initializeKafkaProducer,
     record_consumption_to_internal_db,
 )
 
@@ -55,9 +55,7 @@ class CommandParams:
             len(parts) < CommandParams.MIN_NUMBER_OF_PARAMS
             or len(parts) > CommandParams.MAX_NUMBER_OF_PARAMS
         ):
-            self._parsing_error_message = f"ERROR: Invalid command format. Expected: <command> <task_id> <user_jwt> <lexis_project> <lexis_project_resource_id> or <command> <task_id> <user_jwt> <lexis_project> <lexis_project_resource_id> <optional_args>\nGot {parts}".encode(
-                "utf-8"
-            )
+            self._parsing_error_message = f"ERROR: Invalid command format. Expected: <command> <task_id> <user_jwt> <lexis_project> <lexis_project_resource_id> or <command> <task_id> <user_jwt> <lexis_project> <lexis_project_resource_id> <optional_args>\nGot {parts}".encode()
 
         self._optional_args = None
         if len(parts) == CommandParams.MAX_NUMBER_OF_PARAMS:
@@ -156,8 +154,8 @@ class CommandParams:
             decoded = jwt.decode(self._user_jwt, options={"verify_signature": False})
             exp_timestamp = decoded.get("exp")
             if exp_timestamp and datetime.fromtimestamp(
-                exp_timestamp, tz=timezone.utc
-            ) < datetime.now(timezone.utc):
+                exp_timestamp, tz=UTC
+            ) < datetime.now(UTC):
                 return False
             return True
         except Exception as e:
@@ -262,7 +260,7 @@ class IQMBackendService:
                 except Exception as e:
                     print(f"Error handling connection: {e}", file=sys.stderr)
                     try:
-                        conn.sendall(f"ERROR: {str(e)}\n".encode())
+                        conn.sendall(f"ERROR: {e!s}\n".encode())
                     except Exception:
                         pass
                 finally:
@@ -323,7 +321,7 @@ class IQMBackendService:
                     traceback.print_exc(file=sys.stderr)
                     print(f"Error checking resource consumption: {e}", file=sys.stderr)
                     conn.sendall(
-                        "ERROR: Error occurred while checking consumption!\n".encode()
+                        b"ERROR: Error occurred while checking consumption!\n"
                     )
                     return
                 except Exception as e:
@@ -335,7 +333,7 @@ class IQMBackendService:
                         file=sys.stderr,
                     )
                     conn.sendall(
-                        "ERROR: Unexpected error occurred while checking consumption!\n".encode()
+                        b"ERROR: Unexpected error occurred while checking consumption!\n"
                     )
                     return
 
@@ -438,7 +436,7 @@ class IQMBackendService:
                 # )
 
         except UnicodeDecodeError as e:
-            error_msg = f"ERROR: Failed to decode message: {str(e)}\n"
+            error_msg = f"ERROR: Failed to decode message: {e!s}\n"
             print(error_msg, file=sys.stderr)
             import traceback
 
@@ -449,7 +447,7 @@ class IQMBackendService:
                 conn.sendall("Unexpected error UnicodeDecodeError")
 
         except FileNotFoundError as e:
-            error_msg = f"ERROR: File not found: {str(e)}\n"
+            error_msg = f"ERROR: File not found: {e!s}\n"
             print(error_msg, file=sys.stderr)
             import traceback
 
@@ -460,7 +458,7 @@ class IQMBackendService:
                 conn.sendall("Unexpected error FileNotFoundError")
 
         except ValueError as e:
-            error_msg = f"ERROR: Invalid value: {str(e)}\n"
+            error_msg = f"ERROR: Invalid value: {e!s}\n"
             print(error_msg, file=sys.stderr)
             import traceback
 
@@ -471,7 +469,7 @@ class IQMBackendService:
                 conn.sendall("Unexpected error ValueError")
 
         except Exception as e:
-            error_msg = f"ERROR: {type(e).__name__}: {str(e)}\n"
+            error_msg = f"ERROR: {type(e).__name__}: {e!s}\n"
             print(
                 f"Unhandled exception in handle_connection: {error_msg}",
                 file=sys.stderr,
@@ -783,8 +781,8 @@ class IQMBackendService:
         node_settings = p._iqm_server_client.get_settings()
         node_settings["controllers"] = node_settings
 
-        from iqm.cpc.compiler._utils.stages import get_default_channel_properties
         from exa.common.qcm_data.chip_topology import ChipTopology
+        from iqm.cpc.compiler._utils.stages import get_default_channel_properties
 
         # channel_properties = p._iqm_server_client.get_channel_properties(chip_design_record)
         channel_properties, component_channels = get_default_channel_properties(

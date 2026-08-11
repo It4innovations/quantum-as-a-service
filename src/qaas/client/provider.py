@@ -1,9 +1,11 @@
-from iqm.qiskit_iqm.iqm_provider import IQMFacadeBackend
 from uuid import UUID
+
+from iqm.qiskit_iqm.iqm_provider import IQMFacadeBackend
+
 from .backend_iqm import QBackendIQM
+from .backend_metadata import QBackendMetadata
 from .client import QClient
 from .qpulla import QPulla
-from .backend_metadata import QBackendMetadata
 
 
 class QProvider:

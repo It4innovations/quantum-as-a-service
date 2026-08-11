@@ -1,58 +1,62 @@
-from typing import Optional, Dict, Any, Tuple
-import time
-from uuid import UUID
-import json
 import base64
+import concurrent
+import json
 import logging
 import os
-import sys
-from tempfile import NamedTemporaryFile
-from datetime import datetime
-import concurrent
 import pickle
 import ssl
-import truststore
+import sys
+import time
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
 import dill
-import requests
 import jwt
-from jwt import PyJWKClient
-from iqm.station_control.interface.models import SweepDefinition, RunDefinition
+import requests
+import truststore
 from iqm.iqm_server_client.models import CalibrationSet
 from iqm.pulla.pulla import Pulla
-
-
 from iqm.qiskit_iqm import IQMBackend
-from iqm.station_control.interface.models import DynamicQuantumArchitecture
-
+from iqm.station_control.interface.models import (
+    DynamicQuantumArchitecture,
+    RunDefinition,
+)
+from jwt import PyJWKClient
 from py4heappe.heappe_v6.core import (
     ApiClient as HEAppEApi,
+)
+from py4heappe.heappe_v6.core import (
     Configuration as HEAppEConfiguration,
 )
+from py4heappe.heappe_v6.core.api import (
+    ClusterInformationApi,
+    FileTransferApi,
+    JobManagementApi,
+)
 from py4heappe.heappe_v6.core.models import (
-    CreateJobByProjectModel,
-    SubmitJobModel,
     CancelJobModel,
-    JobSpecificationExt as JobSpecification,
-    TaskSpecificationExt as TaskSpecification,
-    DownloadFileFromClusterModel,
     ClusterExt,
     ClusterNodeTypeExt,
-    ProjectExt,
     CommandTemplateExt,
+    CreateJobByProjectModel,
+    DownloadFileFromClusterModel,
+    EnvironmentVariableExt,
+    ProjectExt,
+    SubmitJobModel,
     SubmittedJobInfoExt,
 )
-from py4heappe.heappe_v6.core.models import EnvironmentVariableExt
-from py4heappe.heappe_v6.core.api import (
-    JobManagementApi,
-    FileTransferApi,
-    ClusterInformationApi,
+from py4heappe.heappe_v6.core.models import (
+    JobSpecificationExt as JobSpecification,
+)
+from py4heappe.heappe_v6.core.models import (
+    TaskSpecificationExt as TaskSpecification,
 )
 from py4heappe.heappe_v6.core.rest import ApiException
 
-from .utils import QException, QAuthException, QResultsFailed, JobState
-from .backend_metadata import QBackendMetadata, LexisResource, LexisProject
-
+from .backend_metadata import LexisProject, LexisResource, QBackendMetadata
 from .cryption_control import encrypt_string, generate_password
+from .utils import JobState, QAuthException, QException, QResultsFailed
 
 # -----------
 # Set Logging
@@ -184,7 +188,7 @@ class QClient:
         self._token = token
         self._lexis_project = lexis_project
         self.provider_token = provider_token
-        self._heappe_client: Optional[HEAppEApi] = None
+        self._heappe_client: HEAppEApi | None = None
         # Caution, this attribute is changed by all authentication functions during initialization
         self._authenticated = (
             False  # FIXME: check that all login flows are correctly handled
@@ -229,7 +233,7 @@ class QClient:
         # Architecture
         self._dynamic_quantum_architectures = {}
 
-    def _authenticate_authorize_lexis(self) -> Tuple[str, Dict[str, Any]]:
+    def _authenticate_authorize_lexis(self) -> tuple[str, dict[str, Any]]:
         """
         Validate JWT token and verify LEXIS project access.
 
@@ -500,11 +504,7 @@ class QClient:
                         ):  # LocationTypeId 7 corresponds to locations in LEXIS, which we use for quantum backends
                             aggregation_name = resource.get("AggregationName")
                             if aggregation_name in self._lexis_aggregation_name:
-                                if quantum_computer_name is None:
-                                    assignment_info = assignment
-                                    project_resource_info = resource
-                                    break
-                                elif quantum_computer_name == aggregation_name:
+                                if quantum_computer_name is None or quantum_computer_name == aggregation_name:
                                     assignment_info = assignment
                                     project_resource_info = resource
                                     break
@@ -642,7 +642,7 @@ class QClient:
             raise
         except Exception as e:
             raise QAuthException(
-                reason=f"Failed to authorize LEXIS resource: {str(e)}",
+                reason=f"Failed to authorize LEXIS resource: {e!s}",
                 user_id=self._username,
                 resource=self._lexis_project,
             ) from e
@@ -668,7 +668,7 @@ class QClient:
 
         except Exception as e:
             raise QAuthException(
-                f"HEAppE authentication failed: {str(e)}",
+                f"HEAppE authentication failed: {e!s}",
                 self._username,
                 f"{self._lexis_project}",
             ) from e
@@ -839,7 +839,7 @@ class QClient:
         return project_name + "_" + template_name
 
     @property
-    def heappe_client(self) -> Optional[HEAppEApi]:
+    def heappe_client(self) -> HEAppEApi | None:
         """
         Get the HEAppE client instance.
 
@@ -898,7 +898,7 @@ class QClient:
 
     def submit_quantum_job(
         self,
-        job_data: Dict[str, Any],
+        job_data: dict[str, Any],
         backend: IQMBackend | Pulla = None,
         circuits: RunDefinition | str | list[str] | None = None,
         run_options: dict[str, Any] | None = None,
@@ -1174,7 +1174,7 @@ class QClient:
             traceback.print_exc(file=sys.stderr)
             raise QException("Job submission failed!!!") from e
 
-    def get_job_status(self, job_id: int) -> Tuple[str, int, list[int]]:
+    def get_job_status(self, job_id: int) -> tuple[str, int, list[int]]:
         """
         Get current status of HEAppE job execution.
 
@@ -1257,7 +1257,7 @@ class QClient:
         job_status=None,
         task_ids=None,
         wait=False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Retrieve quantum job execution results from HEAppE.
 
@@ -1389,10 +1389,10 @@ class QClient:
             raise
         except Exception as e:
             raise QResultsFailed(
-                f"Failed to get job ({job_id}) results: {str(e)}"
+                f"Failed to get job ({job_id}) results: {e!s}"
             ) from e
 
-    def get_pulla(self) -> Tuple[Dict[str, Any], Pulla]:
+    def get_pulla(self) -> tuple[dict[str, Any], Pulla]:
         """Initialize Pulla and returns it data to be able to instantiate QPulla, to avoid calling API from client
 
         :raises QAuthException: Failed to verify client
@@ -1749,7 +1749,7 @@ class QClient:
         except Exception as e:
             raise QException("Failed to fetch calibration set!!!") from e
 
-    def get_available_backends(self) -> Dict[str, Any]:
+    def get_available_backends(self) -> dict[str, Any]:
         """Get available backends based on UserOrganization Resources and Assignments information
         List location and aggregation names with LocationTypeId == 7 (Quantum) and their associated resource names, which can be used to determine available quantum backends and their configurations.
         """
@@ -1877,7 +1877,7 @@ class QClient:
         template_name_qexecute: str,
         qinit_queue_name: str,
         qexecute_queue_name: str,
-    ) -> Dict[str, Dict[str, int]]:
+    ) -> dict[str, dict[str, int]]:
         """
         Retrieve HEAppE command template configuration for quantum jobs.
 

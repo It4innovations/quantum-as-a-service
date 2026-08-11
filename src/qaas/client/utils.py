@@ -1,16 +1,15 @@
-from enum import Enum
-import requests
-import jwt
-
 import datetime
-from iqm.pulla.interface import HERALDING_KEY
-from iqm.iqm_server_client.models import JobStatus
-from iqm.pulla.pulla import PullaJob
-from iqm.qiskit_iqm import IQMJob
-from iqm.pulla.utils_qiskit import qiskit_to_pulla as _iqm_qiskit_to_pulla
-
-from qiskit.result import Counts, Result
 from collections import Counter
+from enum import Enum
+
+import jwt
+import requests
+from iqm.iqm_server_client.models import JobStatus
+from iqm.pulla.interface import HERALDING_KEY
+from iqm.pulla.pulla import PullaJob
+from iqm.pulla.utils_qiskit import qiskit_to_pulla as _iqm_qiskit_to_pulla
+from iqm.qiskit_iqm import IQMJob
+from qiskit.result import Counts, Result
 
 # ------------
 # Exceptions
@@ -91,15 +90,15 @@ class QAuthException(QException):
         elif isinstance(cause, jwt.InvalidIssuerError):
             reason = "JWT token has invalid issuer"
         elif isinstance(cause, jwt.InvalidAlgorithmError):
-            reason = f"JWT token uses invalid/unsupported algorithm: {str(cause)}"
+            reason = f"JWT token uses invalid/unsupported algorithm: {cause!s}"
         elif isinstance(cause, jwt.InvalidKeyError):
-            reason = f"JWT validation failed due to invalid key: {str(cause)}"
+            reason = f"JWT validation failed due to invalid key: {cause!s}"
         elif isinstance(cause, jwt.MissingRequiredClaimError):
-            reason = f"JWT token missing required claim: {str(cause)}"
+            reason = f"JWT token missing required claim: {cause!s}"
         elif isinstance(cause, jwt.DecodeError):
-            reason = f"JWT token decode error: {str(cause)}"
+            reason = f"JWT token decode error: {cause!s}"
         elif isinstance(cause, jwt.InvalidTokenError):
-            reason = f"JWT token validation failed: {str(cause)}"
+            reason = f"JWT token validation failed: {cause!s}"
 
         # Handle requests-related exceptions
         elif isinstance(cause, requests.RequestException):
@@ -115,7 +114,7 @@ class QAuthException(QException):
                 else:
                     reason = f"UserOrg API error ({cause.response.status_code}): {cause.response.text}"
             else:
-                reason = f"Failed to connect to UserOrg API: {str(cause)}"
+                reason = f"Failed to connect to UserOrg API: {cause!s}"
 
         return reason
 

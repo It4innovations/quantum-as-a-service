@@ -1,7 +1,8 @@
-import sys
-from datetime import datetime, timezone, timedelta
-import aiohttp
 import asyncio
+import sys
+from datetime import UTC, datetime, timedelta
+
+import aiohttp
 import jwt
 import requests
 
@@ -199,8 +200,8 @@ class AccountingInfo:
             exp_timestamp = decoded.get("exp")
             email = decoded.get("email")
             if exp_timestamp and datetime.fromtimestamp(
-                exp_timestamp, tz=timezone.utc
-            ) < datetime.now(timezone.utc):
+                exp_timestamp, tz=UTC
+            ) < datetime.now(UTC):
                 print(f"JWT of user {email} is expired", file=sys.stderr)
                 return False
             return email
@@ -251,7 +252,7 @@ class AccountingInfo:
         # FIXME: Endpoint is not currently available at HEAppE!!!
         return NotImplemented
         fetch_from = (
-            datetime.now(timezone.utc) - timedelta(days=1)
+            datetime.now(UTC) - timedelta(days=1)
         )  # Fetch jobs from last 30 days to ensure we cover the submitter info for current job, even if it was submitted a while ago
         fetch_from_isoformat = fetch_from.isoformat(timespec="milliseconds").replace(
             "+00:00", "Z"
@@ -397,7 +398,7 @@ class AccountingInfo:
 
                 return heappe_url
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             print(
                 "Timeout while fetching resource assignment data from LEXIS API",
                 file=sys.stderr,
@@ -448,6 +449,6 @@ class AccountingInfo:
 
                 return True
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             print("Timeout while verifying resource ID with LEXIS API", file=sys.stderr)
             return False

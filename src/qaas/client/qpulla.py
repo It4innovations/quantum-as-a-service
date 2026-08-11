@@ -6,68 +6,52 @@
 
 import os
 import sys
-
 from typing import TYPE_CHECKING, Any
-
 
 if TYPE_CHECKING:
     from .client import QClient
-from copy import deepcopy
-import logging
-from uuid import UUID
 import copy
-from collections.abc import Sequence
+import logging
+from copy import deepcopy
+from uuid import UUID
 
-from qiskit import QuantumCircuit
-from qiskit.providers import Options
-
-from iqm.pulla.pulla import Pulla, PullaStash
-from iqm.pulla.interface import CalibrationSetValues
-from iqm.pulla.utils import (
-    calset_from_observations,
-    extract_readout_controller_result_names,
-)
-
-from iqm.iqm_server_client.iqm_server_client import StrUUIDOrDefault
-
-from iqm.pulse.playlist.playlist import Playlist
-
-from exa.common.qcm_data.chip_topology import ChipTopology
 from exa.common.errors.station_control_errors import NotFoundError
-from iqm.station_control.interface.models import (
-    SweepDefinition,
-    DynamicQuantumArchitecture,
-)
+from exa.common.qcm_data.chip_topology import ChipTopology
 from iqm.cpc.compiler.compiler import (
     Compiler,
+)
+from iqm.cpc.compiler.post_process import (
+    _STANDARD_CIRCUIT_POST_PROCESSING_STAGES,
+    _STANDARD_POST_PROCESSING_STAGES,
 )
 from iqm.cpc.compiler.standard_stages import (
     _STANDARD_CIRCUIT_STAGES,
     _STANDARD_FINAL_STAGES,
     _STANDARD_PULSE_STAGES,
 )
-
-from iqm.cpc.interface.circuit_execution import Circuit
-from iqm.cpc.compiler.post_process import (
-    _STANDARD_POST_PROCESSING_STAGES,
-    _STANDARD_CIRCUIT_POST_PROCESSING_STAGES,
-)
 from iqm.cpc.core.observation.observation_loading_rules import LatestFromStash, RuleType
-from exa.common.data.setting_node import SettingNode
-from iqm.qiskit_iqm.iqm_backend import IQMBackendBase
-from iqm.pulla.utils_qiskit import qiskit_circuits_to_pulla, sweep_job_to_qiskit
-from iqm.pulla.utils import calset_to_cal_data_tree
-from iqm.station_control.interface.models import RunDefinition
-
-from iqm.pulse.quantum_ops import QuantumOp
+from iqm.iqm_server_client.iqm_server_client import StrUUIDOrDefault
+from iqm.pulla.interface import CalibrationSetValues
+from iqm.pulla.pulla import Pulla, PullaStash
+from iqm.pulla.utils import (
+    calset_from_observations,
+    calset_to_cal_data_tree,
+)
+from iqm.pulla.utils_qiskit import qiskit_circuits_to_pulla
 from iqm.pulse.builder import ScheduleBuilder, build_quantum_ops
-
+from iqm.pulse.quantum_ops import QuantumOp
+from iqm.qiskit_iqm.iqm_backend import IQMBackendBase
+from iqm.station_control.interface.models import (
+    DynamicQuantumArchitecture,
+    RunDefinition,
+)
 from py4heappe.heappe_v6.core.models import EnvironmentVariableExt
+from qiskit import QuantumCircuit
+from qiskit.providers import Options
 
-from .utils import QPullaFetchError
-from .backend import QJob, QPullaJob
+from .backend import QPullaJob
 from .backend_iqm import QBackendIQM
-
+from .utils import QPullaFetchError
 
 log = logging.getLoggerClass()(
     __name__, os.environ.get("QPROVIDER_LOGLEVEL", "INFO").upper()
@@ -151,7 +135,7 @@ class QPulla:
         duts,
     ):
 
-        self._qclient: "QClient" = qclient
+        self._qclient: QClient = qclient
 
         self._calibration_data_provider: CalibrationDataProvider = (
             CalibrationDataProvider(self._qclient, calibration_sets)
@@ -169,7 +153,7 @@ class QPulla:
         self._software_version_set_id = 0
 
         self._qbackend: QBackendIQM = qbackend
-        self._qpulla_backend: "QPullaBackendIQM" = self.get_new_qpulla_backend()
+        self._qpulla_backend: QPullaBackendIQM = self.get_new_qpulla_backend()
 
     def get_new_qpulla_backend(self) -> "QPullaBackendIQM":
         """Creates and returns a new QPullaBackendIQM instance.
@@ -182,7 +166,7 @@ class QPulla:
         """
         dqa = self._qclient.get_dynamic_architecture()
         compiler = self.get_standard_compiler()
-        qpulla_backend: "QPullaBackendIQM" = QPullaBackendIQM(dqa, self, compiler)
+        qpulla_backend: QPullaBackendIQM = QPullaBackendIQM(dqa, self, compiler)
         return qpulla_backend
 
     def get_qpulla_backend(self) -> "QPullaBackendIQM":

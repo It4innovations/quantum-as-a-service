@@ -1,25 +1,25 @@
-import threading
-import sys
-from datetime import datetime, timedelta, timezone
 import json
+import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import requests
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from kafka import KafkaProducer
+import requests
 import sqlalchemy as sa
+from kafka import KafkaProducer
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from qaas.iqm_backend.backend_env_variables import (
-    CYCLOPS_API_URL,
     CYCLOPS_API_KEY,
-    CYCLOPS_DEFAULT_TOPIC,
-    CYCLOPS_DEFAULT_TIMEOUT,
+    CYCLOPS_API_URL,
     CYCLOPS_DEFAULT_RETRIES,
-    CYCLOPS_KAFKA_SERVER,
+    CYCLOPS_DEFAULT_TIMEOUT,
+    CYCLOPS_DEFAULT_TOPIC,
     CYCLOPS_DEFAULT_UNIT,
+    CYCLOPS_KAFKA_SERVER,
 )
 from qaas.iqm_backend.backend_service_accounting_info import AccountingInfo
 from qaas.iqm_backend.internal_accounting_table_models import (
@@ -297,9 +297,9 @@ def _generate_month_intervals(
     # 1. Normalize: If a date is naive, assume it's UTC.
     # If it's already aware, keep it as is (or convert to UTC).
     if start_date.tzinfo is None:
-        start_date = start_date.replace(tzinfo=timezone.utc)
+        start_date = start_date.replace(tzinfo=UTC)
     if end_date.tzinfo is None:
-        end_date = end_date.replace(tzinfo=timezone.utc)
+        end_date = end_date.replace(tzinfo=UTC)
 
     intervals = []
 
@@ -422,7 +422,7 @@ def record_consumption_usage(
         "lexis_resource_name": accounting_info.resource_name,
         "lexis_location_name": accounting_info.location_name,
         "cyclops_resource_id": accounting_info.cyclops_resource_id,
-        "usage_timestamp": datetime.now(timezone.utc).timestamp(),
+        "usage_timestamp": datetime.now(UTC).timestamp(),
         "usage": usage,
     }
 
