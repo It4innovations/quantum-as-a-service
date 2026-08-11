@@ -951,16 +951,6 @@ class QClient:
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
 
-        # if (
-        #     backend
-        #     and isinstance(backend, Pulla)
-        #     or (isinstance(circuits, list) and isinstance(circuits[0], RunDefinition))
-        # ):
-        #     log.warning(
-        #         "We are sorry for inconvenience, Pulla is currently not supported. We are working on this feature"
-        #     )
-        #     return NotImplemented
-
         # handle user token
         raw_encrypt_pwd, encoded_pwd = generate_password(50)
 
@@ -1409,9 +1399,6 @@ class QClient:
         :raises QException: General exception raised inside QaaS
         :return: data required to initialize QPulla, Pulla instance created on remote
         """
-        log.warning(
-            "We are sorry for inconvenience, Pulla is currently not supported. We are working on this feature"
-        )
 
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
