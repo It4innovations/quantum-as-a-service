@@ -1905,74 +1905,96 @@ class QClient:
             resource specified during client initialization.
         """
 
-        qinit_template_name = self.lexis_project + "_" + template_name_qinit
-        qexecute_template_name = self.lexis_project + "_" + template_name_qexecute
+        def get_command_template_call(lexis_project, target_template_name):
 
-        log.debug(
-            "Target command template names: %s, %s",
-            qinit_template_name,
-            qexecute_template_name,
-        )
+            for template_name in [
+                target_template_name,
+                lexis_project + "_" + target_template_name,
+            ]:
+                # Fallback to custom command template naming in HEAppE (<lexis_project>_RunQInit etc.)
+                try:
+                    # This would typically call HEAppE API to list command templates
+                    # For now, using a placeholder implementation
+                    heappe_cluster_info_api = ClusterInformationApi(self._heappe_client)
 
-        def get_command_template_call(target_template_name):
-            try:
-                # This would typically call HEAppE API to list command templates
-                # For now, using a placeholder implementation
-                heappe_cluster_info_api = ClusterInformationApi(self._heappe_client)
+                    # Get available command templates (API endpoint may vary)
+                    clusters: ClusterExt = heappe_cluster_info_api.heappe_cluster_information_list_available_clusters_get(
+                        ClusterName=self._backend_metadata.backend_name,
+                        CommandTemplateName=template_name,
+                    )
+                except Exception as e:
+                    log.warning("Failed to get command template ID")
+                    raise QException("Failed to get command template ID") from e
 
-                # Get available command templates (API endpoint may vary)
-                clusters: ClusterExt = heappe_cluster_info_api.heappe_cluster_information_list_available_clusters_get(
-                    ClusterName=self._backend_metadata.backend_name,
-                    CommandTemplateName=target_template_name,
+                log.debug("Available clusters from HEAppE: %s", str(clusters))
+
+                target_location: ClusterExt = None
+                target_node_type: ClusterNodeTypeExt = None
+                target_project: ProjectExt = None
+                target_template: CommandTemplateExt = None
+
+                for cluster in clusters:
+                    if cluster.name == self._backend_metadata.backend_name:
+                        target_location = cluster
+                        break
+
+                if not target_location:
+                    log.debug(
+                        "Falling back to old command template naming (target_location not found)"
+                    )
+                    continue
+
+                # Fetch information about node type (partition), cluster etc.
+                log.debug(
+                    "Queue names to be searched: %s, %s",
+                    qinit_queue_name,
+                    qexecute_queue_name,
                 )
-            except Exception as e:
-                log.warning("Failed to get command template ID")
-                raise QException("Failed to get command template ID") from e
 
-            log.debug("Available clusters from HEAppE: %s", str(clusters))
+                for node_type_in_location in target_location.node_types:
+                    if node_type_in_location.name in [
+                        qinit_queue_name,
+                        qexecute_queue_name,
+                    ]:
+                        for project_in_node_type in node_type_in_location.projects:
+                            if (
+                                project_in_node_type.accounting_string
+                                == self._backend_metadata.lexis_resource.resource_name
+                            ):
+                                target_node_type = node_type_in_location
+                                target_project = project_in_node_type
+                                break
+                    if target_project:
+                        break
 
-            target_location: ClusterExt = None
-            target_node_type: ClusterNodeTypeExt = None
-            target_project: ProjectExt = None
-            target_template: CommandTemplateExt = None
+                if not target_project:
+                    log.debug(
+                        "Falling back to old command template naming (target_project not found)"
+                    )
+                    continue
 
-            for cluster in clusters:
-                if cluster.name == self._backend_metadata.backend_name:
-                    target_location = cluster
-                    break
+                log.debug("target_project: %s", str(target_project))
+                log.debug(
+                    "target_project.command_templates: %s",
+                    str(target_project.command_templates),
+                )
+                for template in target_project.command_templates:
+                    if template.name == template_name:
+                        target_template = template
+                        break
+
+                if not target_template:
+                    log.debug(
+                        "Falling back to old command template naming (target_template not found)"
+                    )
+                    continue
+
+            # Verify all required information was found, otherwise fail
 
             if not target_location:
                 raise QException(
                     f"Quantum location '{self._backend_metadata.backend_name}' and resource '{self._backend_metadata.lexis_resource.resource_name}' not found in HEAppE"
                 )
-
-            # Fetch information about node type (partition), cluster etc.
-            log.debug(
-                "Queue names to be searched: %s, %s",
-                qinit_queue_name,
-                qexecute_queue_name,
-            )
-            log.debug(
-                "Template names to be searched: %s, %s",
-                qinit_template_name,
-                qexecute_template_name,
-            )
-
-            for node_type_in_location in target_location.node_types:
-                if node_type_in_location.name in [
-                    qinit_queue_name,
-                    qexecute_queue_name,
-                ]:
-                    for project_in_node_type in node_type_in_location.projects:
-                        if (
-                            project_in_node_type.accounting_string
-                            == self._backend_metadata.lexis_resource.resource_name
-                        ):
-                            target_node_type = node_type_in_location
-                            target_project = project_in_node_type
-                            break
-                if target_project:
-                    break
 
             if not target_project:
                 log.warning(
@@ -1982,15 +2004,6 @@ class QClient:
                 raise QException(
                     f"Project '{self._backend_metadata.lexis_resource.resource_name}' in HEAppE not found"
                 )
-            log.debug("target_project: %s", str(target_project))
-            log.debug(
-                "target_project.command_templates: %s",
-                str(target_project.command_templates),
-            )
-            for template in target_project.command_templates:
-                if template.name == target_template_name:
-                    target_template = template
-                    break
 
             if not target_template:
                 raise QException(
@@ -2006,9 +2019,17 @@ class QClient:
                 "qexecute_queue_name": qexecute_queue_name,
             }
 
+        log.debug(
+            "Template names to be searched: %s, %s",
+            template_name_qinit,
+            template_name_qexecute,
+        )
+
         template_infos = {
-            "qinit": get_command_template_call(qinit_template_name),
-            "qexecute": get_command_template_call(qexecute_template_name),
+            "qinit": get_command_template_call(self.lexis_project, template_name_qinit),
+            "qexecute": get_command_template_call(
+                self.lexis_project, template_name_qexecute
+            ),
         }
 
         return template_infos
