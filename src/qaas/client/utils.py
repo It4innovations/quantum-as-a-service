@@ -202,7 +202,7 @@ def sweep_job_to_qiskit(
     batch_results: list[tuple[str, list[str]]] = [
         # TODO: Proper naming instead of "index"
         (
-            f"{index}",
+            f"{index:04d}",
             IQMJob._iqm_format_measurement_results(
                 circuit_measurements,
                 requested_shots=shots,
