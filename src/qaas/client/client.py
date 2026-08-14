@@ -1993,7 +1993,7 @@ class QClient:
                     continue
 
             #######################################
-            # All posibilities have been explored #
+            # All possibilities have been explored #
             #######################################
 
             # Verify all required information was found, otherwise fail
