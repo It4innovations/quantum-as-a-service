@@ -38,6 +38,10 @@ Example usage:
    from qiskit import QuantumCircuit
 
    backend  = QProvider("my_project").get_backend("EQE1-CZ-P0001")
+   # Argument 'token' is optional 
+   # from py4lexis.session import LexisSession
+   # token = LexisSession().get_access_token()
+   # backend  = QProvider("my_project", token=lexis_access_token).get_backend("EQE1-CZ-P0001")
 
    qc = QuantumCircuit(2, 2)
    qc.h(0); qc.cx(0, 1); qc.measure_all()
