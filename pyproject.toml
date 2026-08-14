@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qaas"
-version = "0.4.1"
+version = "0.4.2"
 description = "Quantum-as-a-Service utilizing IQMProvider, IQMBackend, IQMJob and HEAppE. Developed by IT4Innovations."
 authors = [
     { name="Jan Swiatkowski", email="jan.swiatkowski@vsb.cz" },
@@ -35,7 +35,8 @@ dependencies = [
     "truststore",
     "qiskit_qasm3_import",
     "symengine",
-    "protobuf<7.0"
+    "protobuf<7.0",
+    "py4lexis@git+https://opencode.it4i.eu/lexis-platform/clients/py4lexis.git"
 ]
 
 # --- Optional Subpackages (Extras) ---

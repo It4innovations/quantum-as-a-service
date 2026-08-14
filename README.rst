@@ -34,12 +34,10 @@ Example usage:
 
 .. code-block:: python
 
-   from py4lexis.session import LexisSession
    from qaas import QProvider
    from qiskit import QuantumCircuit
 
-   token    = LexisSession().get_access_token()
-   backend  = QProvider(token, "my_project").get_backend("EQE1-CZ-P0001")
+   backend  = QProvider("my_project").get_backend("EQE1-CZ-P0001")
 
    qc = QuantumCircuit(2, 2)
    qc.h(0); qc.cx(0, 1); qc.measure_all()
@@ -78,7 +76,7 @@ IQM Pulla
 
    SHOTS = 100
 
-   provider = QProvider(lexis_access_token, "my_project")
+   provider = QProvider("my_project")
    client = provider.get_client(lexis_resource_name)
    dqa = client.get_dynamic_architecture()
    compiler = p.get_standard_compiler()
