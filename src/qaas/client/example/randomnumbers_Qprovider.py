@@ -1,19 +1,7 @@
-from py4lexis.session import LexisSession
 from qiskit import QuantumCircuit
 
 from qaas import QProvider
 from qaas.client.backend import transpile
-
-# ---------------------
-# Setup LEXIS Session
-# ---------------------
-
-lexis_session = LexisSession()
-token = lexis_session.get_access_token()
-
-## or define manually LEXIS token
-# token = "xxx"
-
 
 # ------------------------------------
 # Select LEXIS computation resources
@@ -27,7 +15,10 @@ LEXIS_RESOURCE_NAME = "VLQ-CZ"  ## Accounting String
 # Setup QProvider and QBackend
 # ------------------------------
 
-provider = QProvider(token, LEXIS_PROJECT)
+provider = QProvider(LEXIS_PROJECT)
+## or define manually LEXIS access token
+## provider = QProvider(token, LEXIS_PROJECT)
+
 backend = provider.get_backend(LEXIS_RESOURCE_NAME)
 
 print(f"Qubit: {backend.architecture.qubits}")

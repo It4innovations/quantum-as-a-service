@@ -13,7 +13,7 @@ class QProvider:
     QaaS wrapper around IQMProvider with Lexis token authentication
     """
 
-    def __init__(self, token: str, lexis_project: str, provider_access_token=None):
+    def __init__(self, lexis_project: str, token: str | None = None, provider_access_token=None):
         """Initialize QProvider wrapper
 
         :param token: LEXIS access token
@@ -26,6 +26,13 @@ class QProvider:
         self._lexis_project = lexis_project
         self._token = token
         self._provider_token = provider_access_token
+
+        if self._token is None:
+            from py4lexis.session import LexisSession
+            self._session = LexisSession()
+            self._token = self._session.get_access_token()
+        else:
+            self._session = None
 
     @classmethod
     def list_available_backends(
@@ -113,7 +120,8 @@ class QProvider:
             self._token, self._lexis_project, lexis_resource, self._provider_token
         )
         pulla_data, pulla = client.get_pulla()
-        return QPulla(client, pulla, **pulla_data)
+        qbackend = self.get_backend(lexis_resource=lexis_resource)
+        return QPulla(client, pulla, qbackend, **pulla_data)
 
     def get_client(self, lexis_resource: str | QBackendMetadata) -> QClient:
         if isinstance(lexis_resource, QBackendMetadata):
@@ -131,8 +139,8 @@ class QProviderDev(QProvider):
     :param QProvider: _description_
     """
 
-    def __init__(self, token, lexis_project, provider_access_token=None):
-        super().__init__(token, lexis_project, provider_access_token)
+    def __init__(self, lexis_project, token: str | None = None, provider_access_token=None):
+        super().__init__(lexis_project, token, provider_access_token)
 
     def get_backend(
         self,
