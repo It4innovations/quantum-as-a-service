@@ -1983,11 +1983,18 @@ class QClient:
                         target_template = template
                         break
 
-                if not target_template:
+                if target_template:
+                    # Everything found, not need to fallback!
+                    break
+                else:
                     log.debug(
                         "Falling back to old command template naming (target_template not found)"
                     )
                     continue
+
+            #######################################
+            # All posibilities have been explored #
+            #######################################
 
             # Verify all required information was found, otherwise fail
 
