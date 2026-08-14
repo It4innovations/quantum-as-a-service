@@ -22,13 +22,13 @@ QaaS is available on `PyPI <https://pypi.org/project/qaas>`_, so you can install
 
 .. code-block:: bash
 
-   pip install qaas
+   pip install qaas --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
 
 Alternatively, you can install the latest (development) version using:
 
 .. code-block:: bash
 
-   pip install git+https://github.com/It4innovations/quantum-as-a-service.git@main
+   pip install git+https://github.com/It4innovations/quantum-as-a-service.git@main --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
 
 Example usage:
 

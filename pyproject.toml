@@ -36,7 +36,7 @@ dependencies = [
     "qiskit_qasm3_import",
     "symengine",
     "protobuf<7.0",
-    "py4lexis@git+https://opencode.it4i.eu/lexis-platform/clients/py4lexis.git"
+    "py4lexis==7.1.*"
 ]
 
 # --- Optional Subpackages (Extras) ---
