@@ -240,7 +240,7 @@ class QBackendIQM(QBackend, IQMBackend):
             >>> job_id = "heappe_12345"
             >>> existing_job = backend.retrieve_job(job_id)
             >>> status = existing_job.status()
-            >>> if status == 'DONE':
+            >>> if status == JobStatus.DONE:
             ...     result = existing_job.result()
         """
 

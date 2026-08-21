@@ -20,6 +20,7 @@ from iqm.qiskit_iqm import IQMJob
 from iqm.station_control.interface.models import CircuitMeasurementResultsBatch
 from py4heappe.heappe_v6.core.models import EnvironmentVariableExt
 from qiskit import QuantumCircuit
+from qiskit.providers import JobStatus, JobV1
 from qiskit.qasm3 import dumps as qasm3dumps
 from qiskit.result import Result as QiskitResult
 
@@ -409,14 +410,27 @@ def transpile(
 
 # Map HEAppE status to Qiskit status
 HEAppE_QISKIT_STATUS_MAPPING = {
-    "FINISHED": "DONE",
-    "WAITING": "RUNNING",
-    "FAILED": "ERROR",
-    "UNKNOWN": "ERROR",
+    "FINISHED": JobStatus.DONE,
+    "WAITING": JobStatus.RUNNING,
+    "FAILED": JobStatus.ERROR,
+    "UNKNOWN": JobStatus.ERROR,
 }
 
 
-class QJob:
+class _HEAppEJobId(int):
+    """HEAppE job id (int). Also callable, so ``job.job_id()`` returns the Qiskit-style string.
+
+    Qiskit's :class:`~qiskit.providers.JobV1` specifies ``job_id()`` as a method returning a
+    string, while QaaS has always exposed ``QJob.job_id`` as an int attribute. This int subclass
+    satisfies both: it stays an int for ``QClient`` calls and HEAppE result paths, and calling it
+    returns the string a Qiskit consumer expects.
+    """
+
+    def __call__(self) -> str:
+        return str(int(self))
+
+
+class QJob(JobV1):
     """
     QaaS wrapper around QJob for managing quantum job execution through HEAppE.
 
@@ -464,8 +478,13 @@ class QJob:
         :raises QAuthException: When backend authentication is unsuccessful
         """
 
-        self._backend = backend
-        self.job_id = heappe_job_id
+        # JobV1 stores the backend and supplies the rest of the Qiskit job interface
+        # (backend(), done(), running(), cancelled(), in_final_state(), ...) on top of
+        # status() and result().
+        super().__init__(backend, str(heappe_job_id))
+        # Kept as an int attribute for QClient calls and HEAppE result paths. It shadows
+        # JobV1.job_id(), and being callable it also satisfies `job.job_id()`.
+        self.job_id = _HEAppEJobId(heappe_job_id)
         self._qclient = backend._qclient
         self._qaas_run_started = time.time()
 
@@ -529,6 +548,23 @@ class QJob:
         self.allocation_amount: float | None = None
 
         self.remote_job: IQMJob = None  # Will be set when results are available
+
+    def submit(self) -> None:
+        """Not used: a QJob is returned already submitted by :meth:`QBackend.run`.
+
+        :raises NotImplementedError: Always. Present to satisfy the ``JobV1`` interface.
+        """
+        raise NotImplementedError(
+            "QJob is created already submitted by QBackend.run(); submit() is not supported."
+        )
+
+    def cancel(self) -> bool:
+        """Cancel the underlying HEAppE job (``JobV1`` interface).
+
+        :returns: True when HEAppE accepted the cancellation
+        :rtype: bool
+        """
+        return self._qclient.cancel_job(self.job_id)
 
     def result(
         self, timeout_secs: float = 600, cancel_after_timeout: bool = False
@@ -645,7 +681,7 @@ class QJob:
             )
 
             if isinstance(self.remote_job, IQMJob):
-                if self.status() == "ERROR":
+                if self.status() == JobStatus.ERROR:
                     log.error(
                         "IQMJob failed! Error(s):\n%s",
                         self.remote_job._errors,
@@ -674,15 +710,15 @@ class QJob:
         self._result = heappe_results.get("results")
         return self._result
 
-    def status(self) -> str:
+    def status(self) -> JobStatus:
         """
         Get the current status of the quantum job.
 
         Returns job status by checking the underlying QJob if available,
-        otherwise queries HEAppE job status and maps it to Qiskit status format.
+        otherwise queries HEAppE job status and maps it to a Qiskit status.
 
-        :returns: Current job status: DONE | RUNNING | ERROR
-        :rtype: str
+        :returns: Current job status: JobStatus.DONE | JobStatus.RUNNING | JobStatus.ERROR
+        :rtype: qiskit.providers.JobStatus
 
         :raises QException: When status retrieval fails
         :raises QAuthException: When authentication fails during status check
@@ -690,14 +726,14 @@ class QJob:
         .. note::
             The status mapping from HEAppE to Qiskit format:
 
-            * 'FINISHED' -> 'DONE'
-            * 'WAITING' -> 'RUNNING'
-            * 'FAILED' -> 'ERROR'
-            * 'UNKNOWN' -> 'ERROR'
+            * 'FINISHED' -> JobStatus.DONE
+            * 'WAITING' -> JobStatus.RUNNING
+            * 'FAILED' -> JobStatus.ERROR
+            * 'UNKNOWN' -> JobStatus.ERROR
 
         Example:
             >>> job = backend.run(circuit, shots=1000)
-            >>> while job.status() != 'DONE':
+            >>> while not job.in_final_state():
             ...     time.sleep(10)
             >>> result = job.result()
         """
@@ -706,7 +742,7 @@ class QJob:
 
         heappe_status, _, _ = self._qclient.get_job_status(self.job_id)
 
-        return HEAppE_QISKIT_STATUS_MAPPING.get(heappe_status, "ERROR")
+        return HEAppE_QISKIT_STATUS_MAPPING.get(heappe_status, JobStatus.ERROR)
 
     def wait_for_final_state(
         self,
@@ -738,7 +774,7 @@ class QJob:
         if callback:
             callback(
                 self.job_id,
-                HEAppE_QISKIT_STATUS_MAPPING.get(job_heappe_status, "ERROR"),
+                HEAppE_QISKIT_STATUS_MAPPING.get(job_heappe_status, JobStatus.ERROR),
                 self,
             )
 
