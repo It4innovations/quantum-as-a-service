@@ -479,15 +479,14 @@ class QJob(JobV1):
         :raises QAuthException: When backend authentication is unsuccessful
         """
 
-        # JobV1 stores the backend and supplies the rest of the Qiskit job interface
-        # (backend(), done(), running(), cancelled(), in_final_state(), ...) on top of
-        # status() and result().
+        # JobV1 supplies the rest of the Qiskit job interface (backend(), done(),
+        # cancelled(), in_final_state(), ...) on top of status() and result().
         super().__init__(backend, str(heappe_job_id))
-        # Kept as an int attribute for QClient calls and HEAppE result paths. It shadows
-        # JobV1.job_id(), and being callable it also satisfies `job.job_id()`.
+        # Shadows JobV1.job_id(); stays an int for QClient calls and HEAppE result paths.
         self.job_id = _HEAppEJobId(heappe_job_id)
         self._qclient = backend._qclient
         self._qaas_run_started = time.time()
+        self._cancel_requested = False
 
         self._transpiled_circuits: QuantumCircuit | list[QuantumCircuit] = None
 
@@ -551,21 +550,45 @@ class QJob(JobV1):
         self.remote_job: IQMJob = None  # Will be set when results are available
 
     def submit(self) -> None:
-        """Not used: a QJob is returned already submitted by :meth:`QBackend.run`.
+        """Not used: :meth:`QBackend.run` returns an already submitted QJob.
 
-        :raises NotImplementedError: Always. Present to satisfy the ``JobV1`` interface.
+        :raises NotImplementedError: Always.
         """
         raise NotImplementedError(
             "QJob is created already submitted by QBackend.run(); submit() is not supported."
         )
 
     def cancel(self) -> bool:
-        """Cancel the underlying HEAppE job (``JobV1`` interface).
+        """Cancel the underlying HEAppE job.
+
+        Asynchronous: HEAppE only accepts the request here, so an immediate :meth:`status`
+        call still reports the previous status.
 
         :returns: True when HEAppE accepted the cancellation
         :rtype: bool
         """
-        return self._qclient.cancel_job(self.job_id)
+        cancelled = self._qclient.cancel_job(self.job_id)
+        if cancelled:
+            self._cancel_requested = True
+        return cancelled
+
+    def _to_qiskit_status(self, heappe_status: str) -> JobStatus:
+        """Map a HEAppE status to a Qiskit one, accounting for cancels HEAppE loses.
+
+        HEAppE reaps a cancelled *running* job as ``JobState.Failed``: the job script is
+        signalled and exits non-zero, so the settled state is indistinguishable from a
+        genuine failure. A cancellation issued through this instance is reported as such;
+        one issued out of band (LEXIS UI, another process) still reports ERROR.
+
+        :param heappe_status: Status as returned by :meth:`QClient.get_job_status`
+        :type heappe_status: str
+        :returns: The matching Qiskit status
+        :rtype: qiskit.providers.JobStatus
+        """
+        status = HEAppE_QISKIT_STATUS_MAPPING.get(heappe_status, JobStatus.ERROR)
+        if self._cancel_requested and status is JobStatus.ERROR:
+            return JobStatus.CANCELLED
+        return status
 
     def result(
         self, timeout_secs: float = 600, cancel_after_timeout: bool = False
@@ -610,7 +633,7 @@ class QJob(JobV1):
             time.sleep(QClient.DEFAULT_POLL_TIME)
             job_status, _, _ = self._qclient.get_job_status(self.job_id)
             if timeout_secs > 0.0 and time.time() - timeout_start > timeout_secs:
-                if cancel_after_timeout and not self._qclient.cancel_job(self.job_id):
+                if cancel_after_timeout and not self.cancel():
                     raise QException(f"Unable to cancel job with id:{self.job_id}")
                 if cancel_after_timeout:
                     raise TimeoutError(f"Job was cancelled after {timeout_secs}s")
@@ -734,6 +757,8 @@ class QJob(JobV1):
             * 'CANCELED' -> JobStatus.CANCELLED
             * 'UNKNOWN' -> JobStatus.ERROR
 
+            After a successful :meth:`cancel`, 'FAILED' becomes JobStatus.CANCELLED.
+
         Example:
             >>> job = backend.run(circuit, shots=1000)
             >>> while not job.in_final_state():
@@ -745,7 +770,7 @@ class QJob(JobV1):
 
         heappe_status, _, _ = self._qclient.get_job_status(self.job_id)
 
-        return HEAppE_QISKIT_STATUS_MAPPING.get(heappe_status, JobStatus.ERROR)
+        return self._to_qiskit_status(heappe_status)
 
     def wait_for_final_state(
         self,
@@ -771,13 +796,13 @@ class QJob(JobV1):
             time.sleep(wait)
             job_heappe_status, _, _ = self._qclient.get_job_status(self.job_id)
             if timeout > 0.0 and time.time() - timeout_start > timeout:
-                if cancel_after_timeout and not self._qclient.cancel_job(self.job_id):
+                if cancel_after_timeout and not self.cancel():
                     raise QException(f"Unable to cancel job with id:{self.job_id}")
                 raise TimeoutError(f"Job was cancelled after {timeout}s")
         if callback:
             callback(
                 self.job_id,
-                HEAppE_QISKIT_STATUS_MAPPING.get(job_heappe_status, JobStatus.ERROR),
+                self._to_qiskit_status(job_heappe_status),
                 self,
             )
 
