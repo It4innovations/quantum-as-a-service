@@ -186,7 +186,7 @@ class QBackend:
         self._init_job_status, _, self.init_task_ids = self._qclient.get_job_status(
             self.init_job_id
         )
-        while self._init_job_status not in ["FINISHED", "FAILED"]:
+        while self._init_job_status not in QClient.TERMINAL_JOB_STATES:
             time.sleep(QClient.DEFAULT_POLL_TIME)
             self._init_job_status, _, _ = self._qclient.get_job_status(self.init_job_id)
 
@@ -413,6 +413,7 @@ HEAppE_QISKIT_STATUS_MAPPING = {
     "FINISHED": JobStatus.DONE,
     "WAITING": JobStatus.RUNNING,
     "FAILED": JobStatus.ERROR,
+    "CANCELED": JobStatus.CANCELLED,
     "UNKNOWN": JobStatus.ERROR,
 }
 
@@ -605,11 +606,11 @@ class QJob(JobV1):
 
         job_status, _, task_ids = self._qclient.get_job_status(self.job_id)
 
-        while job_status not in ["FINISHED", "FAILED"]:
+        while job_status not in QClient.TERMINAL_JOB_STATES:
             time.sleep(QClient.DEFAULT_POLL_TIME)
             job_status, _, _ = self._qclient.get_job_status(self.job_id)
             if timeout_secs > 0.0 and time.time() - timeout_start > timeout_secs:
-                if cancel_after_timeout and not self._backend.cancel_job(self.job_id):
+                if cancel_after_timeout and not self._qclient.cancel_job(self.job_id):
                     raise QException(f"Unable to cancel job with id:{self.job_id}")
                 if cancel_after_timeout:
                     raise TimeoutError(f"Job was cancelled after {timeout_secs}s")
@@ -717,7 +718,8 @@ class QJob(JobV1):
         Returns job status by checking the underlying QJob if available,
         otherwise queries HEAppE job status and maps it to a Qiskit status.
 
-        :returns: Current job status: JobStatus.DONE | JobStatus.RUNNING | JobStatus.ERROR
+        :returns: Current job status: JobStatus.DONE | JobStatus.RUNNING |
+            JobStatus.CANCELLED | JobStatus.ERROR
         :rtype: qiskit.providers.JobStatus
 
         :raises QException: When status retrieval fails
@@ -729,6 +731,7 @@ class QJob(JobV1):
             * 'FINISHED' -> JobStatus.DONE
             * 'WAITING' -> JobStatus.RUNNING
             * 'FAILED' -> JobStatus.ERROR
+            * 'CANCELED' -> JobStatus.CANCELLED
             * 'UNKNOWN' -> JobStatus.ERROR
 
         Example:
@@ -764,11 +767,11 @@ class QJob(JobV1):
 
         job_heappe_status, _, _task_ids = self._qclient.get_job_status(self.job_id)
 
-        while job_heappe_status not in ["FINISHED", "FAILED"]:
+        while job_heappe_status not in QClient.TERMINAL_JOB_STATES:
             time.sleep(wait)
             job_heappe_status, _, _ = self._qclient.get_job_status(self.job_id)
             if timeout > 0.0 and time.time() - timeout_start > timeout:
-                if cancel_after_timeout and not self._backend.cancel_job(self.job_id):
+                if cancel_after_timeout and not self._qclient.cancel_job(self.job_id):
                     raise QException(f"Unable to cancel job with id:{self.job_id}")
                 raise TimeoutError(f"Job was cancelled after {timeout}s")
         if callback:
