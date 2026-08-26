@@ -5,7 +5,7 @@ QaaS — Quantum-as-a-Service
    :target: https://it4innovations.github.io/quantum-as-a-service/
    :alt: Documentation
 
-Access IQM quantum hardware through the `LEXIS platform <https://lexis-project.eu/>`_ via `HEAppE <https://heappe.eu/>`_.
+Access IQM quantum hardware through the `LEXIS platform <https://docs.lexis.tech/>`_ via `HEAppE <https://heappe.eu/>`_.
 
 **Documentation:** https://it4innovations.github.io/quantum-as-a-service/
 
