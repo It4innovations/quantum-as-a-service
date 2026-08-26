@@ -7,7 +7,9 @@ import pickle
 import ssl
 import sys
 import time
+import warnings
 from datetime import UTC, datetime
+from importlib import metadata as m
 from typing import Any
 from uuid import UUID
 
@@ -217,6 +219,7 @@ class QClient:
         self._backend_metadata = self._authorize_lexis_resource(
             lexis_resource_name, quantum_computer_name
         )
+        self._verify_backend_version()
         self._heappe_client = self._authenticate_heappe()
         self._command_template_infos = self._get_command_template_ids(
             template_name_qinit=kwargs.get(
@@ -235,6 +238,47 @@ class QClient:
 
         # Architecture
         self._dynamic_quantum_architectures = {}
+
+    def _verify_backend_version(self):
+        def _parse_semver(v: str):
+            v = (v or "").strip()
+            if v.startswith(("v", "V")):
+                v = v[1:]
+            parts = v.split(".")
+            if len(parts) < 3:
+                raise ValueError(f"Invalid semantic version: {v!r}")
+            return tuple(int(p) for p in parts[:3])
+
+        def validate_qaas_version(client_version: str, server_version: str):
+            """
+            Major mismatch => raise QAuthException (blocking)
+            Minor mismatch => warn (non-blocking)
+            Patch mismatch => no action
+            """
+            exp_major, exp_minor, exp_patch = _parse_semver(client_version)
+            act_major, act_minor, act_patch = _parse_semver(server_version)
+
+            if act_major != exp_major or act_minor != exp_minor:
+                raise QException(
+                    message=(
+                        "Major or Minor Version Mismatch: client must be updated. "
+                        f"(expected={client_version}, actual={server_version})."
+                    )
+                )
+
+            if act_patch != exp_patch:
+                warnings.warn(
+                    "Patch Version Mismatch: recommending update. "
+                    f"expected v{exp_major}.{exp_minor}.x but server returned v{act_major}.{act_minor}.x "
+                    f"(expected={client_version}, actual={server_version}).",
+                    category=UserWarning,
+                )
+
+        # Get version from current package "qaas"
+        validate_qaas_version(
+            client_version=m.version("qaas"),
+            server_version=self._backend_metadata.qaas_version,
+        )
 
     def _authenticate_authorize_lexis(self) -> tuple[str, dict[str, Any]]:
         """
@@ -591,15 +635,14 @@ class QClient:
                 heappe_url = None
                 sw_stack = None
                 quantum_technology = None
+                qaas_version = None
+
                 for spec in assignment_info.get("Specifications", []):
                     if spec.get("Key") == "HEAPPE_URL":
                         heappe_url = spec.get("Value")
-                    elif spec.get("Key") == "SW_STACK":
-                        sw_stack = spec.get("Value")
-                    elif spec.get("Key") == "QUANTUM_TECHNOLOGY":
-                        quantum_technology = spec.get("Value")
+
                     # stop searching when all keys was found
-                    if heappe_url and sw_stack and quantum_technology:
+                    if heappe_url:
                         break
 
                 # Check whether all required keys was found
@@ -609,9 +652,31 @@ class QClient:
                         user_id=self._username,
                         resource=self._lexis_project,
                     )
+
+                # Fetch sw stack and quantum technology and qaas_version
+
+                qaas_base = f"{heappe_url}/qaas"
+                qaas_info_resp = requests.get(qaas_base, timeout=30)
+                qaas_info_resp.raise_for_status()
+                qaas_info = qaas_info_resp.json()
+
+                # Pull required fields from returned JSON
+                qaas_version = qaas_info.get("qaas_version")
+                sw_stack = qaas_info.get("sw_stack")
+                quantum_technology = qaas_info.get("quantum_technology")
+                if not qaas_version:
+                    raise QAuthException(
+                        reason="'qaas_version' not found in machine specification at '"
+                        + heappe_url
+                        + "/qaas'",
+                        user_id=self._username,
+                        resource=self._lexis_project,
+                    )
                 if not sw_stack:
                     raise QAuthException(
-                        reason="SW_STACK not found in resource specifications",
+                        reason="'sw_stack' not found in machine specification at '"
+                        + heappe_url
+                        + "/qaas'",
                         user_id=self._username,
                         resource=self._lexis_project,
                     )
@@ -619,16 +684,22 @@ class QClient:
                 # quantum technology is optional
 
                 log.debug(
-                    "Found SW_STACK: %s, QUANTUM_TECHNOLOGY: %s, HEAppE URL: %s for resource: %s",
+                    "Found sw_stack: %s, quantum_technology: %s, HEAppE URL: %s, qaas version %s, for resource: %s",
                     sw_stack,
                     "-" if not quantum_technology else quantum_technology,
                     heappe_url,
+                    qaas_version,
                     lexis_resource_name,
                 )
+
+                ####################
+                # Backend Metadata #
+                ####################
 
                 backend_info = QBackendMetadata(
                     backend_name=assignment_info["LocationName"],
                     swstack=sw_stack,
+                    qaas_version=qaas_version,
                     available="UNKNOWN",  # FIXME: get this information
                     quantum_technology=quantum_technology,
                     lexis_resource=LexisResource(

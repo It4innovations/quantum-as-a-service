@@ -122,6 +122,7 @@ class QBackendMetadata:
         self,
         backend_name: str,
         swstack: str,
+        qaas_version: str,
         available: bool,
         host_entity: str,
         lexis_project: LexisProject,
@@ -134,6 +135,7 @@ class QBackendMetadata:
         This class represents information about a quantum backend.
 
         :param backend_name: The name of the quantum backend
+        :param qaas_version: The deployed version of qaas package on backend
         :param available: A boolean indicating whether the backend is online and available
         :param host_entity: The hostname or identifier of the quantum computer hosting entity
         :param lexis_resource: Resource registered on LEXIS platform assigned to LEXIS project
@@ -145,6 +147,7 @@ class QBackendMetadata:
         """
 
         self._backend_name = backend_name
+        self._qaas_version = qaas_version
         self._swstack = swstack
         self._available = available
         self._host_entity = host_entity
@@ -158,6 +161,11 @@ class QBackendMetadata:
     def backend_name(self) -> str:
         """Name of backend, which can be used to get"""
         return self._backend_name
+
+    @property
+    def qaas_version(self) -> str:
+        """Version of deployed QaaS backend API"""
+        return self._qaas_version
 
     @property
     def available(self) -> bool:
