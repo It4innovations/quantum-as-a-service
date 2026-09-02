@@ -237,7 +237,7 @@ class QClient:
         )
 
         # Socket path (dev)
-        self._socket_path = kwargs.get('cmd_socket_path', None)
+        self._socket_path = kwargs.get("cmd_socket_path", None)
 
         # Architecture
         self._dynamic_quantum_architectures = {}
@@ -1070,7 +1070,9 @@ class QClient:
                 ),
             ]
             if self._socket_path:
-                env_variables.append(EnvironmentVariableExt('IQM_SERVICE_SOCKET', self._socket_path))
+                env_variables.append(
+                    EnvironmentVariableExt("IQM_SERVICE_SOCKET", self._socket_path)
+                )
             # Create job specification
             job_spec = JobSpecification(
                 name=job_data.get("name", "quantum_job"),
