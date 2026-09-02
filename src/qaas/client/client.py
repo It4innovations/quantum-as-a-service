@@ -333,7 +333,9 @@ class QClient:
                 ctx = ssl.create_default_context()
 
             # Fetch OpenID Configuration dynamically
-            openid_config_url = f"{keycloak_base_url.rstrip('/')}/.well-known/openid-configuration"
+            openid_config_url = (
+                f"{keycloak_base_url.rstrip('/')}/.well-known/openid-configuration"
+            )
             log.debug("Fetching OpenID configuration from: %s", openid_config_url)
 
             req = urllib.request.Request(openid_config_url)
@@ -368,7 +370,7 @@ class QClient:
                 issuer=keycloak_base_url,
                 audience="portal",
                 # Removed verify_aud for flexibility
-                options={"verify_exp": True, "verify_iss": True, "verify_aud":False},
+                options={"verify_exp": True, "verify_iss": True, "verify_aud": False},
             )
 
             # Extract user information from token
