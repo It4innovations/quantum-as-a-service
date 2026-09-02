@@ -120,6 +120,15 @@ class QBackendIQM(QBackend, IQMBackend):
         for attr, value in iqm_attrs.items():
             setattr(self.target, attr, value)
             setattr(self.remote_backend.target, attr, value)
+            for obj in (self, self.remote_backend):
+                twr = getattr(obj, "_target_with_resonators", None)
+                if twr is not None and attr != "iqm_include_resonators":
+                    setattr(twr, attr, value)
+
+        for obj in (self, self.remote_backend):
+            twr = getattr(obj, "_target_with_resonators", None)
+            if twr is not None:
+                twr.iqm_include_resonators = True
 
         self.name = "QBackendIQM"
 
