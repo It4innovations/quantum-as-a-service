@@ -119,6 +119,8 @@ class QClient:
 
     :cvar DEFAULT_POLL_TIME: Default polling interval in seconds for job status checks
     :vartype DEFAULT_POLL_TIME: int
+    :cvar TERMINAL_JOB_STATES: Job statuses a job never transitions out of
+    :vartype TERMINAL_JOB_STATES: tuple[str, ...]
 
     .. note::
         Authentication is performed automatically during initialization, including
@@ -146,6 +148,10 @@ class QClient:
     )
 
     DEFAULT_POLL_TIME = 0.5
+
+    # Statuses from :meth:`get_job_status` that a job never transitions out of. Poll loops
+    # must stop on all of them, or a canceled/failed job spins forever.
+    TERMINAL_JOB_STATES = ("FINISHED", "FAILED", "CANCELED")
 
     def __init__(
         self,
@@ -1275,7 +1281,8 @@ class QClient:
 
         * "FINISHED" - Job completed successfully
         * "WAITING" - Job queued or running
-        * "FAILED" - Job failed or was canceled
+        * "FAILED" - Job failed
+        * "CANCELED" - Job was canceled
         * "UNKNOWN" - Job status could not be determined
 
         Example:
@@ -1308,15 +1315,16 @@ class QClient:
                     JobState.Failed.value,
                     str(job_state == JobState.Failed),
                 )
-                is_failed: bool = (
-                    job_state == JobState.Failed or job_state == JobState.Canceled
-                )
                 is_finished: bool = (
                     job_state.value > JobState.Running.value
                     and job_state != JobState.WaitingForServiceAccount
                 )
 
-                if is_failed:
+                # Reported apart from FAILED: a canceled job is terminal but did not fail,
+                # and maps to JobStatus.CANCELLED rather than JobStatus.ERROR.
+                if job_state == JobState.Canceled:
+                    return "CANCELED", job_info.id, [task.id for task in job_info.tasks]
+                if job_state == JobState.Failed:
                     return "FAILED", job_info.id, [task.id for task in job_info.tasks]
                 if is_finished:
                     return "FINISHED", job_info.id, [task.id for task in job_info.tasks]
@@ -1395,9 +1403,14 @@ class QClient:
                 job_status, job_id, task_ids = self.get_job_status(job_id)
             log.debug("get_job_results status: %s", job_status)
             if wait:
-                while job_status not in ["FINISHED", "FAILED"]:
+                while job_status not in QClient.TERMINAL_JOB_STATES:
                     time.sleep(QClient.DEFAULT_POLL_TIME)
                     job_status, _, _ = self.get_job_status(job_id)
+            # Canceled, terminal: no results will ever be produced, and there is no
+            # failure reason to look for in stderr.
+            if job_status == "CANCELED":
+                raise QResultsFailed(job_id, "Job was canceled.")
+
             # Failed, try to find a reason
             if job_status == "FAILED":
                 stderr_content = "None"
