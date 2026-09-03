@@ -243,6 +243,9 @@ class QClient:
             ),
         )
 
+        # Socket path (dev)
+        self._socket_path = kwargs.get("cmd_socket_path", None)
+
         # Architecture
         self._dynamic_quantum_architectures = {}
 
@@ -258,9 +261,8 @@ class QClient:
 
         def validate_qaas_version(client_version: str, server_version: str):
             """
-            Major mismatch => raise QAuthException (blocking)
-            Minor mismatch => warn (non-blocking)
-            Patch mismatch => no action
+            Major or Minor mismatch => raise QException (blocking)
+            Patch mismatch => warn (non-blocking)
             """
             exp_major, exp_minor, exp_patch = _parse_semver(client_version)
             act_major, act_minor, act_patch = _parse_semver(server_version)
@@ -275,8 +277,7 @@ class QClient:
 
             if act_patch != exp_patch:
                 warnings.warn(
-                    "Patch Version Mismatch: recommending update. "
-                    f"expected v{exp_major}.{exp_minor}.x but server returned v{act_major}.{act_minor}.x "
+                    "Patch Version Mismatch: recommending update "
                     f"(expected={client_version}, actual={server_version}).",
                     category=UserWarning,
                 )
@@ -1095,6 +1096,10 @@ class QClient:
                     str(self._backend_metadata.lexis_resource.project_resource_id),
                 ),
             ]
+            if self._socket_path:
+                env_variables.append(
+                    EnvironmentVariableExt("IQM_SERVICE_SOCKET", self._socket_path)
+                )
             # Create job specification
             job_spec = JobSpecification(
                 name=job_data.get("name", "quantum_job"),
