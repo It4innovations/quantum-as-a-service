@@ -17,7 +17,7 @@ LEXIS_RESOURCE_NAME = "VLQ-CZ"  ## Accounting String
 
 provider = QProvider(LEXIS_PROJECT)
 ## or define manually LEXIS access token
-## provider = QProvider(token, LEXIS_PROJECT)
+## provider = QProvider(LEXIS_PROJECT, token)
 
 backend = provider.get_backend(LEXIS_RESOURCE_NAME)
 

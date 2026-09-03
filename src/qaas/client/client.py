@@ -7,6 +7,7 @@ import pickle
 import ssl
 import sys
 import time
+import urllib
 import warnings
 from datetime import UTC, datetime
 from importlib import metadata as m
@@ -331,31 +332,51 @@ class QClient:
 
             log.debug("Detected JWT issuer: %s", keycloak_base_url)
 
-            # Construct JWKS URL from issuer
-            jwks_url = f"{keycloak_base_url}/protocol/openid-connect/certs"
-
-            log.debug("JWKS: %s", str(jwks_url))
-
-            # Initialize JWKS client
+            # Initialize SSL context before fetching discovery metadata
             if sys.platform == "win32":
                 ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             else:
                 ctx = ssl.create_default_context()
+
+            # Fetch OpenID Configuration dynamically
+            openid_config_url = (
+                f"{keycloak_base_url.rstrip('/')}/.well-known/openid-configuration"
+            )
+            log.debug("Fetching OpenID configuration from: %s", openid_config_url)
+
+            req = urllib.request.Request(openid_config_url)
+            with urllib.request.urlopen(req, context=ctx) as response:
+                openid_config = json.loads(response.read().decode("utf-8"))
+
+            jwks_url = openid_config.get("jwks_uri")
+            if not jwks_url:
+                raise ValueError("OpenID configuration response is missing 'jwks_uri'")
+
+            log.debug("JWKS: %s", str(jwks_url))
+
+            # Initialize JWKS client
             jwks_client = PyJWKClient(jwks_url, ssl_context=ctx)
 
             # Get signing key from JWT header
             signing_key = jwks_client.get_signing_key_from_jwt(self._token)
 
+            # Read the token's unverified header to identify the algorithm and key ID
+            token_header = jwt.get_unverified_header(self._token)
+            token_alg = token_header.get("alg")
+
+            if not token_alg:
+                raise ValueError("JWT token header is missing the 'alg' parameter")
+
             # Now decode and fully verify JWT token
             decoded_token = jwt.decode(
                 self._token,
                 signing_key.key,
-                algorithms=["RS256"],
+                algorithms=[token_alg],
                 # audience="lexis-portal",  # Can be extracted from token if needed
                 issuer=keycloak_base_url,
                 audience="portal",
                 # Removed verify_aud for flexibility
-                options={"verify_exp": True, "verify_iss": True},
+                options={"verify_exp": True, "verify_iss": True, "verify_aud": False},
             )
 
             # Extract user information from token
