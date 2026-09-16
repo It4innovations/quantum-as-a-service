@@ -119,6 +119,28 @@ IQM Pulla
    # Qiskit Counts
    counts = qiskit_result.get_counts()
 
+How to Fetch Calibration Data
+------------------------------
+
+Use the client to retrieve a calibration set by its UUID. To retrieve the
+default calibration set, pass ``None`` instead.
+
+.. code-block:: python
+
+   from uuid import UUID
+
+   from qaas.client import QProvider
+
+   provider = QProvider("my_project")
+   client = provider.get_client(lexis_resource_name)
+
+   calibration_set = client.get_calibration_set(
+       UUID("3a83e2f3-c5a8-43b7-9aa1-e9738ca3204b")
+   )
+
+   default_calibration_set = client.get_calibration_set(None)
+
+
 Authors
 -------
 
