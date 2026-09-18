@@ -1,5 +1,5 @@
-QaaS — Quantum-as-a-Service
-===========================
+QHEAppE — Quantum-as-a-Service through HEAppE
+==============================================
 
 .. image:: https://img.shields.io/badge/docs-GitHub%20Pages-blue
    :target: https://it4innovations.github.io/quantum-as-a-service/
@@ -15,10 +15,17 @@ Requirements
 - Python 3.12
 - required Python packages: see `dependencies` in `pyproject.toml <pyproject.toml>`_
 
+Architecture
+-------------
+
+.. image:: https://github.com/It4innovations/quantum-as-a-service/blob/main/img/qaas-architecture-diagram-qheappe_1080p.png
+   :target: https://github.com/It4innovations/quantum-as-a-service/blob/main/img/qaas-architecture-diagram-qheappe_1080p.png
+   :alt: QHEAppE Architecture Disagram
+
 Quick start
 -----------
 
-QaaS is available on `PyPI <https://pypi.org/project/qaas>`_, so you can install it easily using `pip`.
+QHEAppE is available on `PyPI <https://pypi.org/project/qaas>`_, so you can install it easily using `pip`.
 
 .. code-block:: bash
 
