@@ -48,6 +48,9 @@ iqm_backend = [
     "sqlalchemy",
     "psycopg2-binary"
 ]
+test = [
+    "pytest-dotenv"
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
