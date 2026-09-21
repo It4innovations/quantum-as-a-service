@@ -39,7 +39,6 @@ from qiskit import QuantumCircuit
 
 from qaas import export_qasm3_with_custom_move, qiskit_to_pulla, sweep_job_to_qiskit
 from qaas.client.provider import QProviderDev
-from qaas.client.qpulla import QPullaBackendIQM
 from qaas.client.utils import QException
 
 TOKEN = os.environ.get("QAAS_TOKEN")
@@ -493,9 +492,13 @@ class TestParameterizedCircuitExecution:
             optimization_level=2,
         )
 
-        counts = backend.run(
-            transpiled_circuit,
-            shots=200,
-        ).result().get_counts()
+        counts = (
+            backend.run(
+                transpiled_circuit,
+                shots=200,
+            )
+            .result()
+            .get_counts()
+        )
 
         assert counts.get("00", 0) / 200 > 0.85
