@@ -401,7 +401,7 @@ class QPullaBackendIQM(QBackendIQM, IQMBackendBase):
 
         # Compile the circuits, build settings and execute
         playlist, context = self.compiler.compile(pulla_circuits)
-        settings, context = self.compiler.build_settings(context, shots=shots)
+        settings, context = self.compiler.get_settings(**context, shots=shots)
 
         # submit the playlist for execution
         job = self.pulla.submit_playlist(

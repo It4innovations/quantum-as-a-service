@@ -12,3 +12,4 @@ venv_*/
 dist/*
 build/
 site/*
+.env
