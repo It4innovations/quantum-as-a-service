@@ -15,116 +15,83 @@ Requirements
 - Python 3.12
 - required Python packages: see `dependencies` in `pyproject.toml <pyproject.toml>`_
 
+Installation
+------------
+
+QHEAppE can be installed using pip. To install the package along with optional dependencies for IQM integration:
+
+.. code-block:: bash
+
+   pip install qaas[iqm_qiskit,iqm_pulla] --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
+
 Architecture
 -------------
 
 .. image:: https://github.com/It4innovations/quantum-as-a-service/blob/main/img/qaas-architecture-diagram-qheappe_1080p.png
    :target: https://github.com/It4innovations/quantum-as-a-service/blob/main/img/qaas-architecture-diagram-qheappe_1080p.png
-   :alt: QHEAppE Architecture Disagram
+   :alt: QHEAppE Architecture Diagram
 
 Quick start
 -----------
 
-QHEAppE is available on `PyPI <https://pypi.org/project/qaas>`_, so you can install it easily using `pip`.
-
-.. code-block:: bash
-
-   pip install qaas --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
-
-Alternatively, you can install the latest (development) version using:
-
-.. code-block:: bash
-
-   pip install git+https://github.com/It4innovations/quantum-as-a-service.git@main --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
-
-Example usage:
+The following example demonstrates the basic usage of the QProvider and QBackend interfaces:
 
 .. code-block:: python
 
-   from qaas import QProvider
+   from qheappe_client.qprovider import QProvider
    from qiskit import QuantumCircuit
 
-   backend  = QProvider("my_project").get_backend("EQE1-CZ-P0001")
-   # Argument 'token' is optional 
+   # 1. Build a Qiskit circuit (Bell state)
+   qc = QuantumCircuit(2, 3)
+   qc.h(0)
+   qc.cx(0, 1)
+   qc.measure([0, 1], [0, 1])
+   qc.h(0)
+   qc.measure(0, 2)
+
+   # 2. Instantiate QProvider with your LEXIS authentication details
+   lexis_project = "your_project_name"
+   resource_name = "your_resource_name"
+
+   provider = QProvider(
+       lexis_project=lexis_project,
+       # Without passing token, an interactive login flow through the browser will happen
+       # token=os.getenv("LEXIS_TOKEN"),
+   )
+
+   # Alternatively, you can log in via py4lexis and then pass the session (recommended for remote scripts executed on remote HW via terminal, etc.)
    # from py4lexis.session import LexisSession
-   # token = LexisSession().get_access_token()
-   # backend  = QProvider("my_project", token=lexis_access_token).get_backend("EQE1-CZ-P0001")
+   # session = LexisSession()  # Interactive login flow
+   # token = session.get_access_token()
 
-   qc = QuantumCircuit(2, 2)
-   qc.h(0); qc.cx(0, 1); qc.measure_all()
-
-   counts = backend.run(backend.transpile(qc), shots=1000).result().get_counts()
-   print(counts)
-
-
-Also OpenQASM is supported on input:
-
-.. code-block:: python
-
-   from qaas import export_qasm3_with_custom_move as qasm3dumps
-
-   qc = QuantumCircuit(2, 2)
-   qc.h(0); qc.cx(0, 1); qc.measure_all()
-
-   qasm_transpiled_qc:str = qasm3dumps(backend.transpile(qc))
-
-   counts = backend.run([qasm_transpiled_qc], shots=1000).result().get_counts()
-   print(counts)
-
-
-
-IQM Pulla
-----------
-
-.. code-block:: python
-
-   from qiskit import QuantumCircuit, visualization
-   from qiskit.compiler import transpile
-   from iqm.qiskit_iqm.iqm_transpilation import optimize_single_qubit_gates
-   from iqm.pulla.utils_qiskit import sweep_job_to_qiskit
-   from qaas.client import QProvider, QBackend
-   from qaas.client.qpulla import qiskit_to_pulla, QPullaBackendIQM
-
-   SHOTS = 100
-
-   provider = QProvider("my_project")
-   client = provider.get_client(lexis_resource_name)
-   dqa = client.get_dynamic_architecture()
-   compiler = p.get_standard_compiler()
-   # Create Pulla instance
-   p = provider.get_pulla(lexis_resource_name)
-   pulla_backend: QPullaBackendIQM = QPullaBackendIQM(dqa,p,compiler)
-
-   qc_transpiled = backend.transpile(
-      qc,
-      layout_method='sabre',
-      optimization_level=0
+   # 3. Initialize the QBackend with the client
+   backend = provider.get_backend(
+       lexis_resource=resource_name, backend_name="target_backend_name"
    )
-   # Optimize single-qubit gates
-   qc_optimized = optimize_single_qubit_gates(qc_transpiled)
 
-   circuits, compiler = qiskit_to_pulla(p, pulla_backend, [qc_optimized])
-   
-   # Build settings for execution
-   settings = compiler.get_settings(circuits[0])
-   settings.set_shots(SHOTS) # optional
-   # Compile to playlist
-   run_definition, context = compiler.compile(circuits, settings=settings)
-   
-   # Submit playlist returns SweepJob
-   job = p.submit_playlist(run_definition, context=context)
-   job.wait_for_completion()
-   
-   # Get raw results
-   raw_results = job.result()
-   
-   # Convert to Qiskit result format
-   qiskit_result = sweep_job_to_qiskit(
-      job,
-      shots=SHOTS
-   )
-   # Qiskit Counts
-   counts = qiskit_result.get_counts()
+   # 4. Transpile the circuit
+   qc_transpiled = backend.transpile(qc)
+
+   # 5. Submit the circuit job
+   job = backend.run(qc_transpiled, shots=1024, job_name="demo_bell_state")
+   print(f"Job submitted successfully. Job ID: {job.job_id()}")
+
+   # 6. Retrieve results
+   result_legacy = job.result(qiskit_legacy=True, with_measurements=True)
+   counts_legacy = result_legacy.get_counts()
+   bitstring_legacy = result_legacy.get_memory()
+
+   result = job.result(with_measurements=True)
+   counts = result[0].data.meas.get_counts()
+   bitstrings = result[0].data.meas.get_bitstrings()
+
+   print("Legacy Execution Results:")
+   print("Counts:", counts_legacy)
+   print(f"Bitstring: {bitstring_legacy!s:.20s}")
+
+   print("Primitive Execution Results:")
+   print("Counts:", counts)
+   print(f"Bitstring: {bitstrings!s:.20s}")
 
 How to Fetch Calibration Data
 ------------------------------
@@ -135,18 +102,13 @@ default calibration set, pass ``None`` instead.
 .. code-block:: python
 
    from uuid import UUID
+   from qheappe_client.qprovider import QProvider
 
-   from qaas.client import QProvider
-
-   provider = QProvider("my_project")
-   client = provider.get_client(lexis_resource_name)
-
-   calibration_set = client.get_calibration_set(
-       UUID("3a83e2f3-c5a8-43b7-9aa1-e9738ca3204b")
-   )
-
-   default_calibration_set = client.get_calibration_set(None)
-
+   provider = QProvider("your_project_name")
+   calibration_set = provider.get_backend(
+       lexis_resource="your_resource_name",
+       calibration_set_id=UUID("3a83e2f3-c5a8-43b7-9aa1-e9738ca3204b")
+   ).get_backend_info().calibration_set_id
 
 Authors
 -------
