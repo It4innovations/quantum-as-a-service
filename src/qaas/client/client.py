@@ -271,14 +271,14 @@ class QClient:
                 raise QException(
                     message=(
                         "Major or Minor Version Mismatch: client must be updated. "
-                        f"(expected={client_version}, actual={server_version})."
+                        f"(client={client_version}, server(expected)={server_version})."
                     )
                 )
 
             if act_patch != exp_patch:
                 warnings.warn(
                     "Patch Version Mismatch: recommending update "
-                    f"(expected={client_version}, actual={server_version}).",
+                    f"(client={client_version}, server(expected)={server_version}).",
                     category=UserWarning,
                 )
 
