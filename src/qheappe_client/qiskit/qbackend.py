@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Any
 
 from qiskit import QuantumCircuit
@@ -9,6 +10,7 @@ from qiskit.providers.options import Options
 from qiskit.result import Result
 
 from ..qclient import QClient
+from ..utils import HEAppEJobState
 
 HEAppE_QISKIT_STATUS_MAPPING = {
     "FINISHED": JobStatus.DONE,
@@ -17,6 +19,7 @@ HEAppE_QISKIT_STATUS_MAPPING = {
     "SUBMITTED": JobStatus.QUEUED,
     "CONFIGURING": JobStatus.INITIALIZING,
     "FAILED": JobStatus.ERROR,
+    "CANCELLED": JobStatus.CANCELLED,
     "CANCELED": JobStatus.CANCELLED,
     "UNKNOWN": JobStatus.ERROR,
 }
@@ -183,7 +186,7 @@ class QJob(JobV1):
             return self.remote_job.status()
 
         if self._cancel_requested:
-            return JobStatus.CANCELLED
+            return JobStatus.CANCELED
 
         return self._to_qiskit_status(self._last_known_status.upper())
 
@@ -191,7 +194,7 @@ class QJob(JobV1):
         """Maps a HEAppE status string to Qiskit JobStatus, handling explicit cancellations."""
         status = HEAppE_QISKIT_STATUS_MAPPING.get(heappe_status, JobStatus.ERROR)
         if self._cancel_requested and status is JobStatus.ERROR:
-            return JobStatus.CANCELLED
+            return JobStatus.CANCELED
         return status
 
     def _get_artifacts(self, with_measurements: bool) -> dict[str, Any]:
@@ -207,6 +210,7 @@ class QJob(JobV1):
         self._cached_raw_results = self._qclient.get_job_results(
             self._submitted_job, artifact_names=names
         )
+
         self._artifacts = self._cached_raw_results[self.job_id].get("artifacts", {})
         self._artifacts_have_measurements = with_measurements
         # Any previously converted results remain valid; no need to clear _result_cache.
@@ -248,18 +252,29 @@ class QJob(JobV1):
         # Otherwise wait for the job and fetch the results
 
         try:
-            final_status = self._qclient.wait_for_job_terminal_state(self.job_id)
-            self._last_known_status = final_status
+            # Check the status in submitted job, if the info is not complete
+
+            if "Tasks" not in self._submitted_job or "State" not in self._submitted_job:
+                self._submitted_job = self._qclient.get_job_info(self.job_id())
+            self._last_known_status = self._submitted_job.get("State", -1)
+
+            
+            if self._last_known_status == -1:
+                raise RuntimeError("Unkonwn status of the job")
+            final_status = self._last_known_status = HEAppEJobState.readable(self._last_known_status)
+
+
+            if self._last_known_status not in self._qclient.TERMINAL_JOB_STATES:
+                final_status = self._qclient.wait_for_job_terminal_state(self.job_id)
+                self._last_known_status = final_status
+
         except Exception as e:
             if self._cancel_requested:
                 raise RuntimeError(f"Job {self.job_id()} was canceled.") from e
             raise RuntimeError(f"Job {self.job_id()} failed: {e!s}") from e
 
         if final_status.upper() not in ["FINISHED", "DONE"]:
-            if self._cancel_requested or final_status.upper() in [
-                "CANCELED",
-                "CANCELLED",
-            ]:
+            if self._cancel_requested or final_status.upper() == "CANCELED":
                 raise RuntimeError(f"Job {self.job_id()} was canceled.")
             raise RuntimeError(
                 f"Job {self.job_id()} failed with status: {final_status}"

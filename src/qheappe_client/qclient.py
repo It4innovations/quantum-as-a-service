@@ -38,6 +38,7 @@ from py4heappe.heappe_v6.core import Configuration as HEAppEConfiguration
 from py4heappe.heappe_v6.core import models as heappe_models
 from py4heappe.heappe_v6.core.api import (
     ClusterInformationApi,
+    JobManagementApi
 )
 from py4heappe.heappe_v6.core.models import (
     ClusterExt,
@@ -215,7 +216,7 @@ class QClient:
     DEFAULT_USERORG_BASE_URL = "https://api.lexis.tech/"
     DEFAULT_QUANTUM_LOCATION_TYPE = 7
     SUPPORTED_SW_STACKS = ("iqm",)
-    TERMINAL_JOB_STATES = ("FINISHED", "FAILED", "CANCELED")
+    TERMINAL_JOB_STATES = ("FINISHED", "FAILED", "CANCELLED", "CANCELED")
     DEFAULT_TIMEOUT = 60.0
 
     def __init__(
@@ -1199,6 +1200,12 @@ class QClient:
         return ClusterInformationApi(client) if client is not None else None
 
     @property
+    def job_management_api(self) -> JobManagementApi | None:
+        """Sync py4heappe JobManagementApi of the active backend (blocking; not for async code)."""
+        client = self.heappe_client
+        return JobManagementApi(client) if client is not None else None
+
+    @property
     def session(self) -> aiohttp.ClientSession | None:
         return self._session
 
@@ -1323,7 +1330,22 @@ class QClient:
                 submitted.get("State"),
                 [t.get("Id") for t in submitted.get("Tasks", []) or []],
             )
+        
         return submitted
+
+    async def aget_job_info(self, job_id: int, backend_name: str | None = None) -> dict[str, Any]:
+        """GET /heappe/JobManagement/CurrentInfoForJob -> SubmittedJobInfoExt (snake_case keys)."""
+        log.debug("Fetching info of job %s", job_id)
+        res = await self._request(
+            "GET",
+            self._heappe_url("/heappe/JobManagement/CurrentInfoForJob", backend_name),
+            params={"SubmittedJobInfoId": int(job_id)},
+        )
+        return res.json()
+
+    def get_job_info(self, job_id: int, backend_name: str | None = None) -> dict[str, Any]:
+        """Sync wrapper of `aget_job_info()`."""
+        return self._run(self.aget_job_info(job_id, backend_name))
 
     async def get_task_result(
         self, task_id: int, backend_name: str | None = None
@@ -1401,7 +1423,8 @@ class QClient:
         artifact_names: list[str] | None = None,
         backend_name: str | None = None,
         max_concurrency: int = 8,
-    ) -> dict[int, dict[str, Any]]:
+    ) -> dict[int, dict[str, Any]]:            
+        
         return self._run(
             self.aget_job_results(
                 submitted_job, artifact_names, backend_name, max_concurrency

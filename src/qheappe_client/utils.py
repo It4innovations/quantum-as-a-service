@@ -161,7 +161,7 @@ class QPullaFetchError(QPullaExceeption):
 #############
 
 
-class JobState(Enum):
+class HEAppEJobState(Enum):
     Configuring: int = 1
     Submitted: int = 2
     Queued: int = 4
@@ -169,12 +169,13 @@ class JobState(Enum):
     Finished: int = 16
     Failed: int = 32
     Canceled: int = 64
+    Cancelled: int = 64
     WaitingForServiceAccount: int = 128
 
     @classmethod
     def readable(cls, state):
         if any(state == x.value for x in cls):
-            return JobState(state).name
+            return HEAppEJobState(state).name.upper()
         else:
             return f"Unknown state {state}"
 
