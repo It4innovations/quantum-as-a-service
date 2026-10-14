@@ -19,14 +19,6 @@ from .qiskit.qbackend_iqm import QBackendIQM
 
 # Backwards compatibility: these names used to be local dataclasses of this module.
 LexisResourceMetadata = LexisResource
-__all__ = [
-    "LexisResourceMetadata",
-    "QBackend",
-    "QBackendIQM",
-    "QBackendMetadata",
-    "QProvider",
-    "QPulla",
-]
 
 # Default URL for Lexis API requests
 DEFAULT_LEXIS_API_URL = "https://api.lexis.tech/"
