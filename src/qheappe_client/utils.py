@@ -19,17 +19,17 @@ from qiskit.result import Counts, Result
 
 class QException(Exception):
     """
-    Base exception for QVAS.
+    Base exception for QHEAppE.
 
-    All custom exceptions in the QVAS project should inherit from this class.
+    All custom exceptions in the QHEAppE project should inherit from this class.
     Provides optional context info like user_id, resource, or additional data.
+
+    Args:
+        message: Optional human-readable error message.
+        **context: Optional context info (e.g., user_id, resource).
     """
 
     def __init__(self, message=None, **context):
-        """
-        :param message: str, optional human-readable error message
-        :param context: dict, optional context info (e.g., user_id, resource)
-        """
         self.context = context
         msg = message or self.__class__.__name__
         if context:
@@ -51,18 +51,18 @@ class QAuthException(QException):
     Usage:
         raise QAuthException("No access", user_id=..., resource=...)
         raise QAuthException.from_cause(e, resource=...) from None   # reason derived from e
+
+    Args:
+        reason: Optional explanation of the authorization failure.
+        user_id: Optional ID of the user.
+        resource: Optional resource the user tried to access.
+        cause: Optional underlying exception; used to derive `reason` when not given
+            (note: `raise ... from e` sets __cause__ only after __init__, so pass it here).
     """
 
     DEFAULT_ERR_MSG = "Authentication error"
 
     def __init__(self, reason=None, user_id=None, resource=None, cause=None):
-        """
-        :param reason: str, optional explanation of the authorization failure
-        :param user_id: optional ID of the user
-        :param resource: optional resource the user tried to access
-        :param cause: optional underlying exception; used to derive `reason` when not given
-            (note: `raise ... from e` sets __cause__ only after __init__, so pass it here)
-        """
         if isinstance(cause, QAuthException):
             # Re-wrapping a QAuthException: keep its details unless overridden
             reason = reason or cause.reason
@@ -87,11 +87,28 @@ class QAuthException(QException):
     def from_cause(
         cls, cause: BaseException, user_id=None, resource=None
     ) -> "QAuthException":
-        """Create the exception with a human-readable reason derived from `cause`."""
+        """Create the exception with a human-readable reason derived from `cause`.
+
+        Args:
+            cause: Underlying exception.
+            user_id: Optional ID of the user.
+            resource: Optional resource the user tried to access.
+
+        Returns:
+            QAuthException instance with a human-readable reason.
+        """
         return cls(user_id=user_id, resource=resource, cause=cause)
 
     @staticmethod
     def _extract_reason_from_cause(cause: BaseException) -> str:
+        """Extract a human-readable reason from the underlying exception.
+
+        Args:
+            cause: Underlying exception.
+
+        Returns:
+            Human-readable reason string.
+        """
         reason = QAuthException.DEFAULT_ERR_MSG
 
         # Handle JWT-related exceptions (python-jwt library)
@@ -139,19 +156,41 @@ class QAuthException(QException):
 
 
 class QResultsFailed(QException):
+    """Exception raised when a HEAppE job fails in the background.
+
+    Args:
+        heappe_job_id: ID of the HEAppE job.
+        message: Optional human-readable error message.
+        **context: Optional context info (e.g., user_id, resource).
+    """
+
     def __init__(self, heappe_job_id: int, message=None, **context):
-        msg = f"HEAppE job '{heappe_job_id}'in background failed. "
+        msg = f"HEAppE job '{heappe_job_id}' in background failed. "
         if message:
             msg += str(message)
         super().__init__(msg, **context)
 
 
-class QPullaExceeption(QException):
+class QPullaException(QException):
+    """Base exception for QPulla-related errors.
+
+    Args:
+        message: Optional human-readable error message.
+        **context: Optional context info (e.g., user_id, resource).
+    """
+
     def __init__(self, message=None, **context):
         super().__init__(message, **context)
 
 
-class QPullaFetchError(QPullaExceeption):
+class QPullaFetchError(QPullaException):
+    """Exception raised when there is an error fetching data from QPulla.
+
+    Args:
+        message: Optional human-readable error message.
+        **context: Optional context info (e.g., user_id, resource).
+    """
+
     def __init__(self, message=None, **context):
         super().__init__(message, **context)
 
@@ -162,6 +201,20 @@ class QPullaFetchError(QPullaExceeption):
 
 
 class HEAppEJobState(Enum):
+    """Enum representing the states of a HEAppE job.
+
+    Attributes:
+        Configuring: Job is being configured.
+        Submitted: Job has been submitted.
+        Queued: Job is in the queue.
+        Running: Job is running.
+        Finished: Job has finished successfully.
+        Failed: Job has failed.
+        Canceled: Job has been canceled.
+        Cancelled: Alias for Canceled.
+        WaitingForServiceAccount: Job is waiting for a service account.
+    """
+
     Configuring: int = 1
     Submitted: int = 2
     Queued: int = 4
@@ -174,6 +227,14 @@ class HEAppEJobState(Enum):
 
     @classmethod
     def readable(cls, state):
+        """Return a human-readable string representation of the job state.
+
+        Args:
+            state: Integer representing the job state.
+
+        Returns:
+            Human-readable string representation of the job state.
+        """
         if any(state == x.value for x in cls):
             return HEAppEJobState(state).name.upper()
         else:
@@ -181,26 +242,15 @@ class HEAppEJobState(Enum):
 
 
 def is_valid_uuid(uuid_to_test, version=4):
+    """Check if `uuid_to_test` is a valid UUID.
+
+    Args:
+        uuid_to_test: String to test.
+        version: UUID version (1, 2, 3, or 4).
+
+    Returns:
+        True if `uuid_to_test` is a valid UUID, otherwise False.
     """
-    Check if uuid_to_test is a valid UUID.
-
-     Parameters
-    ----------
-    uuid_to_test : str
-    version : {1, 2, 3, 4}
-
-     Returns
-    -------
-    `True` if uuid_to_test is a valid UUID, otherwise `False`.
-
-     Examples
-    --------
-    >>> is_valid_uuid('c9bf9e57-1685-4c89-bafb-ff5af830be8a')
-    True
-    >>> is_valid_uuid('c9bf9e58')
-    False
-    """
-
     try:
         if isinstance(uuid_to_test, UUID):
             return True
@@ -216,7 +266,16 @@ def is_valid_uuid(uuid_to_test, version=4):
 
 
 def qiskit_to_pulla(pulla, pulla_backend, qiskit_circuits):
-    """Deprecated alias; delegates to iqm.pulla.utils_qiskit.qiskit_to_pulla."""
+    """Deprecated alias; delegates to iqm.pulla.utils_qiskit.qiskit_to_pulla.
+
+    Args:
+        pulla: Pulla instance.
+        pulla_backend: Pulla backend.
+        qiskit_circuits: Qiskit circuits.
+
+    Returns:
+        Result of the conversion.
+    """
     return _iqm_qiskit_to_pulla(pulla, pulla_backend, qiskit_circuits)
 
 
@@ -225,7 +284,9 @@ def sweep_job_to_qiskit(
     *,
     shots: int,
 ) -> Result:
-    """Convert a completed Pulla job to a Qiskit Result. (Patching function from iqm.pulla.utils_qiskit; Bug with datetime import)
+    """Convert a completed Pulla job to a Qiskit Result.
+
+    This function is a patch for iqm.pulla.utils_qiskit.sweep_job_to_qiskit due to a bug with datetime import.
 
     Args:
         job: The completed job to convert.
@@ -234,6 +295,8 @@ def sweep_job_to_qiskit(
     Returns:
         The equivalent Qiskit Result.
 
+    Raises:
+        ValueError: If the job result or circuit measurement results are missing.
     """
     circuit_execution_results = job.result()
     if circuit_execution_results is None:

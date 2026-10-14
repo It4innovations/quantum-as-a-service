@@ -22,7 +22,7 @@ QHEAppE can be installed using pip. To install the package along with optional d
 
 .. code-block:: bash
 
-   pip install qaas[iqm_qiskit,iqm_pulla] --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
+   pip install qaas[iqm_qiskit] --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
 
 Architecture
 -------------

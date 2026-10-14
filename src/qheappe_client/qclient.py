@@ -1,11 +1,34 @@
-"""Async QaaS client: LEXIS authentication + HEAppE QScheduler over aiohttp.
+"""
+Async QaaS client: LEXIS authentication and HEAppE QScheduler over :mod:`aiohttp`.
 
-Usage:
+The client authenticates a LEXIS JWT, resolves the LEXIS quantum resource of a
+project and all quantum clusters (assignments) behind it, and talks to the
+HEAppE QScheduler REST API of each cluster (job submission, results, machine
+info, sessions, job events).
+
+Both an async API (``await`` / ``async with``) and a sync API are provided.
+The sync API runs coroutines on a private, persistent event loop owned by the
+client and must not be used inside a running loop (e.g. Jupyter).
+
+Async usage::
+
     async with await QClient.create(token, "my_project", "my_resource") as client:
         md = await client.get_backend("VLQ")
         job = await client.submit_quantum_job(tasks, circuit_payloads=payloads)
-        state = await client.wait_for_job_terminal_state(job["Id"], timeout=600)
-        results = await client.get_job_results(job, artifact_names=["measurement_counts"])
+        state = await client.await_for_job_terminal_state(job["Id"], timeout=600)
+        results = await client.aget_job_results(job, artifact_names=["measurement_counts"])
+
+Sync usage::
+
+    with QClient(token, "my_project", "my_resource") as client:
+        info = client.get_quantum_backend_info("VLQ")
+
+Environment variables:
+
+* ``QPROVIDER_LOGLEVEL`` -- logger level (default ``INFO``).
+* ``QPROVIDER_LOGFILE`` -- log to this file instead of stderr.
+* ``QPROVIDER_LOG_BODIES`` -- ``1``/``true``/``yes`` adds response body previews
+  to debug logs (may contain user or project data).
 """
 
 from __future__ import annotations
@@ -53,6 +76,7 @@ from .backend_metadata import (
 )
 from .utils import QAuthException, QException, QResultsFailed
 
+# Module logger: level and target (file / stderr) configured via environment.
 log = logging.getLoggerClass()(
     __name__, os.environ.get("QPROVIDER_LOGLEVEL", "INFO").upper()
 )
@@ -69,10 +93,21 @@ log.addHandler(handler)
 # Opt-in response body previews in debug logs (may contain user/project data).
 _LOG_BODIES = os.environ.get("QPROVIDER_LOG_BODIES", "").lower() in ("1", "true", "yes")
 _BODY_PREVIEW_CHARS = 300
+# Process-wide request counter; correlates request/response lines in debug logs.
 _request_ids = itertools.count(1)
 
 
 def _preview(data: bytes | str, limit: int = _BODY_PREVIEW_CHARS) -> str:
+    """
+    Return a single-line, truncated preview of a body for logging.
+
+    Args:
+        data (bytes or str): Raw body; bytes are decoded as UTF-8 with replacement.
+        limit (int): Maximum number of characters kept.
+
+    Returns:
+        str: Preview with newlines removed and a ``...(+N chars)`` suffix if truncated.
+    """
     text = data.decode("utf-8", errors="replace") if isinstance(data, bytes) else data
     text = text.replace("\n", " ")
     return (
@@ -81,7 +116,16 @@ def _preview(data: bytes | str, limit: int = _BODY_PREVIEW_CHARS) -> str:
 
 
 def _describe_body(json_body: Any, data: Any) -> str:
-    """Short request body description for logs. Never includes payload file contents."""
+    """
+    Describe a request body for logs without exposing uploaded file contents.
+
+    Args:
+        json_body (Any): JSON body, previewed when set.
+        data (Any): Raw body; only its type is logged (multipart is named explicitly).
+
+    Returns:
+        str: Log suffix such as ``" json={...}"``, or an empty string.
+    """
     if json_body is not None:
         return f" json={_preview(json.dumps(json_body, default=str))}"
     if isinstance(data, aiohttp.MultipartWriter):
@@ -109,29 +153,61 @@ _ALLOWED_JWT_ALGS = frozenset(
 
 
 def _to_utc(value: str) -> datetime:
-    """Parse ISO date; keep an explicit offset, assume UTC only for naive values."""
+    """
+    Parse an ISO 8601 date into an aware datetime.
+
+    An explicit offset is kept; naive values are assumed to be UTC.
+
+    Args:
+        value (str): ISO 8601 date or datetime string.
+
+    Returns:
+        datetime
+
+    Raises:
+        ValueError: ``value`` is not a valid ISO 8601 string.
+    """
     dt = datetime.fromisoformat(value)
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 def _g(obj: dict[str, Any], key: str) -> Any:
-    """Read a HEAppE JSON field (PascalCase), tolerating camelCase serializers."""
+    """
+    Read a HEAppE JSON field by its PascalCase name, falling back to camelCase.
+
+    Args:
+        obj (dict[str, Any]): Decoded JSON object.
+        key (str): Field name in PascalCase, e.g. ``"Id"``.
+
+    Returns:
+        Field value, or ``None`` if neither spelling is present.
+    """
     if key in obj:
         return obj[key]
     return obj.get(key[:1].lower() + key[1:])
 
 
+# Swagger type names that are returned as-is by _from_swagger_json.
 _SWAGGER_PRIMITIVES = frozenset(
     {"int", "str", "bool", "float", "object", "date", "datetime"}
 )
 
 
 def _from_swagger_json(data: Any, type_name: str) -> Any:
-    """Deserialize HEAppE JSON into py4heappe swagger models (e.g. 'list[ClusterExt]').
+    """
+    Deserialize HEAppE JSON into ``py4heappe`` swagger models.
 
-    Uses each model's swagger_types / attribute_map. Instances are created without
-    calling __init__ so generated setters do not reject missing optional fields.
-    Date/datetime values stay ISO strings.
+    Uses each model's ``swagger_types`` and ``attribute_map``. Instances are
+    created without calling ``__init__``, so generated setters do not reject
+    missing optional fields. ``date``/``datetime`` values stay ISO strings.
+
+    Args:
+        data (Any): Decoded JSON.
+        type_name (str): Swagger type expression, e.g. ``"list[ClusterExt]"`` or
+            ``"dict(str, int)"``.
+
+    Returns:
+        Any: Model instance(s); unknown types and non-dict data are returned unchanged.
     """
     if data is None:
         return None
@@ -139,6 +215,7 @@ def _from_swagger_json(data: Any, type_name: str) -> Any:
         inner = type_name[5:-1]
         return [_from_swagger_json(item, inner) for item in data]
     if type_name.startswith("dict("):
+        # "dict(KeyType, ValueType)" -> ValueType; keys are kept as decoded.
         inner = type_name[type_name.index(",") + 1 : -1].strip()
         return {k: _from_swagger_json(v, inner) for k, v in data.items()}
     if type_name in _SWAGGER_PRIMITIVES:
@@ -151,12 +228,27 @@ def _from_swagger_json(data: Any, type_name: str) -> Any:
     for attr, attr_type in model_cls.swagger_types.items():
         json_key = model_cls.attribute_map[attr]
         value = data[json_key] if json_key in data else _g(data, json_key)
+        # Write the private backing field directly, bypassing validating setters.
         setattr(obj, f"_{attr}", _from_swagger_json(value, attr_type))
     return obj
 
 
 def _query(params: dict[str, Any] | None) -> list[tuple[str, str | int]] | None:
-    """aiohttp/yarl rejects None/bool/UUID/Enum query values; normalize them. Lists repeat the key."""
+    """
+    Normalize query parameters for :mod:`aiohttp` / :mod:`yarl`.
+
+    * ``None`` values are dropped;
+    * :class:`~enum.Enum` values are replaced by their ``value``;
+    * ``bool`` becomes ``"true"`` / ``"false"``;
+    * other non-``str``/``int`` values (e.g. :class:`~uuid.UUID`) are stringified;
+    * lists and tuples repeat the key once per item.
+
+    Args:
+        params (dict[str, Any] or None): Query parameters.
+
+    Returns:
+        list[tuple[str, str | int]] or None: List of ``(key, value)`` pairs, or ``None`` if ``params`` is empty.
+    """
     if not params:
         return None
     out: list[tuple[str, str | int]] = []
@@ -168,6 +260,7 @@ def _query(params: dict[str, Any] | None) -> list[tuple[str, str | int]] | None:
                 continue
             if isinstance(item, Enum):
                 item = item.value
+            # bool is a subclass of int, so it must be handled before the int check.
             if isinstance(item, bool):
                 item = "true" if item else "false"
             elif not isinstance(item, (str, int)):
@@ -178,18 +271,47 @@ def _query(params: dict[str, Any] | None) -> list[tuple[str, str | int]] | None:
 
 @dataclass(frozen=True)
 class HttpResult:
+    """
+    Fully read HTTP response.
+
+    Attributes:
+        status (int): HTTP status code.
+        content_type (str): Response ``Content-Type`` (without parameters).
+        body (bytes): Raw response body.
+    """
+
     status: int
     content_type: str
     body: bytes
 
     def text(self) -> str:
+        """
+        Body decoded as UTF-8 (invalid bytes replaced).
+
+        Returns:
+            str
+        """
         return self.body.decode("utf-8", errors="replace")
 
     def json(self) -> Any:
+        """
+        Body decoded as JSON.
+
+        Returns:
+            Any
+
+        Raises:
+            ValueError: Body is not valid JSON.
+        """
         return json.loads(self.body)
 
     def parsed(self) -> Any:
-        """JSON if possible, raw bytes otherwise."""
+        """
+        Body decoded as JSON if possible, raw bytes otherwise.
+
+        Returns:
+            Any or bytes
+        """
         try:
             return self.json()
         except ValueError:
@@ -197,20 +319,67 @@ class HttpResult:
 
 
 class MachineCalibrationIQMEndpoint(str, Enum):
+    """
+    IQM calibration endpoints exposed via ``/heappe/QScheduler/MachineCalibration``.
+
+    Attributes:
+        METRICS: Calibration quality metrics (fidelities, coherence times, ...).
+        DYNAMIC_QUANTUM_ARCHITECTURE: Qubits, couplers and gates calibrated in
+            a calibration set.
+    """
+
     METRICS = "metrics"
     DYNAMIC_QUANTUM_ARCHITECTURE = "dynamic-quantum-architecture"
 
 
 class QClient:
     """
-    Async client for quantum backend communication with LEXIS token authentication via HEAppE.
+    Async client for quantum backends behind LEXIS and HEAppE QScheduler.
 
-    One QClient is bound to one LEXIS resource, which can contain several quantum
-    clusters (assignments). Machine info for all clusters is loaded concurrently in
-    `connect()`; the cluster to work with is selected by `get_backend(backend_name)`.
-    Every job/session method also accepts an explicit `backend_name`.
+    One client is bound to one LEXIS resource, which can contain several quantum
+    clusters (LEXIS assignments, called *backends* here). During :meth:`_connect`
+    the client:
 
-    Create with `await QClient.create(...)` or `async with QClient(...) as client:`.
+    #. verifies the JWT and LEXIS project membership;
+    #. resolves the quantum resource and its clusters;
+    #. resolves HEAppE cluster, node type and project IDs (concurrently per
+       HEAppE instance);
+    #. optionally loads machine info of all clusters (concurrently).
+
+    Failures in steps 3 and 4 do not abort the connection; they mark the
+    affected cluster unavailable (``available=False``, ``error=...``).
+
+    The working backend is selected with :meth:`get_backend` (a single-cluster
+    resource is selected implicitly). Every job, session and machine-info method
+    also accepts an explicit ``backend_name``; :meth:`bind` returns a view pinned
+    to one backend.
+
+    Construction:
+
+    * ``await QClient.create(...)`` -- construct and connect;
+    * ``async with QClient(...) as client:`` -- connect on enter, close on exit;
+    * ``with QClient(...) as client:`` -- same, with the sync API.
+
+    Args:
+        token (str): LEXIS JWT access token, also sent as ``Bearer`` to HEAppE.
+        lexis_project (str): LEXIS project short name.
+        lexis_resource_name (str or None): LEXIS resource name; required only if the project
+            has more than one quantum resource.
+        provider_token (str or None): Additional provider-specific token (stored, currently unused).
+        lexis_api_url (str or None): LEXIS Platform API base URL; ``/userorg`` is appended.
+        load_machine_info (bool): Load machine info of all clusters on connect;
+            when ``False`` it is loaded lazily on first use of a backend.
+        session (aiohttp.ClientSession or None): Externally managed :class:`aiohttp.ClientSession`; never closed
+            by the client.
+        kwargs: Reserved for future options (stored, unused).
+
+    Attributes:
+        DEFAULT_USERORG_BASE_URL (str): Default LEXIS Platform API base URL.
+        DEFAULT_QUANTUM_LOCATION_TYPE (int): LEXIS ``LocationTypeId`` of quantum locations.
+        SUPPORTED_SW_STACKS (tuple[str, ...]): Backend software stacks this client can drive.
+        TERMINAL_JOB_STATES (tuple[str, ...]): Upper-case job states a job never leaves (both
+            spellings of *cancelled* are accepted).
+        DEFAULT_TIMEOUT (float): Default total timeout of one HTTP request, in seconds.
     """
 
     DEFAULT_USERORG_BASE_URL = "https://api.lexis.tech/"
@@ -230,15 +399,23 @@ class QClient:
         session: aiohttp.ClientSession | None = None,
         **kwargs,
     ):
-        """Store configuration only; no I/O. Call `await connect()` (or use create / async with)."""
+        """
+        Store configuration only; no I/O is performed.
+
+        Call ``await create(...)``, use ``async with`` / ``with``, or call
+        :meth:`connect` before using the client. Parameters are documented on
+        the class.
+        """
         self._token = token
         self._lexis_project = lexis_project
         self._lexis_resource_name = lexis_resource_name
         self.provider_token = provider_token
+        # Private event loop for the sync API; created on first sync call.
         self._runner: asyncio.Runner | None = None
         self._load_machine_info_on_connect = load_machine_info
         self._kwargs = kwargs
 
+        # Filled by _connect().
         self._authenticated = False
         self._username: str | None = None
         self._lexis_project_info: dict[str, Any] = {}
@@ -268,7 +445,19 @@ class QClient:
 
     @classmethod
     async def create(cls, *args: Any, **kwargs: Any) -> QClient:
-        """Construct and connect in one step."""
+        """
+        Construct and connect a client in one step.
+
+        Arguments are passed to :meth:`__init__`. On failure the client is closed
+        before the exception propagates.
+
+        Returns:
+            QClient: Connected client.
+
+        Raises:
+            QAuthException: Authentication or resource authorization failed.
+            QException: Connection failed.
+        """
         client = cls(*args, **kwargs)
         try:
             await client._connect()
@@ -278,14 +467,30 @@ class QClient:
         return client
 
     def _run(self, coro):
-        """Run a coroutine on the client's own persistent loop (sync API)."""
+        """
+        Run a coroutine on the client's persistent event loop (sync API).
+
+        The loop (:class:`asyncio.Runner`) is created on first use and closed by
+        :meth:`close`, which is also registered with :mod:`atexit`. A single loop
+        is required because the :class:`aiohttp.ClientSession` is bound to the
+        loop it was created on.
+
+        Args:
+            coro: Coroutine to run.
+
+        Returns:
+            The coroutine's result.
+
+        Raises:
+            QException: Called from a thread with a running event loop.
+        """
         try:
             # Check if a loop is already running in this thread (e.g. Jupyter); if so, raise an error.
             asyncio.get_running_loop()
         except RuntimeError:
             pass  # no loop running in this thread -> OK
         else:
-            coro.close()
+            coro.close()  # avoid "coroutine was never awaited" warning
             raise QException(
                 "Sync QClient API called inside a running event loop (e.g. Jupyter); "
                 "use the async methods with 'await' instead."
@@ -298,7 +503,19 @@ class QClient:
         return self._runner.run(coro)
 
     async def _connect(self) -> QClient:
-        """Authenticate against LEXIS, discover clusters and load machine info."""
+        """
+        Authenticate against LEXIS, discover clusters and load machine info.
+
+        Idempotent: returns immediately when already authenticated. Creates an
+        owned HTTP session if none is open.
+
+        Returns:
+            QClient: This client.
+
+        Raises:
+            QAuthException: Token, project or resource authorization failed.
+            QException: HTTP session or request failure.
+        """
         if self._authenticated:
             return self
         # Create a new session if none exists or if the existing one is closed.
@@ -330,6 +547,7 @@ class QClient:
             self._lexis_resource_name
         )
 
+        # Per-cluster failures below are recorded on the cluster, not raised.
         await self._resolve_heappe_clusters()
         if self._load_machine_info_on_connect:
             await self._load_machine_info_all()
@@ -348,7 +566,18 @@ class QClient:
         return self
 
     def connect(self) -> QClient:
-        """Synchronous wrapper for `_connect()`."""
+        """
+        Sync wrapper of :meth:`_connect`.
+
+        On failure the client is closed so the HTTP session and loop do not leak.
+
+        Returns:
+            QClient: This client.
+
+        Raises:
+            QAuthException: Authentication or authorization failed.
+            QException: Connection failed, or called inside a running loop.
+        """
         try:
             return self._run(self._connect())
         except BaseException:
@@ -356,13 +585,15 @@ class QClient:
             raise
 
     async def aclose(self) -> None:
-        """Close the HTTP session (if owned) and clear authentication state.
+        """
+        Close the owned HTTP session and clear authentication state.
 
-        Single place for cleanup logic: `async with` calls it via __aexit__,
-        the sync `close()` runs it on the client's runner.
+        Single place for cleanup logic: ``async with`` calls it from
+        :meth:`__aexit__`, and :meth:`close` runs it on the client's loop.
 
-        On a view returned by bind() only the view is deactivated; the shared session
-        stays open for the parent and other views.
+        On a view returned by :meth:`bind` only the view is deactivated; the shared
+        session stays open for the parent and other views. Injected sessions are
+        never closed.
         """
         self._authenticated = False
         self._active_cluster = None
@@ -383,9 +614,12 @@ class QClient:
         self._session = None
 
     def close(self) -> None:
-        """Sync wrapper of aclose(). The owning client also shuts down its event loop.
+        """
+        Sync wrapper of :meth:`aclose`; the owning client also closes its event loop.
 
-        Safe to call more than once. A bind() view never closes the shared runner.
+        Safe to call more than once. A no-op if the sync API was never used
+        (async callers use ``await aclose()``). A :meth:`bind` view never closes
+        the shared loop.
         """
         runner = self._runner
         if runner is None:
@@ -410,6 +644,12 @@ class QClient:
     close_session = close
 
     async def __aenter__(self) -> Self:
+        """
+        Connect on ``async with`` entry; close on failure.
+
+        Returns:
+            QClient
+        """
         try:
             return await self._connect()
         except BaseException:
@@ -417,16 +657,33 @@ class QClient:
             raise
 
     def __enter__(self) -> Self:
+        """
+        Connect on ``with`` entry (sync API).
+
+        Returns:
+            QClient
+        """
         return self.connect()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Call :meth:`aclose`. Exceptions are not suppressed."""
         await self.aclose()
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Call :meth:`close`. Exceptions are not suppressed."""
         self.close()
 
     @staticmethod
     def _ssl_context() -> ssl.SSLContext:
+        """
+        TLS context for all connections.
+
+        Uses the OS trust store on Windows (via :mod:`truststore`), the default
+        OpenSSL context elsewhere.
+
+        Returns:
+            ssl.SSLContext
+        """
         if sys.platform == "win32":
             return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         return ssl.create_default_context()
@@ -436,11 +693,26 @@ class QClient:
     # =================================================================
 
     def _require_session(self) -> aiohttp.ClientSession:
+        """
+        Return the open HTTP session.
+
+        Returns:
+            aiohttp.ClientSession
+
+        Raises:
+            QException: No session is open.
+        """
         if self._session is None or self._session.closed:
             raise QException("HTTP session is not open; call connect() first")
         return self._session
 
     def _auth_headers(self) -> dict[str, str]:
+        """
+        ``Authorization: Bearer <token>`` header used for LEXIS and HEAppE.
+
+        Returns:
+            dict[str, str]
+        """
         return {"Authorization": f"Bearer {self._token}"}
 
     async def _request(
@@ -453,7 +725,27 @@ class QClient:
         data: Any = None,
         timeout: float | None = None,
     ) -> HttpResult:
-        """Single HTTP call. Body is read inside the context manager; HTTP >= 400 raises QException."""
+        """
+        Perform one authenticated HTTP request and read the whole body.
+
+        The body is read inside the response context, so the connection is
+        released before returning.
+
+        Args:
+            method (str): HTTP method.
+            url (str): Absolute URL.
+            params (dict[str, Any] or None): Query parameters, normalized by :func:`_query`.
+            json_body (Any): JSON body.
+            data (Any): Raw body, e.g. :class:`aiohttp.MultipartWriter`.
+            timeout (float or None): Total timeout in seconds; :attr:`DEFAULT_TIMEOUT` if ``None``.
+
+        Returns:
+            HttpResult: Status, content type and body.
+
+        Raises:
+            QException: HTTP status >= 400 (first 500 bytes of the body included),
+                connection error or timeout.
+        """
         session = self._require_session()
         query = _query(params)
         rid = next(_request_ids)
@@ -470,6 +762,7 @@ class QClient:
             ) as resp:
                 body = await resp.read()
                 if log.isEnabledFor(logging.DEBUG):
+                    # Body preview only on opt-in or on error responses.
                     log.debug(
                         "[#%d] <- %s %s %d %s %dB %.0fms%s",
                         rid,
@@ -503,9 +796,32 @@ class QClient:
 
     @staticmethod
     def _join(base: str, path: str) -> str:
+        """
+        Join a base URL and an absolute path without doubling the slash.
+
+        Args:
+            base (str): Base URL, with or without trailing slash.
+            path (str): Path starting with ``/``.
+
+        Returns:
+            str
+        """
         return f"{base.rstrip('/')}{path}"
 
     def _heappe_url(self, path: str, backend_name: str | None = None) -> str:
+        """
+        Absolute HEAppE URL of ``path`` on the given (or active) backend.
+
+        Args:
+            path (str): HEAppE API path, e.g. ``/heappe/JobManagement/CancelJob``.
+            backend_name (str or None): Backend name; active backend if ``None``.
+
+        Returns:
+            str
+
+        Raises:
+            QException: Backend unknown or none selected.
+        """
         return self._join(self._resolve_cluster(backend_name).heappe_url, path)
 
     async def _heappe_get(
@@ -515,6 +831,21 @@ class QClient:
         params: dict[str, Any] | None = None,
         **kw: Any,
     ) -> HttpResult:
+        """
+        ``GET`` on the cluster's HEAppE instance.
+
+        Args:
+            cluster (QCluster): Target cluster.
+            path (str): HEAppE API path.
+            params (dict[str, Any] or None): Query parameters.
+            kw: Extra arguments for :meth:`_request` (e.g. ``timeout``).
+
+        Returns:
+            HttpResult
+
+        Raises:
+            QException: Request failed.
+        """
         return await self._request(
             "GET", self._join(cluster.heappe_url, path), params=params, **kw
         )
@@ -524,6 +855,22 @@ class QClient:
     # =================================================================
 
     def _verify_backend_version(self, cluster: QCluster):
+        """
+        Check the installed ``qaas`` package against the cluster's QScheduler version.
+
+        Versions are compared as semantic versions (leading ``v`` ignored):
+
+        * major or minor mismatch -- raises :class:`QException`;
+        * patch mismatch -- emits a :class:`UserWarning`.
+
+        Args:
+            cluster (QCluster): Cluster with loaded ``machine_info``.
+
+        Raises:
+            QException: Major or minor version differs.
+            ValueError: A version is not ``X.Y.Z``.
+        """
+
         def _parse_semver(v: str):
             v = (v or "").strip()
             if v.startswith(("v", "V")):
@@ -531,6 +878,7 @@ class QClient:
             parts = v.split(".")
             if len(parts) < 3:
                 raise ValueError(f"Invalid semantic version: {v!r}")
+            # Pre-release/build suffixes beyond the third component are ignored.
             return tuple(int(p) for p in parts[:3])
 
         client_version = m.version("qaas")
@@ -552,7 +900,29 @@ class QClient:
             )
 
     async def _verify_token(self) -> str:
-        """Verify the JWT signature against the issuer's JWKS (fetched with aiohttp)."""
+        """
+        Verify the JWT and return the user identifier.
+
+        Steps:
+
+        #. read ``iss`` and the header ``alg`` / ``kid`` without verification;
+        #. reject algorithms outside :data:`_ALLOWED_JWT_ALGS`;
+        #. fetch the issuer's OpenID configuration and JWKS (via :mod:`aiohttp`);
+        #. verify signature, issuer and expiration with the key matching ``kid``
+           (first key if the token has no ``kid``).
+
+        The audience is not verified.
+
+        Returns:
+            str: ``preferred_username``, or ``sub`` if absent.
+
+        Raises:
+            ValueError: Missing ``iss``, unsupported ``alg``, missing
+                ``jwks_uri`` or no matching key.
+            jwt.InvalidTokenError: Signature, issuer or expiry check failed.
+            QAuthException: Token has no user identifier or is expired.
+            QException: OpenID configuration or JWKS could not be fetched.
+        """
         unverified = jwt.decode(self._token, options={"verify_signature": False})
         issuer = unverified.get("iss")
         if not issuer:
@@ -579,6 +949,7 @@ class QClient:
             raise ValueError("OpenID configuration response is missing 'jwks_uri'")
         jwk_set = jwt.PyJWKSet.from_dict((await self._request("GET", jwks_url)).json())
 
+        # Select the signing key by kid; any key if the token does not name one.
         kid = header.get("kid")
         keys = [k for k in jwk_set.keys if kid is None or k.key_id == kid]
         if not keys:
@@ -599,6 +970,7 @@ class QClient:
                 user_id=user_id,
                 resource=self._lexis_project,
             )
+        # Redundant with verify_exp; kept as an explicit guard.
         exp = decoded.get("exp")
         if exp and exp < time.time():
             raise QAuthException(
@@ -610,11 +982,26 @@ class QClient:
         return user_id
 
     async def _authenticate_authorize_lexis(self) -> tuple[str, dict[str, Any]]:
+        """
+        Verify the JWT and the user's access to the LEXIS project.
+
+        Checks token validity (:meth:`_verify_token`), project membership via
+        UserOrg ``/api/Project``, and the project activity window
+        (``StartDate`` / ``EndDate``) when both dates are present.
+
+        Returns:
+            tuple[str, dict[str, Any]]: ``(user_id, project_info)``; ``project_info`` is the raw UserOrg record.
+
+        Raises:
+            QAuthException: Any check failed. For expected token errors the
+                cause chain is suppressed; unexpected errors keep it.
+        """
         try:
             user_id = await self._verify_token()
         except QAuthException:
             raise
         except (jwt.InvalidTokenError, ValueError) as e:
+            # Expected token problems: concise error, details in debug log only.
             log.debug("Token verification failed", exc_info=True)
             raise QAuthException.from_cause(e, resource=self._lexis_project) from None
         except Exception as e:
@@ -636,6 +1023,7 @@ class QClient:
                 e, user_id=user_id, resource=self._lexis_project
             ) from e
 
+        # The filter param is not trusted alone: match the short name explicitly.
         project_info = next(
             (p for p in projects_data if p.get("ShortName") == self._lexis_project),
             None,
@@ -677,21 +1065,59 @@ class QClient:
 
     @staticmethod
     def _spec_value(assignment: dict[str, Any], key: str) -> str | None:
+        """
+        Value of a LEXIS assignment specification (``Specifications[].Key``).
+
+        Args:
+            assignment (dict[str, Any]): LEXIS assignment record.
+            key (str): Specification key, e.g. ``"HEAPPE_URL"``.
+
+        Returns:
+            str or None: First matching value, or ``None``.
+        """
         for spec in assignment.get("Specifications", []) or []:
             if spec.get("Key") == key:
                 return spec.get("Value")
         return None
 
     def _is_quantum_assignment(self, assignment: dict[str, Any]) -> bool:
+        """
+        Whether the assignment points to a quantum location.
+
+        Args:
+            assignment (dict[str, Any]): LEXIS assignment record.
+
+        Returns:
+            bool
+        """
         return assignment.get("LocationTypeId") == self.DEFAULT_QUANTUM_LOCATION_TYPE
 
     async def _authorize_lexis_resource(
         self, lexis_resource_name: str | None = None
     ) -> LexisResource:
-        """Authorize the LEXIS quantum resource and collect all its clusters (assignments).
+        """
+        Select the LEXIS quantum resource and collect its clusters.
 
-        If `lexis_resource_name` is None, the project must contain exactly one quantum
-        resource; otherwise an error listing the options is raised.
+        A resource is *quantum* if any of its assignments has
+        ``LocationTypeId ==`` :attr:`DEFAULT_QUANTUM_LOCATION_TYPE`. Each quantum
+        assignment with a ``LocationName`` and a ``HEAPPE_URL`` specification
+        becomes one :class:`QCluster`; incomplete assignments are skipped with a
+        warning and duplicate location names keep the first assignment.
+
+        Args:
+            lexis_resource_name (str or None): Resource name. If ``None``, the project must
+                contain exactly one quantum resource.
+
+        Returns:
+            LexisResource: Resource with its clusters (HEAppE IDs not yet resolved).
+
+        Raises:
+            QAuthException: Not authenticated, request failed, no / ambiguous /
+                unknown quantum resource, resource outside its active dates, or no
+                usable cluster.
+
+        Note:
+            Unparsable resource dates are logged and treated as active.
         """
         if not self._authenticated:
             raise QAuthException("Unauthorized!!!")
@@ -740,6 +1166,7 @@ class QClient:
                 resource=self._lexis_project,
             )
 
+        # Pick the resource: implicit only when unambiguous.
         if lexis_resource_name is None:
             if len(quantum_resources) > 1:
                 raise QAuthException(
@@ -768,6 +1195,7 @@ class QClient:
             try:
                 in_range = _to_utc(start) <= datetime.now(UTC) <= _to_utc(end)
             except ValueError as date_error:
+                # Lenient on purpose: bad dates must not lock the user out.
                 log.warning("Could not parse resource dates: %s", date_error)
                 in_range = True
             if not in_range:
@@ -777,6 +1205,7 @@ class QClient:
                     resource=self._lexis_project,
                 )
 
+        # One QCluster per quantum assignment (keyed by LocationName).
         assignments = [
             a
             for a in resource.get("Assignments", []) or []
@@ -820,6 +1249,7 @@ class QClient:
         )
         return LexisResource(
             resource_name=resource_name,
+            # All assignments of one resource share the ProjectResourceId.
             project_resource_id=assignments[0].get("ProjectResourceId"),
             resource_validity_start=start,
             resource_validity_end=end,
@@ -831,7 +1261,17 @@ class QClient:
     # =================================================================
 
     def _matches_resource(self, project: Any) -> bool:
-        """project: py4heappe project model from ClusterNodeTypeExt.projects."""
+        """
+        Whether a HEAppE project belongs to the LEXIS resource.
+
+        Matches the resource name against the project's ``name`` or ``accounting_string``.
+
+        Args:
+            project (Any): ``py4heappe`` project model from ``ClusterNodeTypeExt.projects``.
+
+        Returns:
+            bool
+        """
         name = self.lexis_resource.resource_name
         return name in (
             getattr(project, "name", None),
@@ -839,14 +1279,39 @@ class QClient:
         )
 
     async def _list_available_clusters(self, url: str) -> list[ClusterExt]:
-        """Async equivalent of ClusterInformationApi.heappe_cluster_information_list_available_clusters_get."""
+        """
+        Async equivalent of ``ClusterInformationApi.heappe_cluster_information_list_available_clusters_get``.
+
+        Args:
+            url (str): HEAppE base URL.
+
+        Returns:
+            list[ClusterExt]: Clusters visible to the user, with node types and projects.
+
+        Raises:
+            QException: Request failed.
+        """
         res = await self._request(
             "GET", self._join(url, "/heappe/ClusterInformation/ListAvailableClusters")
         )
         return _from_swagger_json(res.json() or [], "list[ClusterExt]")
 
     async def _resolve_heappe_instance(self, url: str, wanted: list[QCluster]) -> None:
-        """One ListAvailableClusters call for all clusters behind one HEAppE instance."""
+        """
+        Resolve HEAppE IDs of all clusters served by one HEAppE instance.
+
+        Issues a single ``ListAvailableClusters`` call and fills ``cluster_id``,
+        ``cluster_node_type_id`` and, if visible, ``heappe_project_id`` on each
+        cluster. Never raises: problems are written to ``cluster.error``
+        (and ``available=False`` if the instance is unreachable).
+
+        Args:
+            url (str): HEAppE base URL.
+            wanted (list[QCluster]): Clusters behind ``url``.
+
+        Note:
+            Only the first node type of a cluster is used.
+        """
         log.debug("Resolving clusters %s at HEAppE %s", [c.name for c in wanted], url)
         try:
             heappe_clusters = await self._list_available_clusters(url)
@@ -880,6 +1345,7 @@ class QClient:
                 )
             node_type = node_types[0]
             cluster.cluster_node_type_id = node_type.id
+            # ProjectId may be absent here; _project_id_for() falls back to a lookup.
             project = next(
                 (
                     p
@@ -901,10 +1367,12 @@ class QClient:
             )
 
     async def _resolve_heappe_clusters(self) -> None:
-        """Fill cluster_id / cluster_node_type_id / heappe_project_id for every cluster.
+        """
+        Resolve HEAppE IDs for every cluster of the resource.
 
-        HEAppE instances are queried concurrently. Failures are recorded on the cluster
-        (available=False, error=...) instead of aborting connect().
+        Clusters are grouped by HEAppE URL and instances are queried
+        concurrently. Failures are recorded on the cluster (``available=False``,
+        ``error=...``) instead of aborting :meth:`_connect`.
         """
         by_url: dict[str, list[QCluster]] = {}
         for cluster in self.lexis_resource.clusters.values():
@@ -914,10 +1382,22 @@ class QClient:
         )
 
     async def _project_id_for(self, cluster: QCluster) -> int:
-        """HEAppE ProjectId of the cluster.
+        """
+        HEAppE ProjectId of the cluster.
 
-        Taken from ListAvailableClusters when present, otherwise looked up once per HEAppE
-        instance via the accounting string (lock prevents duplicate concurrent lookups).
+        Taken from ``ListAvailableClusters`` when present; otherwise looked up
+        once per HEAppE instance via ``ProjectsByAccountingStrings`` with the
+        LEXIS resource name. A per-URL lock prevents duplicate concurrent
+        lookups, and the result is cached on the cluster and per URL.
+
+        Args:
+            cluster (QCluster): Target cluster.
+
+        Returns:
+            int
+
+        Raises:
+            QException: Lookup failed or no project matches.
         """
         if cluster.heappe_project_id is not None:
             return cluster.heappe_project_id
@@ -925,6 +1405,7 @@ class QClient:
         url = cluster.heappe_url
         lock = self._project_locks.setdefault(url, asyncio.Lock())
         async with lock:
+            # Re-check under the lock: another task may have filled the cache.
             if url not in self._heappe_project_ids:
                 log.debug(
                     "Looking up HEAppE project for accounting string '%s' at %s",
@@ -952,6 +1433,18 @@ class QClient:
         return cluster.heappe_project_id
 
     async def _ids_for(self, backend_name: str | None) -> tuple[QCluster, int, int]:
+        """
+        Cluster and HEAppE IDs needed for job and session calls.
+
+        Args:
+            backend_name (str or None): Backend name; active backend if ``None``.
+
+        Returns:
+            tuple[QCluster, int, int]: ``(cluster, cluster_id, project_id)``.
+
+        Raises:
+            QException: Backend unknown, ClusterId unresolved, or project lookup failed.
+        """
         cluster = self._resolve_cluster(backend_name)
         if cluster.cluster_id is None:
             raise QException(
@@ -960,11 +1453,19 @@ class QClient:
         return cluster, cluster.cluster_id, await self._project_id_for(cluster)
 
     async def _fetch_machine_info(self, cluster: QCluster) -> None:
-        """Fetch /heappe/QScheduler/MachineInfo for one cluster and store it on the cluster.
+        """
+        Fetch ``/heappe/QScheduler/MachineInfo`` and store it on the cluster.
 
-        Never raises; the outcome is reflected in cluster.available / cluster.error.
+        The cluster is marked available only if the response contains a software
+        stack listed in :attr:`SUPPORTED_SW_STACKS` and a QScheduler version.
+        Never raises; the outcome is reflected in ``cluster.available`` and
+        ``cluster.error``.
+
+        Args:
+            cluster (QCluster): Target cluster.
         """
         if cluster.cluster_node_type_id is None:
+            # HEAppE resolution failed earlier; error is already set.
             cluster.available = False
             return
         try:
@@ -1000,6 +1501,7 @@ class QClient:
             log.warning("Backend '%s' unavailable: %s", cluster.name, cluster.error)
 
     async def _load_machine_info_all(self) -> None:
+        """Fetch machine info of all resolved clusters concurrently; never raises."""
         clusters = [
             c
             for c in self.lexis_resource.clusters.values()
@@ -1008,13 +1510,33 @@ class QClient:
         await asyncio.gather(*(self._fetch_machine_info(c) for c in clusters))
 
     async def refresh_machine_info(self, backend_name: str | None = None) -> None:
-        """Re-fetch machine info for one backend, or for all if backend_name is None."""
+        """
+        Re-fetch machine info and update availability.
+
+        Args:
+            backend_name (str or None): Backend to refresh; all backends if ``None``.
+
+        Raises:
+            QException: ``backend_name`` is unknown.
+        """
         if backend_name is None:
             await self._load_machine_info_all()
         else:
             await self._fetch_machine_info(self._resolve_cluster(backend_name))
 
     def _resolve_cluster(self, backend_name: str | None = None) -> QCluster:
+        """
+        Look up a cluster by name, or return the active one.
+
+        Args:
+            backend_name (str or None): Backend name; active backend if ``None``.
+
+        Returns:
+            QCluster
+
+        Raises:
+            QException: Unknown backend, or ``None`` with no active backend.
+        """
         clusters = self.lexis_resource.clusters
         if backend_name is None:
             if self._active_cluster is not None:
@@ -1034,7 +1556,22 @@ class QClient:
     # =================================================================
 
     async def _validate_backend(self, backend_name: str | None = None) -> QCluster:
-        """Resolve a cluster and make sure it is usable. Does not change the active backend."""
+        """
+        Resolve a cluster and ensure it is usable; the active backend is not changed.
+
+        Machine info is fetched on demand if missing (lazy mode or retry after an
+        earlier failure).
+
+        Args:
+            backend_name (str or None): Backend name; active backend if ``None``.
+
+        Returns:
+            QCluster
+
+        Raises:
+            QAuthException: Client not authenticated.
+            QException: Backend unknown or unavailable.
+        """
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
         cluster = self._resolve_cluster(backend_name)
@@ -1053,19 +1590,47 @@ class QClient:
         backend_name: str | None = None,
         calibration_set_id: UUID | str | None = None,
     ) -> QBackendMetadata:
-        """Select a cluster (backend) and return its metadata.
+        """
+        Select a backend and return its metadata.
 
-        The selected backend becomes the default for methods called without backend_name.
+        The selected backend becomes the default for methods called without
+        ``backend_name``. For IQM backends the metadata includes the static and
+        dynamic quantum architecture (see :meth:`_metadata`).
+
+        Args:
+            backend_name (str or None): Backend name; active backend if ``None``.
+            calibration_set_id (UUID or str or None): IQM calibration set for the dynamic architecture;
+                current calibration if ``None``.
+
+        Returns:
+            QBackendMetadata
+
+        Raises:
+            QAuthException: Client not authenticated.
+            QException: Backend unknown or unavailable.
         """
         cluster = await self._validate_backend(backend_name)
         self._active_cluster = cluster.name
         return await self._metadata(cluster, calibration_set_id)
 
     def bind(self, backend_name: str | None = None) -> QClient:
-        """Return a client view pinned to one backend.
+        """
+        Return a client view pinned to one backend (sync API).
 
-        Shallow copy sharing the HTTP session, LEXIS resource, clusters and caches, with its
-        own active backend. aclose() on a view does not close the shared session.
+        The view is a shallow copy sharing the HTTP session, event loop, LEXIS
+        resource, clusters and caches, with its own active backend. Closing a
+        view does not close the shared session or loop.
+
+        Args:
+            backend_name (str or None): Backend name; active backend if ``None``.
+
+        Returns:
+            QClient
+
+        Raises:
+            QAuthException: Client not authenticated.
+            QException: Backend unknown or unavailable, or called inside a
+                running event loop.
         """
         cluster = self._run(self._validate_backend(backend_name))
         view = copy.copy(self)
@@ -1074,27 +1639,83 @@ class QClient:
         view._owns_session = False
         return view
 
-    async def get_available_backends(
+    async def aget_available_backends(
         self, with_architecture: bool = True
     ) -> dict[str, QBackendMetadata]:
-        """All clusters of the resource (including unavailable ones, see .available/.error).
+        """
+        Retrieve metadata for all available backends of the resource.
 
-        with_architecture=False skips the per-backend architecture/calibration requests.
+        This method returns metadata for every backend in the LEXIS quantum resource,
+        including those that are currently unavailable. Each entry's cluster status
+        (available or not) is checked via ``cluster.available`` and ``cluster.error``.
+        Args:
+            with_architecture (bool): If True, fetch IQM architectures concurrently.
+                When False, skips architecture details to reduce network overhead.
+        Returns:
+            dict[str, QBackendMetadata]: A dictionary mapping backend names to their metadata,
+                sorted alphabetically by name. Each entry includes basic cluster information
+                and availability status.
+
+        Raises:
+            QAuthException: If the client is not authenticated.
         """
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
+
         items = sorted(self.lexis_resource.clusters.items())
         if with_architecture:
             mds = await asyncio.gather(*(self._metadata(c) for _, c in items))
         else:
             mds = [self._plain_metadata(c) for _, c in items]
-        return dict(zip((n for n, _ in items), mds, strict=True))
+        return dict(zip((n for n, _ in items), mds))
+    
+    def get_available_backends(
+        self,
+        with_architecture: bool = True
+        ) -> dict[str, QBackendMetadata]:
+        """
+        Retrieve metadata for all available backends of the resource.
+
+        This method provides a synchronous wrapper around `aget_available_backends`.
+        It returns metadata for every backend in the LEXIS quantum resource,
+        including those that are currently unavailable. Each entry's cluster status
+        (available or not) is checked via ``cluster.available`` and ``cluster.error``.
+            Args:
+            with_architecture (bool): If True, fetches IQM architectures concurrently.
+                When False, skips architecture details to reduce network overhead.
+
+        Returns:
+            dict[str, QBackendMetadata]: A dictionary mapping backend names to their metadata,
+                sorted alphabetically by name. Each entry includes basic cluster information
+                and availability status.
+            Raises:
+            QAuthException: If the client is not authenticated.
+        """
+        if not self.is_authenticated:
+            raise QAuthException("Client not authenticated")
+
+        return self._run(self.aget_available_backends(with_architecture=with_architecture))
+    
 
     async def _get_quantum_backend_info(
         self,
         backend_name: str | None = None,
         calibration_set_id: UUID | str | None = None,
     ) -> QBackendMetadata:
+        """
+        Backend metadata without selecting or validating the backend (async).
+
+        Args:
+            backend_name (str or None): Backend name; active backend if ``None``.
+            calibration_set_id (UUID or str or None): IQM calibration set; current if ``None``.
+
+        Returns:
+            QBackendMetadata
+
+        Raises:
+            QAuthException: Client not authenticated.
+            QException: Backend unknown or none selected.
+        """
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
         return await self._metadata(
@@ -1106,6 +1727,21 @@ class QClient:
         backend_name: str | None = None,
         calibration_set_id: UUID | str | None = None,
     ) -> QBackendMetadata:
+        """
+        Sync variant of :meth:`_get_quantum_backend_info`.
+
+        Args:
+            backend_name (str or None): Backend name; active backend if ``None``.
+            calibration_set_id (UUID or str or None): IQM calibration set; current if ``None``.
+
+        Returns:
+            QBackendMetadata
+
+        Raises:
+            QAuthException: Client not authenticated.
+            QException: Backend unknown, none selected, or called inside a
+                running event loop.
+        """
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
         return self._run(
@@ -1113,14 +1749,34 @@ class QClient:
         )
 
     def _plain_metadata(self, cluster: QCluster) -> QBackendMetadata:
+        """
+        Metadata without architecture information (no I/O).
+
+        Args:
+            cluster (QCluster): Target cluster.
+
+        Returns:
+            QBackendMetadata
+        """
         return QBackendMetadata(self._lexis_project_obj, self.lexis_resource, cluster)
 
     async def _metadata(
         self, cluster: QCluster, calibration_set_id: UUID | str | None = None
     ) -> QBackendMetadata:
-        """For IQM backends also fetch static and dynamic architecture (concurrently).
+        """
+        Backend metadata, enriched with IQM architectures when applicable.
 
-        Failures are logged and plain metadata is returned.
+        For IQM backends the static architecture (``MachineArchitecture``) and the
+        dynamic architecture of the calibration set (``MachineCalibration``) are
+        fetched concurrently. The static architecture response is a list; its
+        first element is used. Failures are logged and plain metadata is returned.
+
+        Args:
+            cluster (QCluster): Target cluster.
+            calibration_set_id (UUID or str or None): IQM calibration set; current if ``None``.
+
+        Returns:
+            QBackendMetadata
         """
         if not (cluster.machine_info and cluster.machine_info.sw_stack == "iqm"):
             return self._plain_metadata(cluster)
@@ -1130,6 +1786,7 @@ class QClient:
             calibration_set_id or "default",
         )
         try:
+            # Imported lazily: iqm-client is only needed for IQM backends.
             from iqm.iqm_client import (
                 DynamicQuantumArchitecture,
                 StaticQuantumArchitecture,
@@ -1145,6 +1802,7 @@ class QClient:
             )
             dynamic_arch = DynamicQuantumArchitecture.model_validate_json(dynamic_raw)
             _static_arch = json.loads(static_raw)
+            # Endpoint returns a list of architectures; only the first is used.
             _static_arch = (
                 _static_arch[0]
                 if isinstance(_static_arch, list) and len(_static_arch) > 0
@@ -1170,6 +1828,15 @@ class QClient:
 
     @staticmethod
     def _maybe_json(text: str) -> Any:
+        """
+        Decode ``text`` as JSON, or return it unchanged if it is not JSON.
+
+        Args:
+            text (str): Text to decode.
+
+        Returns:
+            Any
+        """
         try:
             return json.loads(text)
         except ValueError:
@@ -1181,7 +1848,15 @@ class QClient:
 
     @property
     def heappe_client(self) -> HEAppEApi | None:
-        """Sync py4heappe client of the active backend (lazy). Not used by QClient itself."""
+        """
+        Sync ``py4heappe`` API client of the active backend, created lazily.
+
+        Not used by :class:`QClient` itself; provided for callers needing the
+        generated API. Calls through it block the event loop.
+
+        Returns:
+            HEAppEApi or None: Client, or ``None`` if no backend is active.
+        """
         if self._active_cluster is None:
             return None
         url = self._resolve_cluster().heappe_url
@@ -1195,50 +1870,112 @@ class QClient:
 
     @property
     def cluster_information_api(self) -> ClusterInformationApi | None:
-        """Sync py4heappe ClusterInformationApi of the active backend (blocking; not for async code)."""
+        """
+        Sync ``ClusterInformationApi`` of the active backend (blocking; not for async code).
+
+        Returns:
+            ClusterInformationApi or None
+        """
         client = self.heappe_client
         return ClusterInformationApi(client) if client is not None else None
 
     @property
     def job_management_api(self) -> JobManagementApi | None:
-        """Sync py4heappe JobManagementApi of the active backend (blocking; not for async code)."""
+        """
+        Sync ``JobManagementApi`` of the active backend (blocking; not for async code).
+
+        Returns:
+            JobManagementApi or None
+        """
         client = self.heappe_client
         return JobManagementApi(client) if client is not None else None
 
     @property
     def session(self) -> aiohttp.ClientSession | None:
+        """
+        Underlying HTTP session, or ``None`` if not connected.
+
+        Returns:
+            aiohttp.ClientSession or None
+        """
         return self._session
 
     @property
     def is_authenticated(self) -> bool:
+        """
+        Whether :meth:`_connect` succeeded and the client has not been closed.
+
+        Returns:
+            bool
+        """
         return self._authenticated and self._token is not None
 
     @property
     def lexis_project(self) -> str:
+        """
+        LEXIS project short name.
+
+        Returns:
+            str
+        """
         return self._lexis_project
 
     @property
     def lexis_resource(self) -> LexisResource:
+        """
+        Authorized LEXIS resource with its clusters.
+
+        Returns:
+            LexisResource
+
+        Raises:
+            QException: Client not connected.
+        """
         if self._lexis_resource is None:
             raise QException("Client not connected; call connect() first")
         return self._lexis_resource
 
     @property
     def backend_names(self) -> list[str]:
+        """
+        Names of all backends (clusters) of the resource.
+
+        Returns:
+            list[str]
+
+        Raises:
+            QException: Client not connected.
+        """
         return self.lexis_resource.cluster_names
 
     @property
     def active_backend(self) -> str | None:
+        """
+        Name of the active backend, or ``None`` if none is selected.
+
+        Returns:
+            str or None
+        """
         return self._active_cluster
 
     @property
     def cluster_id(self) -> int | None:
-        """HEAppE internal Cluster ID of the active backend."""
+        """
+        HEAppE ClusterId of the active backend.
+
+        Returns:
+            int or None
+        """
         return self._resolve_cluster().cluster_id if self._active_cluster else None
 
     @property
     def project_id(self) -> int | None:
-        """HEAppE Project ID of the active backend, if already resolved (no I/O)."""
+        """
+        HEAppE ProjectId of the active backend, if already resolved (no I/O).
+
+        Returns:
+            int or None
+        """
         return (
             self._resolve_cluster().heappe_project_id if self._active_cluster else None
         )
@@ -1255,16 +1992,31 @@ class QClient:
         backend_name: str | None = None,
     ) -> dict[str, Any]:
         """
-        Submit a job via POST /heappe/QScheduler/CreateAndSubmitJob (multipart/form-data).
+        Create and submit a job via ``POST /heappe/QScheduler/CreateAndSubmitJob``.
 
-        :param tasks: task specs, e.g.
-            [{"Name": "GroverTask", "MachineId": "iqm_simulator",
-              "WalltimeLimitSecs": 3600, "PayloadPartName": "circuit1",
-              "UseSessions": False}]
-        :param job_name: HEAppE job name
-        :param circuit_payloads: maps a task's PayloadPartName -> file content to upload with the job
-        :param backend_name: target cluster; defaults to the active backend
-        :returns: SubmittedJobInfoExt as dict (Id, Name, State, Tasks[...])
+        The request is ``multipart/form-data`` with a JSON ``model`` part and one
+        file part per task whose ``PayloadPartName`` is a key of
+        ``circuit_payloads``. ``ClusterId`` and ``ProjectId`` are filled from the
+        backend.
+
+        Args:
+            tasks (list[dict[str, Any]]): QScheduler task specifications, e.g.::
+
+                [{"Name": "GroverTask", "MachineId": "iqm_simulator",
+                  "WalltimeLimitSecs": 3600, "PayloadPartName": "circuit1",
+                  "UseSessions": False}]
+            job_name (str): HEAppE job name.
+            circuit_payloads (dict[str, bytes | str] or None): Maps a task's ``PayloadPartName`` to the file
+                content uploaded with the job; ``str`` is encoded as UTF-8.
+            backend_name (str or None): Target backend; active backend if ``None``.
+
+        Returns:
+            dict[str, Any]: ``SubmittedJobInfoExt`` as a dict (``Id``, ``Name``, ``State``,
+                ``Tasks[...]``).
+
+        Raises:
+            QAuthException: Client not authenticated.
+            QException: IDs not resolved or submission failed.
         """
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
@@ -1296,6 +2048,7 @@ class QClient:
         with aiohttp.MultipartWriter("form-data") as mp:
             part = mp.append(json.dumps(model), {"Content-Type": "application/json"})
             part.set_content_disposition("form-data", name="model")
+            # Attach payloads only for tasks that reference one; unknown names are ignored.
             for task in tasks:
                 part_name = task.get("PayloadPartName")
                 if part_name and circuit_payloads and part_name in circuit_payloads:
@@ -1334,7 +2087,19 @@ class QClient:
         return submitted
 
     async def aget_job_info(self, job_id: int, backend_name: str | None = None) -> dict[str, Any]:
-        """GET /heappe/JobManagement/CurrentInfoForJob -> SubmittedJobInfoExt (snake_case keys)."""
+        """
+        Current job state via ``GET /heappe/JobManagement/CurrentInfoForJob``.
+
+        Args:
+            job_id (int): HEAppE job ID.
+            backend_name (str or None): Backend that runs the job; active backend if ``None``.
+
+        Returns:
+            dict[str, Any]: ``SubmittedJobInfoExt`` as a dict.
+
+        Raises:
+            QException: Request failed.
+        """
         log.debug("Fetching info of job %s", job_id)
         res = await self._request(
             "GET",
@@ -1344,13 +2109,39 @@ class QClient:
         return res.json()
 
     def get_job_info(self, job_id: int, backend_name: str | None = None) -> dict[str, Any]:
-        """Sync wrapper of `aget_job_info()`."""
+        """
+        Sync wrapper of :meth:`aget_job_info`.
+
+        Args:
+            job_id (int): HEAppE job ID.
+            backend_name (str or None): Backend that runs the job; active backend if ``None``.
+
+        Returns:
+            dict[str, Any]
+
+        Raises:
+            QException: Request failed or called inside a running event loop.
+        """
         return self._run(self.aget_job_info(job_id, backend_name))
 
     async def get_task_result(
         self, task_id: int, backend_name: str | None = None
     ) -> Any:
-        """GET /heappe/QScheduler/GetTaskResult (IQM metadata, timeline, etc.)."""
+        """
+        Task result via ``GET /heappe/QScheduler/GetTaskResult``.
+
+        For IQM backends this contains job metadata, timeline, etc.
+
+        Args:
+            task_id (int): HEAppE task ID.
+            backend_name (str or None): Backend that runs the job; active backend if ``None``.
+
+        Returns:
+            Any: Decoded JSON, or raw bytes for non-JSON responses.
+
+        Raises:
+            QResultsFailed: Request failed.
+        """
         try:
             res = await self._request(
                 "GET",
@@ -1364,7 +2155,21 @@ class QClient:
     async def get_task_artifact(
         self, task_id: int, artifact_name: str, backend_name: str | None = None
     ) -> Any:
-        """GET /heappe/QScheduler/GetTaskArtifact (e.g. measurements, measurements_counts, sweep_results)."""
+        """
+        Named task artifact via ``GET /heappe/QScheduler/GetTaskArtifact``.
+
+        Args:
+            task_id (int): HEAppE task ID.
+            artifact_name (str): Artifact name, e.g. ``measurements``,
+                ``measurements_counts``, ``sweep_results``.
+            backend_name (str or None): Backend that runs the job; active backend if ``None``.
+
+        Returns:
+            Any: Decoded JSON, or raw bytes for non-JSON responses.
+
+        Raises:
+            QResultsFailed: Request failed.
+        """
         try:
             res = await self._request(
                 "GET",
@@ -1384,7 +2189,26 @@ class QClient:
         backend_name: str | None = None,
         max_concurrency: int = 8,
     ) -> dict[int, dict[str, Any]]:
-        """Fetch result (+ optional named artifacts) for every task of a job, concurrently."""
+        """
+        Fetch the result and optional artifacts of every task of a job, concurrently.
+
+        The job should be in a terminal state, e.g. after
+        :meth:`await_for_job_terminal_state`.
+
+        Args:
+            submitted_job (dict[str, Any]): Job info as returned by :meth:`submit_quantum_job`
+                or :meth:`aget_job_info`; only ``Tasks[].Id`` is used.
+            artifact_names (list[str] or None): Artifacts to fetch for every task.
+            backend_name (str or None): Backend that runs the job; active backend if ``None``.
+            max_concurrency (int): Maximum number of requests in flight.
+
+        Returns:
+            dict[int, dict[str, Any]]: ``{task_id: {"result": ..., "artifacts": {name: ...}}}``;
+                ``"artifacts"`` is present only if ``artifact_names`` is non-empty.
+
+        Raises:
+            QResultsFailed: Any result or artifact request failed.
+        """
         sem = asyncio.Semaphore(max_concurrency)
 
         async def limited(coro):
@@ -1394,6 +2218,7 @@ class QClient:
                 return await coro
 
         async def one_task(task_id: int) -> tuple[int, dict[str, Any]]:
+            # Result and all artifacts of one task, fetched in parallel.
             names = artifact_names or []
             result, *artifacts = await asyncio.gather(
                 limited(self.get_task_result(task_id, backend_name)),
@@ -1424,7 +2249,22 @@ class QClient:
         backend_name: str | None = None,
         max_concurrency: int = 8,
     ) -> dict[int, dict[str, Any]]:            
-        
+        """
+        Sync wrapper of :meth:`aget_job_results`.
+
+        Args:
+            submitted_job (dict[str, Any]): Job info with ``Tasks[].Id``.
+            artifact_names (list[str] or None): Artifacts to fetch for every task.
+            backend_name (str or None): Backend that runs the job; active backend if ``None``.
+            max_concurrency (int): Maximum number of requests in flight.
+
+        Returns:
+            dict[int, dict[str, Any]]
+
+        Raises:
+            QResultsFailed: Any result or artifact request failed.
+            QException: Called inside a running event loop.
+        """
         return self._run(
             self.aget_job_results(
                 submitted_job, artifact_names, backend_name, max_concurrency
@@ -1442,6 +2282,25 @@ class QClient:
         backend_name: str | None = None,
         cluster: QCluster | None = None,
     ) -> str:
+        """
+        Static machine architecture via ``GET /heappe/QScheduler/MachineArchitecture``.
+
+        For IQM this is a JSON list of static quantum architectures (qubits,
+        connectivity).
+
+        Args:
+            cluster_node_type_id (int or None): Override of the cluster's node type ID.
+            project_id (int or None): Override of the HEAppE ProjectId.
+            backend_name (str or None): Backend name; active backend if ``None``. Ignored if
+                ``cluster`` is given.
+            cluster (QCluster or None): Cluster object (internal shortcut).
+
+        Returns:
+            str: Raw response text.
+
+        Raises:
+            QException: Backend unknown or request failed.
+        """
         cluster = cluster or self._resolve_cluster(backend_name)
         res = await self._heappe_get(
             cluster,
@@ -1467,8 +2326,28 @@ class QClient:
         backend_name: str | None = None,
         cluster: QCluster | None = None,
     ) -> str:
+        """
+        Calibration data via ``GET /heappe/QScheduler/MachineCalibration``.
+
+        Args:
+            cluster_node_type_id (int or None): Override of the cluster's node type ID.
+            calibration_set_id (UUID or str or None): Calibration set; for IQM ``None`` means the
+                current calibration (``"default"``).
+            endpoint (MachineCalibrationIQMEndpoint or str or None): Calibration endpoint, see :class:`MachineCalibrationIQMEndpoint`.
+            project_id (int or None): Override of the HEAppE ProjectId.
+            backend_name (str or None): Backend name; active backend if ``None``. Ignored if
+                ``cluster`` is given.
+            cluster (QCluster or None): Cluster object (internal shortcut).
+
+        Returns:
+            str: Raw response text (JSON for IQM endpoints).
+
+        Raises:
+            QException: Backend unknown or request failed.
+        """
         cluster = cluster or self._resolve_cluster(backend_name)
         sw_stack = cluster.machine_info.sw_stack if cluster.machine_info else None
+        # IQM expects an explicit "default" alias for the current calibration set.
         if sw_stack == "iqm" and calibration_set_id is None:
             calibration_set_id = "default"
         res = await self._heappe_get(
@@ -1491,10 +2370,18 @@ class QClient:
         backend_name: str | None = None,
         calibration_set_id: UUID | str | None = None,
     ) -> dict[str, Any]:
-        """Calibration quality metrics of a backend as parsed JSON.
+        """
+        Calibration quality metrics of a backend as parsed JSON.
 
-        :param backend_name: target backend; defaults to the active backend
-        :param calibration_set_id: IQM calibration set; None -> current ("default")
+        Args:
+            backend_name (str or None): Target backend; active backend if ``None``.
+            calibration_set_id (UUID or str or None): IQM calibration set; current (``"default"``) if ``None``.
+
+        Returns:
+            dict[str, Any]: Metrics (fidelities, coherence times, ...), as returned by the backend.
+
+        Raises:
+            QException: Backend unknown, request failed or response is not JSON.
         """
         cluster = self._resolve_cluster(backend_name)
         raw = await self.machine_calibration(
@@ -1522,7 +2409,20 @@ class QClient:
         backend_name: str | None = None,
         calibration_set_id: UUID | str | None = None,
     ) -> dict[str, Any]:
-        """Sync wrapper of `machine_metrics()`."""
+        """
+        Sync wrapper of :meth:`machine_metrics`.
+
+        Args:
+            backend_name (str or None): Target backend; active backend if ``None``.
+            calibration_set_id (UUID or str or None): IQM calibration set; current if ``None``.
+
+        Returns:
+            dict[str, Any]
+
+        Raises:
+            QException: Request failed, invalid JSON, or called inside a
+                running event loop.
+        """
         return self._run(self.machine_metrics(backend_name, calibration_set_id))
 
     # =================================================================
@@ -1532,6 +2432,23 @@ class QClient:
     async def open_qscheduler_session(
         self, machine_id: str, walltime_limit_secs: int, backend_name: str | None = None
     ) -> int:
+        """
+        Open a QScheduler session via ``POST /heappe/QScheduler/OpenSession``.
+
+        A session reserves the machine so that tasks submitted with
+        ``UseSessions=True`` run back to back without re-queuing.
+
+        Args:
+            machine_id (str): QScheduler machine ID, e.g. ``"iqm_simulator"``.
+            walltime_limit_secs (int): Maximum session duration in seconds.
+            backend_name (str or None): Target backend; active backend if ``None``.
+
+        Returns:
+            int: Session ID.
+
+        Raises:
+            QException: IDs not resolved or request failed.
+        """
         cluster, cluster_id, project_id = await self._ids_for(backend_name)
         res = await self._request(
             "POST",
@@ -1548,6 +2465,16 @@ class QClient:
     async def close_qscheduler_session(
         self, session_id: int, backend_name: str | None = None
     ) -> None:
+        """
+        Close a QScheduler session via ``DELETE /heappe/QScheduler/CloseSession``.
+
+        Args:
+            session_id (int): Session ID from :meth:`open_qscheduler_session`.
+            backend_name (str or None): Target backend; active backend if ``None``.
+
+        Raises:
+            QException: IDs not resolved or request failed.
+        """
         cluster, cluster_id, project_id = await self._ids_for(backend_name)
         try:
             await self._request(
@@ -1568,6 +2495,19 @@ class QClient:
     async def get_qscheduler_session_info(
         self, session_id: int, backend_name: str | None = None
     ) -> dict[str, Any]:
+        """
+        Session details via ``GET /heappe/QScheduler/GetSessionInfo``.
+
+        Args:
+            session_id (int): Session ID.
+            backend_name (str or None): Target backend; active backend if ``None``.
+
+        Returns:
+            dict[str, Any]
+
+        Raises:
+            QException: Request failed.
+        """
         res = await self._request(
             "GET",
             self._heappe_url("/heappe/QScheduler/GetSessionInfo", backend_name),
@@ -1582,6 +2522,21 @@ class QClient:
         project_id: int | None = None,
         backend_name: str | None = None,
     ) -> list[dict[str, Any]]:
+        """
+        List sessions via ``GET /heappe/QScheduler/ListSessions``.
+
+        Args:
+            state (str or None): Filter by session state; all states if ``None``.
+            cluster_id (int or None): Override of the HEAppE ClusterId.
+            project_id (int or None): Override of the HEAppE ProjectId.
+            backend_name (str or None): Target backend; active backend if ``None``.
+
+        Returns:
+            list[dict[str, Any]]
+
+        Raises:
+            QException: Request failed.
+        """
         cluster = self._resolve_cluster(backend_name)
         res = await self._heappe_get(
             cluster,
@@ -1603,13 +2558,32 @@ class QClient:
     # =================================================================
 
     def _events_ws_url(self, backend_name: str | None = None) -> str:
+        """
+        WebSocket URL of ``/heappe/Events`` (``http(s)`` mapped to ``ws(s)``).
+
+        Args:
+            backend_name (str or None): Backend name; active backend if ``None``.
+
+        Returns:
+            str
+        """
         base = self._resolve_cluster(backend_name).heappe_url.rstrip("/")
         ws_base = base.replace("https://", "wss://").replace("http://", "ws://")
         return f"{ws_base}/heappe/Events"
 
     @staticmethod
     def _ws_close_timeout(seconds: float = 5.0) -> dict[str, Any]:
-        """Bound the close handshake (aiohttp >= 3.11: ClientWSTimeout, older: float)."""
+        """
+        ``ws_connect`` kwargs bounding the close handshake.
+
+        Uses ``ClientWSTimeout`` on :mod:`aiohttp` >= 3.11, a plain float otherwise.
+
+        Args:
+            seconds (float): Close handshake timeout.
+
+        Returns:
+            dict[str, Any]
+        """
         ws_timeout = getattr(aiohttp, "ClientWSTimeout", None)
         if ws_timeout is not None:
             return {"timeout": ws_timeout(ws_close=seconds)}
@@ -1618,9 +2592,24 @@ class QClient:
     async def iter_events(
         self, backend_name: str | None = None, heartbeat: float = 30.0
     ) -> AsyncIterator[dict[str, Any]]:
-        """Yield decoded CloudEvents from the /heappe/Events websocket of the backend's HEAppE.
+        """
+        Yield decoded CloudEvents from the backend's ``/heappe/Events`` websocket.
 
-        Use asyncio.timeout(...) around the loop for an overall deadline.
+        Events cover all jobs visible to the user; filter by ``data.jobId``.
+        Empty and non-JSON messages are skipped. The iterator ends when the
+        server closes the socket. Wrap the loop in :func:`asyncio.timeout` for a
+        deadline and in :func:`contextlib.aclosing` for deterministic cleanup.
+
+        Args:
+            backend_name (str or None): Backend name; active backend if ``None``.
+            heartbeat (float): WebSocket ping interval in seconds.
+
+        Returns:
+            AsyncIterator[dict[str, Any]]: Async iterator of CloudEvent dicts (``type``, ``data`` with
+                ``jobId`` and ``state``, ...).
+
+        Raises:
+            QException: Connection failed or the socket reported an error.
         """
         session = self._require_session()
         ws_url = self._events_ws_url(backend_name)
@@ -1656,6 +2645,7 @@ class QClient:
                             continue
                         received += 1
                         if log.isEnabledFor(logging.DEBUG):
+                            # Defensive: events may not be dicts or may lack "data".
                             data = (
                                 event.get("data") if isinstance(event, dict) else None
                             )
@@ -1676,7 +2666,27 @@ class QClient:
     async def await_for_job_terminal_state(
         self, job_id: int, timeout: float | None = None, backend_name: str | None = None
     ) -> str:
-        """Wait until a CloudEvent reports job_id in a terminal state (FINISHED/FAILED/CANCELED)."""
+        """
+        Wait until a CloudEvent reports the job in a terminal state.
+
+        Terminal states are listed in :attr:`TERMINAL_JOB_STATES`. Only events
+        received after the websocket connects are seen, so a job that finished
+        before the call is not detected; check :meth:`aget_job_info` first if
+        that is possible.
+
+        Args:
+            job_id (int): HEAppE job ID.
+            timeout (float or None): Maximum wait in seconds; unlimited if ``None``.
+            backend_name (str or None): Backend that runs the job; active backend if ``None``.
+
+        Returns:
+            str: Terminal state as reported by the event (original case).
+
+        Raises:
+            QResultsFailed: Timeout, or the event stream closed before a
+                terminal state was reported.
+            QException: WebSocket connection failed.
+        """
         log.debug(
             "Waiting for job %s to reach a terminal state (timeout=%s)", job_id, timeout
         )
@@ -1688,6 +2698,7 @@ class QClient:
                     async for event in events:
                         data = event.get("data") or {}
                         evt_job_id = data.get("jobId", None)
+                        # Skip events of other jobs (job IDs may arrive as strings).
                         if evt_job_id is None or int(evt_job_id) != int(job_id):
                             continue
                         state = data.get("state")
@@ -1705,7 +2716,21 @@ class QClient:
     def wait_for_job_terminal_state(
         self, job_id: int, timeout: float | None = None, backend_name: str | None = None
     ) -> str:
-        """Wait until a CloudEvent reports job_id in a terminal state (FINISHED/FAILED/CANCELED)."""
+        """
+        Sync wrapper of :meth:`await_for_job_terminal_state`.
+
+        Args:
+            job_id (int): HEAppE job ID.
+            timeout (float or None): Maximum wait in seconds; unlimited if ``None``.
+            backend_name (str or None): Backend that runs the job; active backend if ``None``.
+
+        Returns:
+            str: Terminal state.
+
+        Raises:
+            QResultsFailed: Timeout or stream closed early.
+            QException: Connection failed or called inside a running event loop.
+        """
         return self._run(
             self.await_for_job_terminal_state(
                 job_id=job_id, timeout=timeout, backend_name=backend_name
@@ -1717,6 +2742,18 @@ class QClient:
     # =================================================================
 
     async def cancel_job(self, job_id: int, backend_name: str | None = None) -> bool:
+        """
+        Cancel a job via ``PUT /heappe/JobManagement/CancelJob``.
+
+        Errors are logged, not raised.
+
+        Args:
+            job_id (int): HEAppE job ID.
+            backend_name (str or None): Backend that runs the job; active backend if ``None``.
+
+        Returns:
+            bool: ``True`` if HEAppE accepted the request, ``False`` otherwise.
+        """
         log.debug("Cancelling job %s", job_id)
         try:
             await self._request(
@@ -1733,6 +2770,19 @@ class QClient:
     async def delete_job(
         self, job_id: int, archive_logs: bool = False, backend_name: str | None = None
     ) -> bool:
+        """
+        Delete a job and its data via ``DELETE /heappe/JobManagement/DeleteJob``.
+
+        Errors are logged, not raised.
+
+        Args:
+            job_id (int): HEAppE job ID.
+            archive_logs (bool): Keep the job logs archived on the HEAppE side.
+            backend_name (str or None): Backend that runs the job; active backend if ``None``.
+
+        Returns:
+            bool: ``True`` if HEAppE accepted the request, ``False`` otherwise.
+        """
         log.debug("Deleting job %s (archive_logs=%s)", job_id, archive_logs)
         try:
             await self._request(

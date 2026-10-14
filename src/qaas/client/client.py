@@ -90,48 +90,71 @@ log.addHandler(handler)
 
 class QClient:
     """
-    Client for quantum backend communication with LEXIS token authentication via HEAppE.
+    Client for quantum backends exposed through LEXIS and HEAppE.
 
-    This class provides comprehensive authentication and communication with the LEXIS platform
-    and HEAppE infrastructure for quantum computing services. It handles JWT token validation,
-    project authorization, resource allocation, and HEAppE session management for quantum
-    job submission and execution.
+    The client authenticates the user against LEXIS (JWT + project membership),
+    resolves the quantum resource assigned to the project, locates the HEAppE
+    instance serving that resource and the command templates used to run work
+    on it. Every remote operation (circuit execution, Pulla initialisation,
+    calibration / architecture queries) is executed as a HEAppE job.
 
-    :param token: LEXIS JWT authentication token
+    Two HEAppE queues are used:
+
+    * ``qinit`` -- short, lightweight jobs (metadata queries, Pulla init).
+    * ``qexecute`` -- jobs that actually run on the quantum computer.
+
+    The user's JWT is forwarded to each job encrypted with a per-job random
+    password; the password itself is passed via the ``USER_JWT_PWD``
+    environment variable.
+
+    :param token: LEXIS JWT access token.
     :type token: str
-    :param lexis_project: LEXIS project identifier for resource access
+    :param lexis_project: LEXIS project short name.
     :type lexis_project: str
-    :param lexis_resource_name: Optional specific resource name within project
+    :param lexis_resource_name: Name of the LEXIS project resource to use.
+        Auto-detected when ``None``.
     :type lexis_resource_name: str or None
-    :param quantum_computer_name:
-    :param backend_url: Optional custom backend URL override
-    :type backend_url: str or None
+    :param quantum_computer_name: Quantum computer within the resource (equal to
+        ``AggregationName`` in LEXIS resource assignments). Auto-detected when ``None``.
+    :type quantum_computer_name: str or None
+    :param provider_token: Additional provider-specific token (e.g. vendor API token).
+    :type provider_token: str or None
+    :param kwargs: Optional overrides, see :meth:`__init__`.
 
-    :raises QException: When client initialization or configuration fails
-    :raises QAuthException: When authentication or authorization fails
-    :raises QResultsFailed: When failed to execute HEAppE job or retrieve results of a job
+    :raises QAuthException: Authentication or authorization failed.
+    :raises QException: Configuration or HEAppE lookup failed.
 
-    :cvar DEFAULT_LEXIS_ASSIGNMENT_LOCATION_NAME: Default quantum location name
-    :vartype DEFAULT_LEXIS_ASSIGNMENT_LOCATION_NAME: str
-    :cvar DEFAULT_TEMPLATE_NAME: Default HEAppE command template name
-    :vartype DEFAULT_TEMPLATE_NAME: str
-    :cvar USERORG_BASE_URL: Base URL for LEXIS UserOrg API
-    :vartype USERORG_BASE_URL: str
-
-    :cvar DEFAULT_POLL_TIME: Default polling interval in seconds for job status checks
-    :vartype DEFAULT_POLL_TIME: int
-    :cvar TERMINAL_JOB_STATES: Job statuses a job never transitions out of
+    :cvar DEFAULT_QINIT_TEMPLATE_NAME: HEAppE command template for the ``qinit`` queue.
+    :vartype DEFAULT_QINIT_TEMPLATE_NAME: str
+    :cvar DEFAULT_QEXECUTE_TEMPLATE_NAME: HEAppE command template for the ``qexecute`` queue.
+    :vartype DEFAULT_QEXECUTE_TEMPLATE_NAME: str
+    :cvar DEFAULT_QINIT_QUEUE_NAME: HEAppE node type (queue) name for init jobs.
+    :vartype DEFAULT_QINIT_QUEUE_NAME: str
+    :cvar DEFAULT_QEXECUTE_QUEUE_NAME: HEAppE node type (queue) name for execution jobs.
+    :vartype DEFAULT_QEXECUTE_QUEUE_NAME: str
+    :cvar DEFAULT_USERORG_BASE_URL: Base URL of the LEXIS UserOrg API.
+    :vartype DEFAULT_USERORG_BASE_URL: str
+    :cvar DEFAULT_QUANTUM_LOCATION_TYPE: LEXIS ``LocationTypeId`` denoting quantum locations.
+    :vartype DEFAULT_QUANTUM_LOCATION_TYPE: int
+    :cvar UPLOAD_FILE_TO_EXECUTION_DIR_ENDPOINT: HEAppE 6.2 upload endpoint not yet
+        covered by ``py4heappe``.
+    :vartype UPLOAD_FILE_TO_EXECUTION_DIR_ENDPOINT: str
+    :cvar DEFAULT_POLL_TIME: Polling interval in seconds for job status checks.
+    :vartype DEFAULT_POLL_TIME: float
+    :cvar TERMINAL_JOB_STATES: Statuses returned by :meth:`get_job_status` that a job
+        never leaves.
     :vartype TERMINAL_JOB_STATES: tuple[str, ...]
 
     .. note::
-        Authentication is performed automatically during initialization, including
-        JWT token validation, project membership verification, resource authorization,
-        and HEAppE session establishment.
+        All authentication and resource resolution happens in the constructor,
+        which therefore performs several network round trips.
 
-    Example:
-        >>> client = QClient(token, "my_project", "qaas_user")
-        >>> backend_info = client.get_quantum_backend_info("iqm_backend")
-        >>> job_id = client.submit_quantum_job(job_specification)
+    Example::
+
+        with QClient(token, "my_project") as client:
+            info = client.get_quantum_backend_info()
+            job_id = client.submit_quantum_job({"name": "bell"}, backend, qasm)
+            results = client.get_job_results(job_id, ["..."], use_dill=[False], wait=True)
     """
 
     # Two templates for two different queues are required by HEAppE architecture
@@ -164,34 +187,44 @@ class QClient:
         **kwargs,
     ):
         """
-        Initialize QClient with LEXIS authentication and project configuration.
+        Authenticate the user and resolve the quantum backend.
 
-        Performs complete authentication workflow including JWT token validation,
-        LEXIS project membership verification, resource authorization, and HEAppE
-        session establishment. All authentication steps must succeed for
-        initialization to complete.
+        Steps performed, all of which must succeed:
 
-        :param token: Valid LEXIS JWT authentication token
+        #. Verify the JWT and LEXIS project membership/activity
+           (:meth:`_authenticate_authorize_lexis`).
+        #. Resolve the quantum resource and its HEAppE URL
+           (:meth:`_authorize_lexis_resource`).
+        #. Check client/server ``qaas`` version compatibility
+           (:meth:`_verify_backend_version`).
+        #. Create the HEAppE API client (:meth:`_authenticate_heappe`).
+        #. Resolve HEAppE command templates for both queues
+           (:meth:`_get_command_template_ids`).
+
+        :param token: LEXIS JWT access token.
         :type token: str
-        :param lexis_project: LEXIS project identifier for quantum resource access
+        :param lexis_project: LEXIS project short name.
         :type lexis_project: str
-        :param lexis_resource_name: Specific resource name within project (auto-detected if None)
+        :param lexis_resource_name: LEXIS project resource name; auto-detected when ``None``.
         :type lexis_resource_name: str or None
-        :param quantum_computer_name: Name of the quantum computer within the resource (auto-detected if None), equal to AggregationName in LEXIS Resources.Assignments
+        :param quantum_computer_name: Quantum computer (``AggregationName``) within
+            the resource; auto-detected when ``None``.
         :type quantum_computer_name: str or None
-
-        :param provider_token: When provider requires additional authentication like API token
+        :param provider_token: Additional provider-specific token.
         :type provider_token: str or None
+        :keyword str lexis_userorg_api_url: Override of :attr:`DEFAULT_USERORG_BASE_URL`.
+        :keyword list[str] lexis_aggregation_name: Accepted aggregation names
+            (default ``["VLQ", "EQE1", "QLM"]``).
+        :keyword str qinit_command_template_name: Override of :attr:`DEFAULT_QINIT_TEMPLATE_NAME`.
+        :keyword str qexecute_command_template_name: Override of
+            :attr:`DEFAULT_QEXECUTE_TEMPLATE_NAME`.
+        :keyword str qinit_queue_name: Override of :attr:`DEFAULT_QINIT_QUEUE_NAME`.
+        :keyword str qexecute_queue_name: Override of :attr:`DEFAULT_QEXECUTE_QUEUE_NAME`.
+        :keyword str cmd_socket_path: Development only; forwarded to jobs as
+            ``IQM_SERVICE_SOCKET``.
 
-        :raises QException: When initialization fails due to configuration errors
-        :raises QAuthException: When any authentication step fails (token, project, resource, HEAppE)
-        :raises QResultsFailed: When HEAppE authentication job fails
-        :raises ValueError: When JWT token format is invalid
-        :raises requests.RequestException: When LEXIS API calls fail
-
-        .. warning::
-            Initialization may take several seconds as it involves multiple API calls
-            to LEXIS UserOrg service and HEAppE authentication workflow.
+        :raises QAuthException: Token, project or resource authorization failed.
+        :raises QException: Version mismatch or HEAppE template lookup failed.
         """
 
         # Constants
@@ -250,6 +283,19 @@ class QClient:
         self._dynamic_quantum_architectures = {}
 
     def _verify_backend_version(self):
+        """
+        Check that the installed ``qaas`` package matches the server version.
+
+        Versions are compared as semantic versions (an optional leading ``v`` is
+        ignored):
+
+        * major or minor mismatch -- blocking, raises :class:`QException`;
+        * patch mismatch -- non-blocking, emits a :class:`UserWarning`.
+
+        :raises QException: Major or minor version differs.
+        :raises ValueError: A version string is not a valid ``X.Y.Z`` version.
+        """
+
         def _parse_semver(v: str):
             v = (v or "").strip()
             if v.startswith(("v", "V")):
@@ -290,32 +336,24 @@ class QClient:
 
     def _authenticate_authorize_lexis(self) -> tuple[str, dict[str, Any]]:
         """
-        Validate JWT token and verify LEXIS project access.
+        Verify the JWT and the user's membership in the LEXIS project.
 
-        Performs comprehensive JWT token validation including signature verification
-        using JWKS, expiration checking, and project membership verification through
-        the LEXIS UserOrg API. Also validates project active/inactive status based
-        on start and end dates.
+        Performed checks:
 
-        :returns: Tuple of (username, project_info_dict)
-        :rtype: Tuple[str, Dict[str, Any]]
+        * JWT signature, using the JWKS advertised by the issuer's
+          ``/.well-known/openid-configuration``;
+        * issuer (``iss``) and expiration (``exp``);
+        * presence of a user identifier (``preferred_username`` or ``sub``);
+        * project membership via the UserOrg ``/api/Project`` endpoint;
+        * project activity window (``StartDate`` / ``EndDate``), when present.
 
-        :raises QException: When token validation or project verification fails
-        :raises QAuthException: When authentication fails at any stage
-        :raises QResultsFailed: When LEXIS API calls fail
-        :raises ValueError: When JWT token format or claims are invalid
-        :raises requests.RequestException: When UserOrg API requests fail
+        On Windows the OS trust store is used for TLS (via ``truststore``).
 
-        .. note::
-            Uses PyJWKClient to automatically fetch and verify JWT signing keys
-            from the Keycloak JWKS endpoint derived from the token issuer.
+        :returns: ``(user_id, project_info)`` where ``project_info`` is the raw
+            UserOrg project record.
+        :rtype: tuple[str, dict[str, Any]]
 
-        The method validates:
-
-        * JWT signature using JWKS from token issuer
-        * Token expiration timestamp
-        * Project membership via UserOrg API
-        * Project active status (start/end dates)
+        :raises QAuthException: Any of the checks above failed.
         """
 
         try:
@@ -513,37 +551,33 @@ class QClient:
         quantum_computer_name: str | None = None,
     ) -> QBackendMetadata:
         """
-        Authorize access to quantum resources within LEXIS project.
+        Resolve the quantum resource of the project and build backend metadata.
 
-        Retrieves project resources from LEXIS UserOrg API and validates access
-        to quantum computing resources. Automatically detects VLQ (quantum) resources
-        or validates access to specifically named resources. Extracts HEAppE URL
-        configuration from resource specifications.
+        Resources are read from the UserOrg ``/api/ProjectResource`` endpoint.
 
-        :param lexis_resource_name: Specific resource name to authorize (auto-detect if None)
+        * If ``lexis_resource_name`` is ``None``, the first resource with
+          ``LocationTypeId ==`` :attr:`DEFAULT_QUANTUM_LOCATION_TYPE` whose
+          ``AggregationName`` is in the accepted aggregation names (and equals
+          ``quantum_computer_name``, if given) is selected.
+        * Otherwise the resource with the given name is selected, together with
+          its first assignment of an accepted aggregation name.
+
+        For the selected resource the activity window is verified, the
+        ``HEAPPE_URL`` specification is read, and ``<HEAPPE_URL>/qaas`` is
+        queried for ``qaas_version``, ``sw_stack`` (both required) and
+        ``quantum_technology`` (optional).
+
+        :param lexis_resource_name: Resource name; auto-detected when ``None``.
         :type lexis_resource_name: str or None
-
-        :param quantum_computer_name: Name of the quantum computer within the resource (auto-detected if None), equal to AggregationName in LEXIS Resources.Assignments
+        :param quantum_computer_name: ``AggregationName`` to match during
+            auto-detection; any accepted name when ``None``.
         :type quantum_computer_name: str or None
 
-        :returns: QBackend information (LEXIS project, LEXIS resource, QBackend metadata)
+        :returns: Metadata of the resolved backend.
         :rtype: QBackendMetadata
 
-        :raises QException: When resource configuration is invalid
-        :raises QAuthException: When resource access is denied or not found
-        :raises QResultsFailed: When LEXIS API calls fail
-        :raises requests.RequestException: When UserOrg API requests fail
-
-        .. note::
-            If lexis_resource_name is None, automatically searches for resources
-            with DEFAULT_LEXIS_ASSIGNMENT_LOCATION_NAME ("VLQ") assignment type.
-
-        The method validates:
-
-        * Resource existence within project
-        * VLQ assignment availability
-        * Resource active status (start/end dates)
-        * HEAppE URL presence in specifications
+        :raises QAuthException: Client not authenticated, resource/assignment not
+            found, resource inactive, or required specification missing.
         """
 
         if not self._authenticated:
@@ -755,11 +789,15 @@ class QClient:
 
     def _authenticate_heappe(self) -> HEAppEApi:
         """
-        Prepares HEAppE client for communication with HEAppE instances connected to QCs.
+        Create the HEAppE API client for the resolved backend.
 
-        :raises QException: When HEAppE client configuration fails
-        :raises QAuthException: When HEAppE authentication fails or returns invalid session
-        :raises QResultsFailed: When HEAppE authentication request fails
+        The client targets the backend's ``HEAPPE_URL`` and sends the LEXIS JWT
+        as a ``Bearer`` token; no separate HEAppE session is opened.
+
+        :returns: Configured HEAppE API client.
+        :rtype: HEAppEApi
+
+        :raises QAuthException: Client construction failed.
         """
 
         try:
@@ -786,12 +824,21 @@ class QClient:
         job_info: SubmittedJobInfoExt,
         use_dill=False,
     ):
-        """Uploads python
+        """
+        Serialize a Python object and upload it to the job's execution directory.
 
-        :param python_object: Python object to pickle and send to HEAppE job (job should be already created)
-        :param target_file_name: Target file name without extension. (.pkl will be appended)
-        :param use_dill: Dill can serialize lambda funcs,defaults to False
-        :raises QException: on upload failure
+        :param python_object: Object to serialize.
+        :type python_object: Any
+        :param target_file_name: File name without extension; ``.pkl`` is appended.
+        :type target_file_name: str
+        :param job_info: Created (not necessarily submitted) HEAppE job; the file
+            goes to the directory of its first task.
+        :type job_info: SubmittedJobInfoExt
+        :param use_dill: Serialize with :mod:`dill` instead of :mod:`pickle`
+            (supports lambdas, closures, etc.).
+        :type use_dill: bool
+
+        :raises QException: Upload request failed or HEAppE did not confirm the file.
         """
         files = {
             "files": (
@@ -841,14 +888,18 @@ class QClient:
     def _circuit_upload_to_cluster(
         self, circuit: str, target_file_name: str, job_info: SubmittedJobInfoExt
     ):
-        """Uploads python
+        """
+        Upload an OpenQASM circuit to the job's execution directory.
 
-        :param circuit: OpenQASM circuit
-        :param target_file_name: Target file name without extension. (.qasm will be appended)
-        :param job_info: Submitted job info
-        :type SubmittedJobInfoExt:
-        :raises QException: on upload failure
+        :param circuit: Circuit serialized as OpenQASM.
+        :type circuit: str
+        :param target_file_name: File name without extension; ``.qasm`` is appended.
+        :type target_file_name: str
+        :param job_info: Created HEAppE job; the file goes to the directory of its
+            first task.
+        :type job_info: SubmittedJobInfoExt
 
+        :raises QException: Upload request failed or HEAppE did not confirm the file.
         """
 
         file_name = target_file_name + ".qasm"
@@ -892,13 +943,20 @@ class QClient:
     def _token_upload_to_cluster(
         self, encryption_password: str, job_info: SubmittedJobInfoExt
     ):
-        """Uploads python
+        """
+        Encrypt the user's JWT and upload it as ``user_token.enc``.
 
-        :param enc_passw: Password to encrypt token with (original password, not encoded)
-        :param job_info: Submitted job info
-        :type SubmittedJobInfoExt:
-        :raises QException: on upload failure
+        The job decrypts the token with the password delivered through the
+        ``USER_JWT_PWD`` environment variable, so the token never travels in
+        plain text inside the job specification.
 
+        :param encryption_password: Raw (not encoded) password used for encryption.
+        :type encryption_password: str
+        :param job_info: Created HEAppE job; the file goes to the directory of its
+            first task.
+        :type job_info: SubmittedJobInfoExt
+
+        :raises QException: Upload request failed or HEAppE did not confirm the file.
         """
         encrypted_token = encrypt_string(self._token, encryption_password)
 
@@ -942,24 +1000,33 @@ class QClient:
 
     @classmethod
     def _get_real_template_name(cls, project_name: str, template_name: str) -> str:
+        """
+        Build the project-scoped HEAppE command template name.
+
+        :param project_name: LEXIS project short name.
+        :type project_name: str
+        :param template_name: Base template name, e.g. ``RunQInit``.
+        :type template_name: str
+        :returns: ``"<project_name>_<template_name>"``.
+        :rtype: str
+        """
         return project_name + "_" + template_name
 
     @property
     def heappe_client(self) -> HEAppEApi | None:
         """
-        Get the HEAppE client instance.
+        HEAppE API client.
 
-        :returns: HEAppE API client if initialized, None otherwise
-        :rtype: Optional[HEAppEApi]
+        :returns: The client, or ``None`` after :meth:`close_session`.
+        :rtype: HEAppEApi or None
         """
         return self._heappe_client
 
     @property
     def is_authenticated(self) -> bool:
         """
-        Check if client is fully authenticated.
+        Whether the client is authenticated and holds a token.
 
-        :returns: True if both LEXIS and HEAppE authentication completed successfully
         :rtype: bool
         """
         return self._authenticated and self._token is not None
@@ -967,35 +1034,27 @@ class QClient:
     @property
     def lexis_project(self) -> str:
         """
-        Get the LEXIS project identifier.
+        LEXIS project short name.
 
-        :returns: LEXIS project name
         :rtype: str
         """
         return self._lexis_project
 
     def get_quantum_backend_info(self) -> QBackendMetadata:
         """
-        Get quantum backend information and configuration.
+        Return metadata of the backend resolved during initialization.
 
-        Retrieves information about the specified quantum backend, including
-        connection details and authentication status. Currently returns basic
-        configuration information.
+        No network call is made; the metadata was collected by
+        :meth:`_authorize_lexis_resource`.
 
-        :param backend_name: Name of the quantum backend to query
-        :type backend_name: str
+        :returns: Backend metadata (name, software stack, technology, LEXIS
+            resource and project, HEAppE URL, ``qaas`` version).
+        :rtype: QBackendMetadata
 
-        :returns: Dictionary containing backend information and status
-        :rtype: Dict[str, Any]
-
-        :raises QException: When backend information retrieval fails
-        :raises QAuthException: When client authentication is invalid
-        :raises QResultsFailed: When backend service communication fails
+        :raises QAuthException: Client is not authenticated.
 
         .. note::
-            This is a placeholder implementation that returns basic connection
-            information. Production implementation would query actual quantum
-            backend services for detailed capabilities and status.
+            Backend availability is currently reported as ``"UNKNOWN"``.
         """
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
@@ -1010,49 +1069,65 @@ class QClient:
         run_options: dict[str, Any] | None = None,
     ) -> int:
         """
-        Submit a quantum job for execution via HEAppE.
+        Create, populate and submit a HEAppE job.
 
-        Creates and submits a quantum job specification to HEAppE infrastructure,
-        configuring task parameters, environment variables, and resource requirements.
-        Returns the HEAppE job ID for status monitoring and result retrieval.
+        Workflow:
 
-        :param job_data: Job specification dictionary containing:
+        #. Pick the queue: ``qexecute`` (2 cores) if ``backend`` is given,
+           otherwise ``qinit`` (1 core).
+        #. Create the HEAppE job.
+        #. Upload the encrypted user token.
+        #. Upload inputs in parallel:
 
-            * name (str): Job name identifier
-            * walltime_limit (int): Maximum execution time in seconds
-            * tasks (List[Dict]): Task specifications with template parameters
-            * environment_variables (List[Dict]): Environment variable settings
-            * project_id (int): HEAppE project ID (optional, uses default)
-            * cluster_id (int): HEAppE cluster ID (optional, uses default)
+           * ``RunDefinition`` -> ``run_definition.pkl`` (dill);
+           * OpenQASM string(s) -> ``circuit_NNNN.qasm``;
+           * ``run_options`` -> ``run_kwargs.pkl`` (dill);
+           * :class:`IQMBackend` -> ``backend.pkl`` and ``iqm_target_attrs.pkl``
+             (pickle; the latter restores ``iqm_*`` attributes of the target that
+             are lost when pickling);
+           * :class:`Pulla` -> ``pulla.pkl`` (dill).
 
-        :type job_data: Dict[str, Any]
+        #. Submit the job to the queue.
 
-        :param circuits: Quantum circuit or list of circuits. OpenQASM serialized string.
-        :type circuits: RunDefinition|str|list[str]|None
-        :param run_options: Dictionary of quantum circuit execution
-        :type run_options: dict[str, Any]
+        The remote command is selected via ``Q_COMMAND``:
+        ``pulla_submit_playlist`` for a ``RunDefinition``, ``backend_run``
+        otherwise.
 
-        :returns: HEAppE job ID for monitoring and result retrieval
+        :param job_data: Optional overrides of the job specification:
+
+            * ``name`` (*str*) -- job name, default ``"quantum_job"``;
+            * ``walltime_limit`` (*int*) -- seconds, default ``7200``;
+            * ``project_id``, ``cluster_id``, ``file_transfer_method_id``
+              (*int*) -- HEAppE IDs, default from the resolved template;
+            * ``tasks`` (*list[dict]*) -- only the first item is used; keys
+              ``cluster_node_type_id`` and ``template_parameter_values``;
+            * ``command_template_id`` (*list[dict]*) -- only the first item is
+              used; key ``command_template_id``;
+            * ``environment_variables`` (*list[EnvironmentVariableExt]*) --
+              prepended to the variables set by the client.
+
+        :type job_data: dict[str, Any]
+        :param backend: Backend object executed remotely. Determines the queue.
+        :type backend: IQMBackend or Pulla or None
+        :param circuits: Pulla ``RunDefinition`` or one or more OpenQASM circuits.
+        :type circuits: RunDefinition or str or list[str] or None
+        :param run_options: Keyword arguments for the remote run call.
+        :type run_options: dict[str, Any] or None
+
+        :returns: HEAppE job ID.
         :rtype: int
 
-        :raises QException: When job creation or submission fails
-        :raises QAuthException: When client authentication is invalid
-        :raises QResultsFailed: When HEAppE job submission fails
-        :raises ValueError: When job_data contains invalid parameters
+        :raises QAuthException: Client is not authenticated or HEAppE returned 401.
+        :raises QException: Job creation, upload or submission failed.
 
-        .. note::
-            Current implementation uses fixed core allocation (16 min/max cores)
-            for quantum tasks. Task parameters are extracted from job_data with
-            fallbacks to configured defaults.
+        Example::
 
-        Example:
-            >>> job_data = {
-            ...     'name': 'quantum_circuit_execution',
-            ...     'walltime_limit': 1800,
-            ...     'tasks': [{'template_parameter_values': [...]}],
-            ...     'environment_variables': [{'name': 'Q_COMMAND', 'value': 'backend_run'}]
-            ... }
-            >>> job_id = client.submit_quantum_job(job_data)
+            job_id = client.submit_quantum_job(
+                {"name": "bell", "walltime_limit": 1800},
+                backend=iqm_backend,
+                circuits=qasm_str,
+                run_options={"shots": 1000},
+            )
         """
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
@@ -1286,35 +1361,36 @@ class QClient:
 
     def get_job_status(self, job_id: int) -> tuple[str, int, list[int]]:
         """
-        Get current status of HEAppE job execution.
+        Query the status of a HEAppE job.
 
-        Queries HEAppE for job status and maps internal job states to
-        standardized status strings. Returns job status along with
-        job and task identifiers for result retrieval.
+        HEAppE job states are mapped as follows:
 
-        :param job_id: HEAppE job identifier
+        ========== ==========================================================
+        Status     Meaning
+        ========== ==========================================================
+        WAITING    Queued, running, or waiting for a service account
+        FINISHED   Completed successfully
+        FAILED     Failed
+        CANCELED   Canceled (terminal, but not a failure)
+        UNKNOWN    HEAppE response has no state
+        ========== ==========================================================
+
+        :param job_id: HEAppE job ID.
         :type job_id: int
 
-        :returns: Tuple of (status_string, job_id, task_ids_list)
-        :rtype: Tuple[str, int, list[int]]
+        :returns: ``(status, job_id, task_ids)``; for ``UNKNOWN`` the result is
+            ``("UNKNOWN", 0, [])``.
+        :rtype: tuple[str, int, list[int]]
 
-        :raises QException: When status retrieval fails
-        :raises QAuthException: When client authentication is invalid
-        :raises QResultsFailed: When HEAppE status query fails
-        :raises ValueError: When job_id is invalid
+        :raises QAuthException: Client is not authenticated.
+        :raises QException: Status query failed (HEAppE errors, including 401,
+            are wrapped).
 
-        **Status mapping:**
+        Example::
 
-        * "FINISHED" - Job completed successfully
-        * "WAITING" - Job queued or running
-        * "FAILED" - Job failed
-        * "CANCELED" - Job was canceled
-        * "UNKNOWN" - Job status could not be determined
-
-        Example:
-            >>> status, job_id, task_ids = client.get_job_status(12345)
-            >>> if status == "FINISHED":
-            ...     results = client.get_job_results(job_id, task_ids)
+            status, job_id, task_ids = client.get_job_status(12345)
+            if status in QClient.TERMINAL_JOB_STATES:
+                ...
         """
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
@@ -1371,49 +1447,56 @@ class QClient:
         wait=False,
     ) -> dict[str, Any]:
         """
-        Retrieve quantum job execution results from HEAppE.
+        Download and deserialize result files of a HEAppE job.
 
-        Downloads and processes result files from completed HEAppE jobs,
-        including pickled quantum results, circuit data, job information,
-        and backend configurations. Handles job failure cases by retrieving
-        stdout/stderr logs for debugging.
+        Behaviour by job status:
 
-        :param job_id: HEAppE job identifier
+        * ``FINISHED`` -- each file in ``file_names_to_fetch`` is downloaded and
+          unpickled; returns a dict keyed by the file's base name without
+          extension, plus ``"status": "FINISHED"``.
+        * ``FAILED`` -- ``stderr.txt`` and ``stdout.txt`` of the first task are
+          downloaded and raised inside :class:`QResultsFailed`.
+        * ``CANCELED`` -- raises :class:`QResultsFailed`.
+        * otherwise -- returns ``None`` (unless ``wait`` is set).
+
+        :param job_id: HEAppE job ID.
         :type job_id: int
-        :param file_names_to_fetch: List of specific files to download (uses defaults if None)
+        :param file_names_to_fetch: Paths relative to the HEAppE job context,
+            typically ``/<job_id>/<task_id>/<name>.pkl``. Nothing is fetched when
+            ``None``.
         :type file_names_to_fetch: list[str] or None
-        :param use_dill: List of bools, should be same length as file_names_to_fetch. Defines whether file on same idx should be pickled using dill instead of pickle
-        :param wait: If true, will wait until job is finished or failed
+        :param use_dill: Per-file flag, same length as ``file_names_to_fetch``;
+            ``True`` deserializes with :mod:`dill`, ``False`` with :mod:`pickle`.
+        :type use_dill: list[bool] or None
+        :param job_status: Already known status; skips the initial status query
+            when given together with ``task_ids``.
+        :type job_status: str or None
+        :param task_ids: Already known task IDs of the job.
+        :type task_ids: list[int] or None
+        :param wait: Poll every :attr:`DEFAULT_POLL_TIME` seconds until the job
+            reaches a state in :attr:`TERMINAL_JOB_STATES`.
+        :type wait: bool
 
-        :returns: Dictionary containing job results with keys:
+        :returns: Deserialized results, or ``None`` if the job has not finished.
+        :rtype: dict[str, Any] or None
 
-            * results: Quantum measurement results
-            * circuit: Circuit specification used
-            * job: Job execution information
-            * backend: Backend configuration
-            * status: Job completion status
+        :raises QAuthException: Client is not authenticated.
+        :raises QResultsFailed: Job failed or was canceled, or retrieval failed.
+        :raises QException: A result file could not be downloaded or deserialized.
 
-        :rtype: Dict[str, Any] or None
+        .. warning::
+            Files are deserialized with :mod:`pickle` / :mod:`dill`; only fetch
+            results from trusted backends.
 
-        :raises QException: When result processing fails
-        :raises QAuthException: When client authentication is invalid
-        :raises QResultsFailed: When job execution failed or result retrieval failed
+        Example::
 
-        **Return value:**
-
-        * Returns None if job is not yet finished
-        * Returns result dictionary if job completed successfully
-        * Raises QResultsFailed with error logs if job failed
-
-        .. note::
-            Default files fetched: backend.pkl, job.pkl, results.pkl
-            Failed jobs have their stdout/stderr included in QResultsFailed exception.
-
-        Example:
-            >>> results = client.get_job_results(12345)
-            >>> if results:
-            ...     counts = results['results'].get_counts()
-            ...     print(f"Measurement counts: {counts}")
+            res = client.get_job_results(
+                job_id,
+                [f"/{job_id}/{task_id}/results.pkl"],
+                use_dill=[False],
+                wait=True,
+            )
+            counts = res["results"].get_counts()
         """
 
         if not self.is_authenticated:
@@ -1508,11 +1591,20 @@ class QClient:
             raise QResultsFailed(f"Failed to get job ({job_id}) results: {e!s}") from e
 
     def get_pulla(self) -> tuple[dict[str, Any], Pulla]:
-        """Initialize Pulla and returns it data to be able to instantiate QPulla, to avoid calling API from client
+        """
+        Initialize IQM Pulla remotely.
 
-        :raises QAuthException: Failed to verify client
-        :raises QException: General exception raised inside QaaS
-        :return: data required to initialize QPulla, Pulla instance created on remote
+        Runs a ``pulla_init`` job on the ``qinit`` queue (60 s walltime), waits
+        for it and returns the data needed to construct a local ``QPulla``
+        without the client calling the IQM API directly.
+
+        :returns: ``(pulla_data, pulla)`` -- initialization data and the
+            :class:`Pulla` instance created on the remote side.
+        :rtype: tuple[dict[str, Any], Pulla]
+
+        :raises QAuthException: Client is not authenticated or HEAppE returned 401.
+        :raises QResultsFailed: The init job failed or was canceled.
+        :raises QException: Any other failure.
         """
 
         if not self.is_authenticated:
@@ -1623,12 +1715,22 @@ class QClient:
             raise QException("Failed to initialize Pulla!!!") from e
 
     def get_calibration_set(self, calibration_set_id: UUID | None) -> CalibrationSet:
-        """Fetch from available calibration sets on QC
+        """
+        Fetch a calibration set from the quantum computer.
 
-        :param calibration_set_id: When None, default calibration is fetched
-        :raises QAuthException: _description_
-        :raises QException: _description_
-        :return: Calibration set
+        Runs a ``get_calibration_set`` job on the ``qinit`` queue (60 s walltime)
+        and waits for its result.
+
+        :param calibration_set_id: Calibration set ID; the default (current)
+            calibration set is fetched when ``None``.
+        :type calibration_set_id: UUID or None
+
+        :returns: The calibration set.
+        :rtype: CalibrationSet
+
+        :raises QAuthException: Client is not authenticated or HEAppE returned 401.
+        :raises QResultsFailed: The job failed or was canceled.
+        :raises QException: Any other failure.
         """
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
@@ -1738,12 +1840,31 @@ class QClient:
     def get_dynamic_architecture(
         self, calibration_set_id: UUID | None = None
     ) -> DynamicQuantumArchitecture:
-        """Fetch from available calibration sets on QC
+        """
+        Fetch the dynamic quantum architecture for a calibration set.
 
-        :param calibration_set_id: When None, default calibration is fetched
-        :raises QAuthException: _description_
-        :raises QException: _description_
-        :return: Calibration set
+        The dynamic architecture describes the qubits, couplers and gates
+        (with their implementations) that are calibrated, i.e. currently usable,
+        in the given calibration set. Results are cached per calibration set ID.
+
+        Runs a ``get_dynamic_quantum_architecture`` job on the ``qinit`` queue
+        (60 s walltime) on a cache miss.
+
+        :param calibration_set_id: Calibration set ID; the default calibration set
+            is used when ``None``.
+        :type calibration_set_id: UUID or None
+
+        :returns: Dynamic quantum architecture.
+        :rtype: DynamicQuantumArchitecture
+
+        :raises QAuthException: Client is not authenticated or HEAppE returned 401.
+        :raises QResultsFailed: The job failed or was canceled.
+        :raises QException: Any other failure.
+
+        .. note::
+            Results are cached under the returned architecture's actual
+            ``calibration_set_id``, so calls with ``None`` are not served from
+            the cache.
         """
         _calibration_set_id = (
             calibration_set_id if calibration_set_id is not None else "default"
@@ -1865,8 +1986,20 @@ class QClient:
             raise QException("Failed to fetch calibration set!!!") from e
 
     def get_available_backends(self) -> dict[str, Any]:
-        """Get available backends based on UserOrganization Resources and Assignments information
-        List location and aggregation names with LocationTypeId == 7 (Quantum) and their associated resource names, which can be used to determine available quantum backends and their configurations.
+        """
+        List quantum backends available to the LEXIS project.
+
+        Reads the project's resources from the UserOrg API and returns every
+        assignment of a resource with ``LocationTypeId == 7`` (quantum) whose
+        ``AggregationName`` is an accepted aggregation name. ``HEAPPE_URL``,
+        ``SW_STACK`` and ``QUANTUM_TECHNOLOGY`` are taken from the assignment
+        specifications (``"UNKNOWN"`` when missing).
+
+        :returns: Mapping of backend (location) name to its metadata.
+        :rtype: dict[str, QBackendMetadata]
+
+        :raises QAuthException: Client is not authenticated or the resources
+            could not be retrieved.
         """
         if not self._authenticated:
             raise QAuthException("Unauthorized!!!")
@@ -1942,26 +2075,22 @@ class QClient:
         self, submitted_job_context_id: int, relative_file_path: str
     ) -> bytes:
         """
-        Download file from HEAppE cluster as binary data.
+        Download a file from a HEAppE job directory as raw bytes.
 
-        Internal method for downloading files from completed HEAppE jobs,
-        handling base64 decoding of file content returned by HEAppE API.
+        HEAppE returns file content as a base64-encoded JSON string; this method
+        decodes it.
 
-        :param submitted_job_context_id: HEAppE job ID for file location
+        :param submitted_job_context_id: HEAppE job ID.
         :type submitted_job_context_id: int
-        :param relative_file_path: Path to file within job directory
+        :param relative_file_path: Path relative to the job context, e.g.
+            ``/<job_id>/<task_id>/results.pkl``.
         :type relative_file_path: str
 
-        :returns: Binary file content
+        :returns: File content.
         :rtype: bytes
 
-        :raises QException: When file download fails
-        :raises QAuthException: When session authentication is invalid
-        :raises QResultsFailed: When HEAppE file transfer fails
-
-        .. note::
-            This method handles the HEAppE-specific file transfer protocol
-            including base64 encoding/decoding of binary file content.
+        :raises QAuthException: HEAppE returned 401.
+        :raises QException: Download failed.
         """
 
         download_body = DownloadFileFromClusterModel(
@@ -1994,25 +2123,37 @@ class QClient:
         qexecute_queue_name: str,
     ) -> dict[str, dict[str, int]]:
         """
-        Retrieve HEAppE command template configuration for quantum jobs.
+        Resolve HEAppE IDs needed to create jobs on both queues.
 
-        Queries HEAppE cluster information to find the appropriate command
-        template for quantum job execution, along with associated cluster,
-        node type, project, and file transfer method identifiers.
+        For each template, HEAppE cluster information is queried and the
+        following are located: the cluster matching the backend name, a node
+        type (queue) whose project ``accounting_string`` equals the LEXIS
+        resource name, and the command template in that project. The plain
+        template name is tried first, then the project-scoped name
+        ``<lexis_project>_<template>``.
 
-        :param template_name: Specific template name (uses DEFAULT_TEMPLATE_NAME if None)
-        :type template_name: str or None
+        :param template_name_qinit: Command template for the ``qinit`` queue.
+        :type template_name_qinit: str
+        :param template_name_qexecute: Command template for the ``qexecute`` queue.
+        :type template_name_qexecute: str
+        :param qinit_queue_name: Node type name of the init queue.
+        :type qinit_queue_name: str
+        :param qexecute_queue_name: Node type name of the execution queue.
+        :type qexecute_queue_name: str
 
-        :returns: Tuple of (cluster_id, node_type_id, project_id, template_id, file_transfer_method_id)
-        :rtype: Tuple[int, int, int, int, int]
+        :returns: ``{"qinit": info, "qexecute": info}`` where ``info`` contains
+            ``target_location_id``, ``target_node_type_id``,
+            ``target_project_id``, ``target_template_id``,
+            ``target_node_type_file_transfer_method_id``, ``qinit_queue_name``
+            and ``qexecute_queue_name``.
+        :rtype: dict[str, dict[str, int | str]]
 
-        :raises QException: When template lookup fails or configuration is invalid
-        :raises QAuthException: When cluster information access is denied
-        :raises QResultsFailed: When HEAppE cluster information retrieval fails
+        :raises QException: Cluster query failed, or location, project or
+            template was not found.
 
         .. note::
-            Searches for template within the quantum location and project
-            resource specified during client initialization.
+            A node type is accepted if its name matches *either* queue name, so
+            the queue actually selected depends on the template's availability.
         """
 
         def get_command_template_call(lexis_project, target_template_name):
@@ -2153,22 +2294,21 @@ class QClient:
 
     def cancel_job(self, job_id: str) -> bool:
         """
-        Cancel a running or queued HEAppE job.
+        Cancel a queued or running HEAppE job.
 
-        Attempts to cancel the specified job through HEAppE job management API.
-        Returns success status but does not raise exceptions on failure.
+        :param job_id: HEAppE job ID (converted to ``int`` internally).
+        :type job_id: str or int
 
-        :param job_id: HEAppE job identifier to cancel
-        :type job_id: str
-
-        :returns: True if cancellation succeeded, False otherwise
+        :returns: ``True`` if HEAppE accepted the request, ``False`` on an
+            unexpected (non-API) error.
         :rtype: bool
 
-        :raises QAuthException: When client authentication is invalid
+        :raises QAuthException: Client is not authenticated or HEAppE returned 401.
+        :raises QException: HEAppE rejected the request.
+
         .. note::
-            This method converts job_id to integer internally for HEAppE API.
-            Cancellation may not be possible for jobs that are already running
-            or completed.
+            Acceptance does not guarantee the job ends as ``CANCELED``; a job
+            that is already finishing may still end as ``FINISHED`` or ``FAILED``.
         """
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
@@ -2194,18 +2334,12 @@ class QClient:
 
     def close_session(self):
         """
-        Close the HEAppE session and clean up client state.
+        Release the HEAppE client and mark the client as unauthenticated.
 
-        Terminates the HEAppE session and resets client authentication state.
-        Should be called when the client is no longer needed to free resources.
+        No remote call is made (HEAppE is accessed with the stateless JWT).
+        Called automatically when the client is used as a context manager.
 
-        :raises QException: When session cleanup fails
-        :raises QAuthException: When session termination encounters errors
-        :raises QResultsFailed: When HEAppE session closure fails
-
-        .. note::
-            This method is automatically called when using QClient as a
-            context manager (with statement).
+        :raises QAuthException: Cleanup failed.
         """
         if self._heappe_client:
             try:
@@ -2216,9 +2350,18 @@ class QClient:
                 raise QAuthException("Error closing exception") from e
 
     def __enter__(self):
-        """Context manager entry"""
+        """
+        Enter the context manager.
+
+        :returns: This client.
+        :rtype: QClient
+        """
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - close session"""
+        """
+        Exit the context manager and call :meth:`close_session`.
+
+        Exceptions raised inside the ``with`` block are not suppressed.
+        """
         self.close_session()

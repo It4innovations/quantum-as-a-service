@@ -41,10 +41,8 @@ iqm_qiskit = [
     "iqm-exa-common==28.0.*",
     "iqm-station-control-client==13.0.*",
     "iqm-data-definitions==3.0",
-    "protobuf<7.0",
-]
-iqm_pulla = [
     "iqm-pulla==14.0.*",
+    "protobuf<7.0",
 ]
 
 
