@@ -45,6 +45,11 @@ iqm_qiskit = [
     "protobuf<7.0",
 ]
 
+testenv = [
+    "pytest",
+    "pytest-dotenv",
+    "pytest-timeout"
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

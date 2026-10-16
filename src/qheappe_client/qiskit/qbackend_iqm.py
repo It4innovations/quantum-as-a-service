@@ -17,6 +17,7 @@ from iqm.qiskit_iqm.iqm_provider import IQMBackend
 from iqm.station_control.client.qon import ObservationFinder
 from iqm.station_control.interface.models import (
     CircuitBatch,
+    ObservationLite,
     QIRCode,
     QubitMapping,
     RunRequest,
@@ -58,7 +59,13 @@ class QBackendIQM(QBackend, IQMBackend):
 
         if use_metrics:
             metrics = self._qclient.get_machine_metrics()
-            metrics = ObservationFinder(metrics)
+            # Create observation data
+            observations = [
+                ObservationLite.model_validate(o) for o in metrics.get("observations",[])
+            ]
+
+
+            metrics = ObservationFinder(observations)
         else:
             metrics = None
 

@@ -7,8 +7,16 @@ HEAppE QScheduler REST API of each cluster (job submission, results, machine
 info, sessions, job events).
 
 Both an async API (``await`` / ``async with``) and a sync API are provided.
-The sync API runs coroutines on a private, persistent event loop owned by the
-client and must not be used inside a running loop (e.g. Jupyter).
+The sync API runs coroutines on a private event loop in a background thread
+owned by the client (:class:`_LoopThread`), so it also works where the calling
+thread already runs a loop (Jupyter, IPython, async frameworks).
+
+The HTTP session is bound to the loop it was created on. Requests issued from
+any other loop are transparently executed on the session's loop, so sync and
+async calls can be mixed on one client. The only unsupported combination is a
+*sync* call made from the very loop that owns the session (client connected
+with the async API, then a sync method called from the same loop): that would
+block the loop the request needs, so it raises :class:`QException`.
 
 Async usage::
 
@@ -35,6 +43,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import concurrent.futures
 import copy
 import itertools
 import json
@@ -42,9 +51,10 @@ import logging
 import os
 import ssl
 import sys
+import threading
 import time
 import warnings
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Coroutine
 from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -58,14 +68,8 @@ import jwt
 import truststore
 from py4heappe.heappe_v6.core import ApiClient as HEAppEApi
 from py4heappe.heappe_v6.core import Configuration as HEAppEConfiguration
-from py4heappe.heappe_v6.core import models as heappe_models
-from py4heappe.heappe_v6.core.api import (
-    ClusterInformationApi,
-    JobManagementApi
-)
-from py4heappe.heappe_v6.core.models import (
-    ClusterExt,
-)
+from py4heappe.heappe_v6.core.api import ClusterInformationApi, JobManagementApi
+from py4heappe.heappe_v6.core.models import ClusterExt
 
 from .backend_metadata import (
     LexisProject,
@@ -74,7 +78,15 @@ from .backend_metadata import (
     QCluster,
     QMachineInfo,
 )
-from .utils import QAuthException, QException, QResultsFailed
+from .utils import (
+    QAuthException,
+    QException,
+    QResultsFailed,
+    from_swagger_json,
+    normalize_query,
+    req_body_preview,
+    to_utc,
+)
 
 # Module logger: level and target (file / stderr) configured via environment.
 log = logging.getLoggerClass()(
@@ -92,47 +104,9 @@ log.addHandler(handler)
 
 # Opt-in response body previews in debug logs (may contain user/project data).
 _LOG_BODIES = os.environ.get("QPROVIDER_LOG_BODIES", "").lower() in ("1", "true", "yes")
-_BODY_PREVIEW_CHARS = 300
+
 # Process-wide request counter; correlates request/response lines in debug logs.
 _request_ids = itertools.count(1)
-
-
-def _preview(data: bytes | str, limit: int = _BODY_PREVIEW_CHARS) -> str:
-    """
-    Return a single-line, truncated preview of a body for logging.
-
-    Args:
-        data (bytes or str): Raw body; bytes are decoded as UTF-8 with replacement.
-        limit (int): Maximum number of characters kept.
-
-    Returns:
-        str: Preview with newlines removed and a ``...(+N chars)`` suffix if truncated.
-    """
-    text = data.decode("utf-8", errors="replace") if isinstance(data, bytes) else data
-    text = text.replace("\n", " ")
-    return (
-        text if len(text) <= limit else f"{text[:limit]}...(+{len(text) - limit} chars)"
-    )
-
-
-def _describe_body(json_body: Any, data: Any) -> str:
-    """
-    Describe a request body for logs without exposing uploaded file contents.
-
-    Args:
-        json_body (Any): JSON body, previewed when set.
-        data (Any): Raw body; only its type is logged (multipart is named explicitly).
-
-    Returns:
-        str: Log suffix such as ``" json={...}"``, or an empty string.
-    """
-    if json_body is not None:
-        return f" json={_preview(json.dumps(json_body, default=str))}"
-    if isinstance(data, aiohttp.MultipartWriter):
-        return " body=multipart/form-data"
-    if data is not None:
-        return f" body={type(data).__name__}"
-    return ""
 
 
 # Only asymmetric algorithms are accepted from the token header (prevents alg confusion).
@@ -152,121 +126,102 @@ _ALLOWED_JWT_ALGS = frozenset(
 )
 
 
-def _to_utc(value: str) -> datetime:
+class _LoopThread:
     """
-    Parse an ISO 8601 date into an aware datetime.
+    Event loop running forever in a daemon thread; backs the sync API.
 
-    An explicit offset is kept; naive values are assumed to be UTC.
+    Coroutines are submitted with :func:`asyncio.run_coroutine_threadsafe` and
+    the caller blocks on the resulting :class:`concurrent.futures.Future`. The
+    calling thread never touches its own event loop, so this works from plain
+    scripts as well as from threads that already run a loop (Jupyter).
 
-    Args:
-        value (str): ISO 8601 date or datetime string.
-
-    Returns:
-        datetime
-
-    Raises:
-        ValueError: ``value`` is not a valid ISO 8601 string.
+    Attributes:
+        POLL_INTERVAL (float): Wait slice in seconds; keeps the blocked caller
+            responsive to ``KeyboardInterrupt`` on every platform.
     """
-    dt = datetime.fromisoformat(value)
-    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
+    POLL_INTERVAL = 0.2
 
-def _g(obj: dict[str, Any], key: str) -> Any:
-    """
-    Read a HEAppE JSON field by its PascalCase name, falling back to camelCase.
+    def __init__(self, name: str = "qclient-loop"):
+        self.loop = asyncio.new_event_loop()
+        self._started = threading.Event()
+        self.thread = threading.Thread(target=self._main, name=name, daemon=True)
+        self.thread.start()
+        self._started.wait()
 
-    Args:
-        obj (dict[str, Any]): Decoded JSON object.
-        key (str): Field name in PascalCase, e.g. ``"Id"``.
+    def _main(self) -> None:
+        asyncio.set_event_loop(self.loop)
+        self._started.set()
+        try:
+            self.loop.run_forever()
+        finally:
+            # Same teardown as asyncio.run(): cancel leftovers, finalize async generators.
+            try:
+                pending = asyncio.all_tasks(self.loop)
+                for task in pending:
+                    task.cancel()
+                if pending:
+                    self.loop.run_until_complete(
+                        asyncio.gather(*pending, return_exceptions=True)
+                    )
+                self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+                self.loop.run_until_complete(self.loop.shutdown_default_executor())
+            finally:
+                self.loop.close()
 
-    Returns:
-        Field value, or ``None`` if neither spelling is present.
-    """
-    if key in obj:
-        return obj[key]
-    return obj.get(key[:1].lower() + key[1:])
+    @property
+    def alive(self) -> bool:
+        """Whether the loop accepts work."""
+        return self.thread.is_alive() and not self.loop.is_closed()
 
+    def run(self, coro: Coroutine[Any, Any, Any]) -> Any:
+        """
+        Run ``coro`` on the loop thread and block until it completes.
 
-# Swagger type names that are returned as-is by _from_swagger_json.
-_SWAGGER_PRIMITIVES = frozenset(
-    {"int", "str", "bool", "float", "object", "date", "datetime"}
-)
+        On ``KeyboardInterrupt`` (or any other interruption of the wait) the
+        coroutine is cancelled on the loop thread before the exception
+        propagates, so in-flight requests are aborted rather than orphaned.
 
+        Args:
+            coro: Coroutine to run.
 
-def _from_swagger_json(data: Any, type_name: str) -> Any:
-    """
-    Deserialize HEAppE JSON into ``py4heappe`` swagger models.
+        Returns:
+            The coroutine's result.
 
-    Uses each model's ``swagger_types`` and ``attribute_map``. Instances are
-    created without calling ``__init__``, so generated setters do not reject
-    missing optional fields. ``date``/``datetime`` values stay ISO strings.
+        Raises:
+            QException: Called from the loop thread itself (would deadlock), or
+                the loop is already stopped.
+        """
+        if threading.get_ident() == self.thread.ident:
+            coro.close()
+            raise QException(
+                "Sync QClient API called from the client's own event loop thread "
+                "(would deadlock); use the async methods with 'await'."
+            )
+        if not self.alive:
+            coro.close()
+            raise QException("QClient event loop is closed; the client was closed.")
+        try:
+            fut = asyncio.run_coroutine_threadsafe(coro, self.loop)
+        except RuntimeError as e:  # loop closed between the check and the submit
+            coro.close()
+            raise QException(f"QClient event loop is closed: {e!s}") from None
+        try:
+            while not fut.done():
+                concurrent.futures.wait([fut], timeout=self.POLL_INTERVAL)
+            return fut.result()
+        except BaseException:
+            fut.cancel()  # no-op when already done
+            raise
 
-    Args:
-        data (Any): Decoded JSON.
-        type_name (str): Swagger type expression, e.g. ``"list[ClusterExt]"`` or
-            ``"dict(str, int)"``.
-
-    Returns:
-        Any: Model instance(s); unknown types and non-dict data are returned unchanged.
-    """
-    if data is None:
-        return None
-    if type_name.startswith("list["):
-        inner = type_name[5:-1]
-        return [_from_swagger_json(item, inner) for item in data]
-    if type_name.startswith("dict("):
-        # "dict(KeyType, ValueType)" -> ValueType; keys are kept as decoded.
-        inner = type_name[type_name.index(",") + 1 : -1].strip()
-        return {k: _from_swagger_json(v, inner) for k, v in data.items()}
-    if type_name in _SWAGGER_PRIMITIVES:
-        return data
-    model_cls = getattr(heappe_models, type_name, None)
-    if model_cls is None or not isinstance(data, dict):
-        return data
-    obj = model_cls.__new__(model_cls)
-    obj.discriminator = None
-    for attr, attr_type in model_cls.swagger_types.items():
-        json_key = model_cls.attribute_map[attr]
-        value = data[json_key] if json_key in data else _g(data, json_key)
-        # Write the private backing field directly, bypassing validating setters.
-        setattr(obj, f"_{attr}", _from_swagger_json(value, attr_type))
-    return obj
-
-
-def _query(params: dict[str, Any] | None) -> list[tuple[str, str | int]] | None:
-    """
-    Normalize query parameters for :mod:`aiohttp` / :mod:`yarl`.
-
-    * ``None`` values are dropped;
-    * :class:`~enum.Enum` values are replaced by their ``value``;
-    * ``bool`` becomes ``"true"`` / ``"false"``;
-    * other non-``str``/``int`` values (e.g. :class:`~uuid.UUID`) are stringified;
-    * lists and tuples repeat the key once per item.
-
-    Args:
-        params (dict[str, Any] or None): Query parameters.
-
-    Returns:
-        list[tuple[str, str | int]] or None: List of ``(key, value)`` pairs, or ``None`` if ``params`` is empty.
-    """
-    if not params:
-        return None
-    out: list[tuple[str, str | int]] = []
-    for key, value in params.items():
-        if value is None:
-            continue
-        for item in value if isinstance(value, (list, tuple)) else (value,):
-            if item is None:
-                continue
-            if isinstance(item, Enum):
-                item = item.value
-            # bool is a subclass of int, so it must be handled before the int check.
-            if isinstance(item, bool):
-                item = "true" if item else "false"
-            elif not isinstance(item, (str, int)):
-                item = str(item)
-            out.append((key, item))
-    return out
+    def stop(self, timeout: float = 10.0) -> None:
+        """Stop the loop and join the thread. Safe to call more than once."""
+        if self.thread.is_alive():
+            try:
+                self.loop.call_soon_threadsafe(self.loop.stop)
+            except RuntimeError:  # loop already closed
+                pass
+            self.thread.join(timeout)
 
 
 @dataclass(frozen=True)
@@ -410,8 +365,8 @@ class QClient:
         self._lexis_project = lexis_project
         self._lexis_resource_name = lexis_resource_name
         self.provider_token = provider_token
-        # Private event loop for the sync API; created on first sync call.
-        self._runner: asyncio.Runner | None = None
+        # Background loop thread for the sync API; created on first sync call.
+        self._loop_thread: _LoopThread | None = None
         self._load_machine_info_on_connect = load_machine_info
         self._kwargs = kwargs
 
@@ -426,11 +381,17 @@ class QClient:
         # HTTP session: injected sessions are never closed by the client
         self._session = session
         self._owns_session = session is None
+        # Loop the session is bound to; requests from other loops are forwarded there.
+        # (aiohttp stores it as ClientSession._loop; None -> no forwarding.)
+        self._session_loop: asyncio.AbstractEventLoop | None = getattr(
+            session, "_loop", None
+        )
         self._is_view = False  # True for clients returned by bind()
 
         # HEAppE ProjectId cache per HEAppE URL (fallback lookup via accounting string)
         self._heappe_project_ids: dict[str, int] = {}
-        self._project_locks: dict[str, asyncio.Lock] = {}
+        # Keyed by (url, loop): an asyncio.Lock binds to the loop that first waits on it.
+        self._project_locks: dict[tuple[str, asyncio.AbstractEventLoop], asyncio.Lock] = {}
         # Lazily created sync py4heappe clients, only for callers needing the generated API
         self._heappe_clients: dict[str, HEAppEApi] = {}
 
@@ -466,14 +427,37 @@ class QClient:
             raise
         return client
 
+    def _check_sync_allowed(self, coro) -> None:
+        """
+        Reject a sync call that would block the loop owning the HTTP session.
+
+        If the caller runs on the session's loop (client connected with the
+        async API), blocking here would stop that loop from serving the very
+        requests we wait for.
+
+        Raises:
+            QException: Caller runs on the session's loop.
+        """
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            return  # plain sync caller
+        if running is not None and running is self._session_loop:
+            coro.close()  # avoid "coroutine was never awaited" warning
+            raise QException(
+                "Sync QClient API called from the event loop that owns this client's "
+                "HTTP session (client connected with the async API); use 'await' with "
+                "the async methods instead."
+            )
+
     def _run(self, coro):
         """
-        Run a coroutine on the client's persistent event loop (sync API).
+        Run a coroutine on the client's background loop thread (sync API).
 
-        The loop (:class:`asyncio.Runner`) is created on first use and closed by
-        :meth:`close`, which is also registered with :mod:`atexit`. A single loop
-        is required because the :class:`aiohttp.ClientSession` is bound to the
-        loop it was created on.
+        The :class:`_LoopThread` is created on first use and stopped by
+        :meth:`close`, which is also registered with :mod:`atexit`. Works from
+        threads with a running loop (e.g. Jupyter): the caller only blocks on a
+        future, it does not re-enter its own loop.
 
         Args:
             coro: Coroutine to run.
@@ -482,25 +466,48 @@ class QClient:
             The coroutine's result.
 
         Raises:
-            QException: Called from a thread with a running event loop.
+            QException: Called from the loop owning the HTTP session, from the
+                client's own loop thread, or after :meth:`close`.
         """
-        try:
-            # Check if a loop is already running in this thread (e.g. Jupyter); if so, raise an error.
-            asyncio.get_running_loop()
-        except RuntimeError:
-            pass  # no loop running in this thread -> OK
-        else:
-            coro.close()  # avoid "coroutine was never awaited" warning
-            raise QException(
-                "Sync QClient API called inside a running event loop (e.g. Jupyter); "
-                "use the async methods with 'await' instead."
-            )
-        if self._runner is None:
-            # Create a persistent asyncio.Runner for this client, so multiple calls can share the same loop.
-            self._runner = asyncio.Runner()
-            # Register atexit cleanup to close the runner and session when the program exits.
+        self._check_sync_allowed(coro)
+        if self._loop_thread is None:
+            if self._is_view:
+                coro.close()
+                raise QException("QClient view is closed")
+            self._loop_thread = _LoopThread()
+            # Stop the loop thread and close the session when the program exits.
             atexit.register(self.close)
-        return self._runner.run(coro)
+        return self._loop_thread.run(coro)
+
+    async def _on_session_loop(self, coro: Coroutine[Any, Any, Any]) -> Any:
+        """
+        Await ``coro`` on the loop the HTTP session is bound to.
+
+        Runs it in place when the current loop owns the session (or the owner
+        is unknown); otherwise forwards it with
+        :func:`asyncio.run_coroutine_threadsafe` and awaits the result without
+        blocking the current loop. Cancellation is propagated to the forwarded
+        coroutine.
+
+        Args:
+            coro: Coroutine to run.
+
+        Returns:
+            The coroutine's result.
+
+        Raises:
+            QException: The session's loop is closed or no longer running.
+        """
+        owner = self._session_loop
+        if owner is None or owner is asyncio.get_running_loop():
+            return await coro
+        if owner.is_closed() or not owner.is_running():
+            coro.close()
+            raise QException(
+                "HTTP session is bound to an event loop that is no longer running; "
+                "close and reconnect the client."
+            )
+        return await asyncio.wrap_future(asyncio.run_coroutine_threadsafe(coro, owner))
 
     async def _connect(self) -> QClient:
         """
@@ -525,6 +532,7 @@ class QClient:
                 timeout=aiohttp.ClientTimeout(total=self.DEFAULT_TIMEOUT),
             )
             self._owns_session = True
+            self._session_loop = asyncio.get_running_loop()
 
         started = time.perf_counter()
         log.debug(
@@ -576,7 +584,7 @@ class QClient:
 
         Raises:
             QAuthException: Authentication or authorization failed.
-            QException: Connection failed, or called inside a running loop.
+            QException: Connection failed, or called from the loop owning the HTTP session.
         """
         try:
             return self._run(self._connect())
@@ -610,35 +618,46 @@ class QClient:
             and not self._session.closed
         ):
             log.debug("Closing HTTP session")
-            await self._session.close()
+            try:
+                # The session must be closed on the loop it was created on.
+                await self._on_session_loop(self._session.close())
+            except QException as e:
+                log.warning("HTTP session not closed cleanly: %s", e)
         self._session = None
+        self._session_loop = None
 
     def close(self) -> None:
         """
-        Sync wrapper of :meth:`aclose`; the owning client also closes its event loop.
+        Sync wrapper of :meth:`aclose`; the owning client also stops its loop thread.
 
         Safe to call more than once. A no-op if the sync API was never used
-        (async callers use ``await aclose()``). A :meth:`bind` view never closes
-        the shared loop.
+        (async callers use ``await aclose()``). A :meth:`bind` view never stops
+        the shared loop thread.
+
+        Raises:
+            QException: Called from the loop that owns the HTTP session (use
+                ``await aclose()`` there).
         """
-        runner = self._runner
-        if runner is None:
+        loop_thread = self._loop_thread
+        if loop_thread is None:
             return  # sync API never used; async callers use `await aclose()`
 
         if self._is_view:
-            coro = self.aclose()
+            self._loop_thread = None
             try:
-                runner.run(coro)
-            except RuntimeError:  # parent already closed the shared runner
-                coro.close()
+                loop_thread.run(self.aclose())
+            except QException:  # parent already stopped the shared loop
+                pass
             return
 
+        coro = self.aclose()
+        self._check_sync_allowed(coro)
         atexit.unregister(self.close)
-        self._runner = None
+        self._loop_thread = None
         try:
-            runner.run(self.aclose())  # session closed on the loop it was created in
+            loop_thread.run(coro)
         finally:
-            runner.close()  # then the loop itself
+            loop_thread.stop()
 
     # Backwards-compatible name
     close_session = close
@@ -734,7 +753,7 @@ class QClient:
         Args:
             method (str): HTTP method.
             url (str): Absolute URL.
-            params (dict[str, Any] or None): Query parameters, normalized by :func:`_query`.
+            params (dict[str, Any] or None): Query parameters, normalized by :func:`normalize_query`.
             json_body (Any): JSON body.
             data (Any): Raw body, e.g. :class:`aiohttp.MultipartWriter`.
             timeout (float or None): Total timeout in seconds; :attr:`DEFAULT_TIMEOUT` if ``None``.
@@ -745,9 +764,35 @@ class QClient:
         Raises:
             QException: HTTP status >= 400 (first 500 bytes of the body included),
                 connection error or timeout.
+
+        Note:
+            Executed on the loop that owns the HTTP session (see
+            :meth:`_on_session_loop`), so it may be awaited from any loop.
         """
+        return await self._on_session_loop(
+            self._request_impl(
+                method,
+                url,
+                params=params,
+                json_body=json_body,
+                data=data,
+                timeout=timeout,
+            )
+        )
+
+    async def _request_impl(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json_body: Any = None,
+        data: Any = None,
+        timeout: float | None = None,
+    ) -> HttpResult:
+        """Body of :meth:`_request`; must run on the session's loop."""
         session = self._require_session()
-        query = _query(params)
+        query = normalize_query(params)
         rid = next(_request_ids)
         started = time.perf_counter()
         try:
@@ -772,7 +817,7 @@ class QClient:
                         resp.content_type,
                         len(body),
                         (time.perf_counter() - started) * 1000,
-                        f" body={_preview(body)}"
+                        f" body={req_body_preview(body)}"
                         if _LOG_BODIES or resp.status >= 400
                         else "",
                     )
@@ -1043,7 +1088,7 @@ class QClient:
         start, end = project_info.get("StartDate"), project_info.get("EndDate")
         if start and end:
             try:
-                start_dt, end_dt = _to_utc(start), _to_utc(end)
+                start_dt, end_dt = to_utc(start), to_utc(end)
             except ValueError as date_error:
                 log.warning("Could not parse project dates: %s", date_error)
                 raise QAuthException("Could not parse project dates") from date_error
@@ -1193,7 +1238,7 @@ class QClient:
         start, end = resource.get("StartDate"), resource.get("EndDate")
         if start and end:
             try:
-                in_range = _to_utc(start) <= datetime.now(UTC) <= _to_utc(end)
+                in_range = to_utc(start) <= datetime.now(UTC) <= to_utc(end)
             except ValueError as date_error:
                 # Lenient on purpose: bad dates must not lock the user out.
                 log.warning("Could not parse resource dates: %s", date_error)
@@ -1294,7 +1339,7 @@ class QClient:
         res = await self._request(
             "GET", self._join(url, "/heappe/ClusterInformation/ListAvailableClusters")
         )
-        return _from_swagger_json(res.json() or [], "list[ClusterExt]")
+        return from_swagger_json(res.json() or [], "list[ClusterExt]")
 
     async def _resolve_heappe_instance(self, url: str, wanted: list[QCluster]) -> None:
         """
@@ -1403,7 +1448,9 @@ class QClient:
             return cluster.heappe_project_id
 
         url = cluster.heappe_url
-        lock = self._project_locks.setdefault(url, asyncio.Lock())
+        lock = self._project_locks.setdefault(
+            (url, asyncio.get_running_loop()), asyncio.Lock()
+        )
         async with lock:
             # Re-check under the lock: another task may have filled the cache.
             if url not in self._heappe_project_ids:
@@ -1428,7 +1475,7 @@ class QClient:
                         f"Project for accounting string '{self.lexis_resource.resource_name}' "
                         f"not found in HEAppE at {url}."
                     )
-                self._heappe_project_ids[url] = _g(projects[0], "Id")
+                self._heappe_project_ids[url] = projects[0].get("Id")
         cluster.heappe_project_id = self._heappe_project_ids[url]
         return cluster.heappe_project_id
 
@@ -1629,8 +1676,8 @@ class QClient:
 
         Raises:
             QAuthException: Client not authenticated.
-            QException: Backend unknown or unavailable, or called inside a
-                running event loop.
+            QException: Backend unknown or unavailable, or called from the loop
+                owning the HTTP session.
         """
         cluster = self._run(self._validate_backend(backend_name))
         view = copy.copy(self)
@@ -1668,11 +1715,10 @@ class QClient:
         else:
             mds = [self._plain_metadata(c) for _, c in items]
         return dict(zip((n for n, _ in items), mds))
-    
+
     def get_available_backends(
-        self,
-        with_architecture: bool = True
-        ) -> dict[str, QBackendMetadata]:
+        self, with_architecture: bool = True
+    ) -> dict[str, QBackendMetadata]:
         """
         Retrieve metadata for all available backends of the resource.
 
@@ -1694,8 +1740,9 @@ class QClient:
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
 
-        return self._run(self.aget_available_backends(with_architecture=with_architecture))
-    
+        return self._run(
+            self.aget_available_backends(with_architecture=with_architecture)
+        )
 
     async def _get_quantum_backend_info(
         self,
@@ -1739,8 +1786,8 @@ class QClient:
 
         Raises:
             QAuthException: Client not authenticated.
-            QException: Backend unknown, none selected, or called inside a
-                running event loop.
+            QException: Backend unknown, none selected, or called from the loop
+                owning the HTTP session.
         """
         if not self.is_authenticated:
             raise QAuthException("Client not authenticated")
@@ -1825,22 +1872,6 @@ class QClient:
             static_architecture=static_arch,
             dynamic_architecture=dynamic_arch,
         )
-
-    @staticmethod
-    def _maybe_json(text: str) -> Any:
-        """
-        Decode ``text`` as JSON, or return it unchanged if it is not JSON.
-
-        Args:
-            text (str): Text to decode.
-
-        Returns:
-            Any
-        """
-        try:
-            return json.loads(text)
-        except ValueError:
-            return text
 
     # =================================================================
     # Properties
@@ -2083,10 +2114,12 @@ class QClient:
                 submitted.get("State"),
                 [t.get("Id") for t in submitted.get("Tasks", []) or []],
             )
-        
+
         return submitted
 
-    async def aget_job_info(self, job_id: int, backend_name: str | None = None) -> dict[str, Any]:
+    async def aget_job_info(
+        self, job_id: int, backend_name: str | None = None
+    ) -> dict[str, Any]:
         """
         Current job state via ``GET /heappe/JobManagement/CurrentInfoForJob``.
 
@@ -2108,7 +2141,9 @@ class QClient:
         )
         return res.json()
 
-    def get_job_info(self, job_id: int, backend_name: str | None = None) -> dict[str, Any]:
+    def get_job_info(
+        self, job_id: int, backend_name: str | None = None
+    ) -> dict[str, Any]:
         """
         Sync wrapper of :meth:`aget_job_info`.
 
@@ -2120,7 +2155,7 @@ class QClient:
             dict[str, Any]
 
         Raises:
-            QException: Request failed or called inside a running event loop.
+            QException: Request failed or called from the loop owning the HTTP session.
         """
         return self._run(self.aget_job_info(job_id, backend_name))
 
@@ -2248,7 +2283,7 @@ class QClient:
         artifact_names: list[str] | None = None,
         backend_name: str | None = None,
         max_concurrency: int = 8,
-    ) -> dict[int, dict[str, Any]]:            
+    ) -> dict[int, dict[str, Any]]:
         """
         Sync wrapper of :meth:`aget_job_results`.
 
@@ -2263,7 +2298,7 @@ class QClient:
 
         Raises:
             QResultsFailed: Any result or artifact request failed.
-            QException: Called inside a running event loop.
+            QException: Called from the loop owning the HTTP session.
         """
         return self._run(
             self.aget_job_results(
@@ -2356,7 +2391,7 @@ class QClient:
             {
                 "ClusterNodeTypeId": cluster_node_type_id
                 or cluster.cluster_node_type_id,
-                "CalibrationId": calibration_set_id,  # UUID/Enum normalized by _query
+                "CalibrationId": calibration_set_id,  # UUID/Enum normalized by 'normalize_query'
                 "Endpoint": endpoint,
                 "ProjectId": project_id
                 if project_id is not None
@@ -2393,7 +2428,7 @@ class QClient:
             metrics = json.loads(raw)
         except ValueError:
             raise QException(
-                f"Metrics of backend '{cluster.name}' are not valid JSON: {_preview(raw, 200)}"
+                f"Metrics of backend '{cluster.name}' are not valid JSON: {req_body_preview(raw, 200)}"
             ) from None
         log.debug(
             "Metrics of '%s': %s",
@@ -2420,8 +2455,8 @@ class QClient:
             dict[str, Any]
 
         Raises:
-            QException: Request failed, invalid JSON, or called inside a
-                running event loop.
+            QException: Request failed, invalid JSON, or called from the loop
+                owning the HTTP session.
         """
         return self._run(self.machine_metrics(backend_name, calibration_set_id))
 
@@ -2610,7 +2645,51 @@ class QClient:
 
         Raises:
             QException: Connection failed or the socket reported an error.
+
+        Note:
+            The websocket lives on the loop that owns the HTTP session; when
+            iterated from another loop each step is forwarded there.
         """
+        agen = self._iter_events_impl(backend_name, heartbeat)
+        owner = self._session_loop
+        if owner is None or owner is asyncio.get_running_loop():
+            async with aclosing(agen):
+                async for event in agen:
+                    yield event
+            return
+
+        # run_coroutine_threadsafe() needs real coroutines, not async-gen awaitables.
+        end = object()
+        last_step: list[asyncio.Task] = []
+
+        async def step():
+            last_step[:] = [asyncio.current_task()]
+            try:
+                return await agen.__anext__()
+            except StopAsyncIteration:
+                return end
+
+        async def close_gen():
+            # A cancelled step may still be unwinding (closing the socket);
+            # aclose() during that would fail with "already running".
+            if last_step and not last_step[0].done():
+                await asyncio.wait(last_step)
+            await agen.aclose()
+
+        try:
+            while (event := await self._on_session_loop(step())) is not end:
+                yield event
+        finally:
+            # Close the websocket on its own loop (no-op if already exhausted).
+            try:
+                await self._on_session_loop(close_gen())
+            except QException as e:
+                log.debug("Events websocket not closed cleanly: %s", e)
+
+    async def _iter_events_impl(
+        self, backend_name: str | None, heartbeat: float
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Body of :meth:`iter_events`; must run on the session's loop."""
         session = self._require_session()
         ws_url = self._events_ws_url(backend_name)
         log.debug("Connecting events websocket %s", ws_url)
@@ -2729,7 +2808,7 @@ class QClient:
 
         Raises:
             QResultsFailed: Timeout or stream closed early.
-            QException: Connection failed or called inside a running event loop.
+            QException: Connection failed or called from the loop owning the HTTP session.
         """
         return self._run(
             self.await_for_job_terminal_state(

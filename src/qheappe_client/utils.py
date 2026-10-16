@@ -1,8 +1,11 @@
-import datetime
+import json
 from collections import Counter
+from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
 from uuid import UUID
 
+import aiohttp
 import jwt
 import requests
 from iqm.iqm_server_client.models import JobStatus
@@ -10,11 +13,12 @@ from iqm.pulla.interface import HERALDING_KEY
 from iqm.pulla.pulla import PullaJob
 from iqm.pulla.utils_qiskit import qiskit_to_pulla as _iqm_qiskit_to_pulla
 from iqm.qiskit_iqm import IQMJob
+from py4heappe.heappe_v6.core import models as heappe_models
 from qiskit.result import Counts, Result
 
-# ------------
-# Exceptions
-# ------------
+##############
+# Exceptions #
+##############
 
 
 class QException(Exception):
@@ -199,6 +203,148 @@ class QPullaFetchError(QPullaException):
 # Utilities #
 #############
 
+_BODY_PREVIEW_CHARS = 300
+
+
+def req_body_preview(data: bytes | str, limit: int = _BODY_PREVIEW_CHARS) -> str:
+    """
+    Return a single-line, truncated preview of a body for logging.
+
+    Args:
+        data (bytes or str): Raw body; bytes are decoded as UTF-8 with replacement.
+        limit (int): Maximum number of characters kept.
+
+    Returns:
+        str: Preview with newlines removed and a ``...(+N chars)`` suffix if truncated.
+    """
+    text = data.decode("utf-8", errors="replace") if isinstance(data, bytes) else data
+    text = text.replace("\n", " ")
+    return (
+        text if len(text) <= limit else f"{text[:limit]}...(+{len(text) - limit} chars)"
+    )
+
+
+def req_describe_body(json_body: Any, data: Any) -> str:
+    """
+    Describe a request body for logs without exposing uploaded file contents.
+
+    Args:
+        json_body (Any): JSON body, previewed when set.
+        data (Any): Raw body; only its type is logged (multipart is named explicitly).
+
+    Returns:
+        str: Log suffix such as ``" json={...}"``, or an empty string.
+    """
+    if json_body is not None:
+        return f" json={req_body_preview(json.dumps(json_body, default=str))}"
+    if isinstance(data, aiohttp.MultipartWriter):
+        return " body=multipart/form-data"
+    if data is not None:
+        return f" body={type(data).__name__}"
+    return ""
+
+
+def normalize_query(params: dict[str, Any] | None) -> list[tuple[str, str | int]]:
+    """
+    Normalize query parameters for aiohttp.
+
+    This function processes the input dictionary to prepare it for use as query
+    parameters in aiohttp requests. It performs the following transformations:
+    - Drops entries with `None` values.
+    - Converts boolean values to "true" or "false".
+    - Converts non-string, non-integer values to strings.
+    - Repeats keys for list or tuple values.
+
+    Args:
+        params (dict[str, Any] | None): A dictionary of query parameters. If None, an empty dictionary is assumed.
+
+    Returns:
+        list[tuple[str, str | int]]: A list of tuples representing the normalized query parameters.
+    """
+    out: list[tuple[str, str | int]] = []
+    for key, value in (params or {}).items():
+        for v in value if isinstance(value, (list, tuple)) else (value,):
+            if v is None:
+                continue
+            if isinstance(v, bool):  # before int: bool is an int subclass
+                v = "true" if v else "false"
+            elif isinstance(v, Enum):
+                v = v.value
+            elif not isinstance(v, (str, int)):
+                v = str(v)
+            out.append((key, v))
+    return out
+
+
+##########
+# HEAppE #
+##########
+
+
+def to_utc(value: str) -> datetime:
+    """
+    Parse an ISO 8601 date into an aware datetime.
+
+    An explicit offset is kept; naive values are assumed to be UTC.
+
+    Args:
+        value (str): ISO 8601 date or datetime string.
+
+    Returns:
+        datetime
+
+    Raises:
+        ValueError: ``value`` is not a valid ISO 8601 string.
+    """
+    dt = datetime.fromisoformat(value)
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+# Swagger type names that are returned as-is by _from_swagger_json.
+_SWAGGER_PRIMITIVES = frozenset(
+    {"int", "str", "bool", "float", "object", "date", "datetime"}
+)
+
+
+def from_swagger_json(data: Any, type_name: str) -> Any:
+    """
+    Deserialize HEAppE JSON into ``py4heappe`` swagger models.
+
+    Uses each model's ``swagger_types`` and ``attribute_map``. Instances are
+    created without calling ``__init__``, so generated setters do not reject
+    missing optional fields. ``date``/``datetime`` values stay ISO strings.
+
+    Args:
+        data (Any): Decoded JSON.
+        type_name (str): Swagger type expression, e.g. ``"list[ClusterExt]"`` or
+            ``"dict(str, int)"``.
+
+    Returns:
+        Any: Model instance(s); unknown types and non-dict data are returned unchanged.
+    """
+    if data is None:
+        return None
+    if type_name.startswith("list["):
+        inner = type_name[5:-1]
+        return [from_swagger_json(item, inner) for item in data]
+    if type_name.startswith("dict("):
+        # "dict(KeyType, ValueType)" -> ValueType; keys are kept as decoded.
+        inner = type_name[type_name.index(",") + 1 : -1].strip()
+        return {k: from_swagger_json(v, inner) for k, v in data.items()}
+    if type_name in _SWAGGER_PRIMITIVES:
+        return data
+    model_cls = getattr(heappe_models, type_name, None)
+    if model_cls is None or not isinstance(data, dict):
+        return data
+    obj = model_cls.__new__(model_cls)
+    obj.discriminator = None
+    for attr, attr_type in model_cls.swagger_types.items():
+        json_key = model_cls.attribute_map[attr]
+        value = data[json_key]
+        # Write the private backing field directly, bypassing validating setters.
+        setattr(obj, f"_{attr}", from_swagger_json(value, attr_type))
+    return obj
+
 
 class HEAppEJobState(Enum):
     """Enum representing the states of a HEAppE job.
@@ -333,7 +479,7 @@ def sweep_job_to_qiskit(
         "qobj_id": "",
         "job_id": str(job.job_id),
         "success": job.status == JobStatus.COMPLETED,
-        "date": datetime.datetime.now(tz=datetime.UTC).date().isoformat(),
+        "date": datetime.now(tz=UTC).date().isoformat(),
         "status": str(job.status),
         "timeline": job.data.timeline.copy(),
         "results": [

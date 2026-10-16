@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from enum import Enum
 from typing import Any
 
 from qiskit import QuantumCircuit
@@ -331,7 +330,9 @@ class QJob(JobV1):
 
             if self._last_known_status == -1:
                 raise RuntimeError("Unknown status of the job")
-            final_status = self._last_known_status = HEAppEJobState.readable(self._last_known_status)
+            final_status = self._last_known_status = HEAppEJobState.readable(
+                self._last_known_status
+            )
 
             if self._last_known_status not in self._qclient.TERMINAL_JOB_STATES:
                 final_status = self._qclient.wait_for_job_terminal_state(self.job_id)

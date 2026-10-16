@@ -25,6 +25,7 @@ DEFAULT_LEXIS_API_URL = "https://api.lexis.tech/"
 # IQM-specific software stack identifier
 IQM_SW_STACK = "iqm"  # value of "type" in /heappe/QScheduler/MachineInfo
 
+
 def is_iqm_pulla_installed() -> bool:
     """Check if the optional iqm-pulla dependency is available.
 
@@ -36,9 +37,11 @@ def is_iqm_pulla_installed() -> bool:
         or importlib.util.find_spec("pulla") is not None
     )
 
+
 # Import QPulla only when available to avoid circular imports
 if is_iqm_pulla_installed():
     from qheappe_client.qpulla import QPulla
+
 
 def _split_target(
     lexis_resource: str | QBackendMetadata | None, backend_name: str | None
@@ -65,6 +68,7 @@ def _split_target(
         return lexis_resource.lexis_resource.resource_name, lexis_resource.backend_name
     return lexis_resource, backend_name
 
+
 def _require_iqm(backend_metadata: QBackendMetadata) -> None:
     """Validate IQM-specific requirements for a backend.
 
@@ -88,6 +92,7 @@ def _require_iqm(backend_metadata: QBackendMetadata) -> None:
         raise ValueError(
             f"Backend '{backend_metadata.backend_name}' has no static architecture."
         )
+
 
 class QProvider:
     """QaaS wrapper for IQM backends with LEXIS token authentication.
@@ -211,7 +216,7 @@ class QProvider:
             provider_token=provider_access_token,
             lexis_api_url=lexis_api_url,
         )
-        return client._run(client.aget_available_backends())
+        return client.get_available_backends()
 
     def available_backends(
         self, lexis_resource: str | None = None, **client_kwargs: Any
@@ -225,7 +230,9 @@ class QProvider:
         Returns:
             dict: Dictionary mapping backend names to their metadata objects.
         """
-        return self._get_client(lexis_resource, **client_kwargs).aget_available_backends()
+        return self._get_client(
+            lexis_resource, **client_kwargs
+        ).get_available_backends()
 
     def get_backend_info(
         self,
@@ -247,11 +254,9 @@ class QProvider:
         """
         resource_name, name = _split_target(lexis_resource, backend_name)
         client = self._get_client(resource_name, **client_kwargs)
-        return self._event_loop.run_until_complete(
-            client.get_quantum_backend_info(
+        return client.get_quantum_backend_info(
                 backend_name=name, calibration_set_id=calibration_set_id
             )
-        )
 
     def get_backend(
         self,
