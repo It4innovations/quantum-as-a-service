@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qaas"
-version = "0.5.3"
+version = "0.5.4"
 description = "Quantum-as-a-Service utilizing IQMProvider, IQMBackend, IQMJob and HEAppE. Developed by IT4Innovations."
 authors = [
     { name="Jan Swiatkowski", email="jan.swiatkowski@vsb.cz" },
@@ -24,7 +24,7 @@ dependencies = [
     "iqm-data-definitions==2.24",
     "iqm-pulla==13.0.*",
     "qiskit_aer>=0.15.0,<1.0.0",
-    "Py4HEAppE>=2.5.0",
+    "Py4HEAppE>=3.1.0",
     "cryptography>=43.0.0",
     "bcrypt>=4.2.0",
     "cffi>=1.17.1",
