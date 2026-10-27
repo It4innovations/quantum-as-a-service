@@ -55,3 +55,14 @@ print(counts)
 | [Usage](usage.md) | Authentication, running circuits, reading results |
 | [API Reference](api.md) | `QProvider`, `QBackend`, `QJob`, `QException` |
 | [Architecture](architecture.md) | Layer design and HEAppE execution flow |
+
+## Authors
+- Jan Swiatkowski, jan.swiatkowski@vsb.cz
+- Ladislav Foltyn, ladislav.foltyn@vsb.cz
+- Ada Böhm, ada.bohm@vsb.cz
+- Jakub Konvička, jakub.konvicka@vsb.cz
+
+
+## License
+
+Apache 2.0 — see `LICENSE` file.
