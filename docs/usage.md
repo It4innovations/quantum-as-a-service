@@ -4,7 +4,7 @@ icon: lucide/play
 
 # Usage
 
-User needs to have a valid LEXIS Platform project with allocated VLQ resources (quantum resoures in general). How to get allocation to use the VLQ quantum machine located at IT4Innovations, VSB -- Technical university of Ostrava, follow the instructions in [IT4I official documentation](https://docs.it4i.cz/en/docs/clusters/vlq/access). How to request the access to the LEXIS Platform project is described in the IT4I documentation as well, or one can use the [LEXIS Platform documentation](https://docs.lexis.tech/).
+User needs to have a valid LEXIS Platform project with allocated VLQ resources (quantum resources in general). How to get allocation to use the VLQ quantum machine located at IT4Innovations, VSB -- Technical university of Ostrava, follow the instructions in [IT4I official documentation](https://docs.it4i.cz/en/docs/clusters/vlq/access). How to request the access to the LEXIS Platform project is described in the IT4I documentation as well, or one can use the [LEXIS Platform documentation](https://docs.lexis.tech/).
 
 ## Authentication
 
