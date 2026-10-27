@@ -13,3 +13,4 @@ dist/*
 build/
 site/*
 .env
+.env_install_test
