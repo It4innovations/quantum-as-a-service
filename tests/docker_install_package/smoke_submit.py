@@ -27,11 +27,12 @@ lexis_project = env("LEXIS_PROJECT")
 resource_name = env("RESOURCE_NAME")
 shots = int(os.environ.get("SHOTS", "100"))
 
-import qaas  # noqa: E402
-from qaas import export_qasm3_with_custom_move as qasm3dumps  # noqa: E402
-from qaas.client import QBackend, QJob, QProvider  # noqa: E402
-from qaas.client.backend_iqm import transpile_to_IQM  # noqa: E402
-from qiskit import QuantumCircuit  # noqa: E402
+from qiskit import QuantumCircuit
+
+import qaas
+from qaas import export_qasm3_with_custom_move as qasm3dumps
+from qaas.client import QBackend, QJob, QProvider
+from qaas.client.backend_iqm import transpile_to_IQM
 
 print(f"qaas {version('qaas')} from {qaas.__file__}")
 print(f"project={lexis_project} resource={resource_name} shots={shots}")
