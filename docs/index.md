@@ -31,8 +31,7 @@ from qiskit import QuantumCircuit
 token: str = LexisSession().get_access_token()
 
 # Connect to hardware
-provider = QProvider(lexis_project="LEXIS_PLATFORM_PROJECT_IDENTIFIER",
-                     token=token)
+provider = QProvider(lexis_project="LEXIS_PLATFORM_PROJECT_IDENTIFIER", token=token)
 
 backend: QBackendIQM = provider.get_backend(lexis_resource="QUANTUM_RESOURCE")
 

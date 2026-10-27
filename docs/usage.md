@@ -22,8 +22,9 @@ token: str = LexisSession().get_access_token()
 from qaas.client import QProvider
 from qaas.client.backend_iqm import QBackendIQM
 
-provider: QProvider = QProvider(lexis_project="LEXIS_PLATFORM_PROJECT_IDENTIFIER",
-                                token="USER_ACCESS_TOKEN")
+provider: QProvider = QProvider(
+    lexis_project="LEXIS_PLATFORM_PROJECT_IDENTIFIER", token="USER_ACCESS_TOKEN"
+)
 backend: QBackendIQM = provider.get_backend(lexis_resource="QUANTUM_RESOURCE")
 ```
 
