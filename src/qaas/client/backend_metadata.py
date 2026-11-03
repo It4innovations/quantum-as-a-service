@@ -4,6 +4,7 @@ This module contains classes for handling metadata related to quantum computing
 backends, including project and resource information from LEXIS platform.
 """
 
+
 class LexisProject:
     """Information about LEXIS Resource entity.
 

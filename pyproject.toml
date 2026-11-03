@@ -35,7 +35,31 @@ dependencies = [
 
 # --- Optional Subpackages (Extras) ---
 [project.optional-dependencies]
+# IQM stacks: install exactly one. The client picks the matching adapter at runtime
+# (qheappe_client.iqm_compat) from the station-control version the backend reports.
+
+# Current IQM stack (station-control 14.x)
 iqm_qiskit = [
+    "qiskit>=2.0,<2.2",
+    "iqm-client[qiskit]==36.0.*",
+    "iqm-exa-common==29.0.*",
+    "iqm-station-control-client==14.0.*",
+    "iqm-data-definitions==3.1.*",
+    "iqm-pulla==15.0.*",
+    "protobuf<7.0",
+]
+iqm36_qiskit = [
+    "qiskit>=2.0,<2.2",
+    "iqm-client[qiskit]==36.0.*",
+    "iqm-exa-common==29.0.*",
+    "iqm-station-control-client==14.0.*",
+    "iqm-data-definitions==3.1.*",
+    "iqm-pulla==15.0.*",
+    "protobuf<7.0",
+]
+
+# Previous IQM stack (station-control 13.x), for backends not yet upgraded
+iqm35_qiskit = [
     "qiskit>=2.0,<2.2",
     "iqm-client[qiskit]==35.0.*",
     "iqm-exa-common==28.0.*",
@@ -56,6 +80,12 @@ where = ["src"]
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402"]
+
+[tool.uv]
+conflicts = [
+    [{ extra = "iqm_qiskit" }, { extra = "iqm35_qiskit" }],
+    [{ extra = "iqm36_qiskit" }, { extra = "iqm35_qiskit" }],
+]
 
 [tool.uv.sources]
 python-http-irods-client = { git = "https://opencode.it4i.eu/lexis-platform/data/python-http-irods-client.git", rev = "1.1.4" }

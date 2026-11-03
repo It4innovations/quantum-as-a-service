@@ -391,7 +391,9 @@ class QClient:
         # HEAppE ProjectId cache per HEAppE URL (fallback lookup via accounting string)
         self._heappe_project_ids: dict[str, int] = {}
         # Keyed by (url, loop): an asyncio.Lock binds to the loop that first waits on it.
-        self._project_locks: dict[tuple[str, asyncio.AbstractEventLoop], asyncio.Lock] = {}
+        self._project_locks: dict[
+            tuple[str, asyncio.AbstractEventLoop], asyncio.Lock
+        ] = {}
         # Lazily created sync py4heappe clients, only for callers needing the generated API
         self._heappe_clients: dict[str, HEAppEApi] = {}
 

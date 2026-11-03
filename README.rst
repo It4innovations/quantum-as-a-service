@@ -24,6 +24,12 @@ QHEAppE can be installed using pip. To install the package along with optional d
 
    pip install qaas[iqm_qiskit] --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
 
+``iqm_qiskit`` installs the current IQM libraries (iqm-client 36.x, station-control 14.x).
+For backends that still run the previous IQM release (station-control 13.x), install
+``qaas[iqm35_qiskit]`` (iqm-client 35.x) instead. Install only one of the two.
+``QProvider.get_backend()`` checks the version the backend reports and raises an error
+that names the extra to install if it does not match.
+
 Architecture
 -------------
 

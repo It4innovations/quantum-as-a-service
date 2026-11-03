@@ -1,6 +1,18 @@
+"""Qiskit backend for IQM hardware behind HEAppE/QScheduler.
+
+This module only uses IQM symbols that exist in every supported IQM stack
+(iqm-client 35.x and 36.x), so it imports with either one installed.
+Version-specific behaviour lives in :mod:`qheappe_client.iqm_compat`; use
+:class:`~qheappe_client.iqm_compat.QBackendIQMFactory` (or
+:meth:`QProvider.get_backend`) to get the backend class that matches the
+installed stack and the server.
+"""
+
+from __future__ import annotations
+
 import warnings
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID
 
 import numpy as np
@@ -20,11 +32,12 @@ from iqm.station_control.interface.models import (
     ObservationLite,
     QIRCode,
     QubitMapping,
-    RunRequest,
 )
 
-# Obsolete Circuit type
-from iqm.station_control.interface.models.circuit import _Circuit
+# PostJobsRequest is the wire model in both stacks: called RunRequest in 35.x
+# and CircuitJobDefinition in 36.x (both are aliases of it).
+# _Circuit is the obsolete circuit type.
+from iqm.station_control.interface.models.circuit import PostJobsRequest, _Circuit
 from qiskit import QuantumCircuit
 from qiskit.primitives import PrimitiveResult, SamplerPubResult
 from qiskit.primitives.containers import BitArray, DataBin
@@ -36,12 +49,40 @@ from qheappe_client.qclient import QClient
 from qheappe_client.qiskit.qbackend import QBackend
 from qheappe_client.utils import is_valid_uuid
 
-__all__ = ["QBackendIQM", "transpile_to_IQM"]
+if TYPE_CHECKING:
+    from qheappe_client.iqm_compat.stack import IQMStack
+
+__all__ = ["CircuitJobDefinition", "QBackendIQM", "transpile_to_IQM"]
+
+CircuitJobDefinition = PostJobsRequest
 
 
 class QBackendIQM(QBackend, IQMBackend):
     """QaaS backend for IQM hardware. Target/qubit mapping come from IQMBackendBase,
-    execution goes through QClient/HEAppE."""
+    execution goes through QClient/HEAppE.
+
+    Works with every supported IQM stack. Stack-specific subclasses
+    (``QBackendIQM35``, ``QBackendIQM36``) set :attr:`iqm_stack` and override
+    the hooks below where the IQM libraries differ.
+    """
+
+    #: IQM stack this class targets; ``None`` for the version-agnostic base.
+    iqm_stack: ClassVar[IQMStack | None] = None
+
+    @staticmethod
+    def _load_metrics(metrics: dict[str, Any]) -> ObservationFinder:
+        """Build an ObservationFinder from a ``MachineCalibration`` metrics response.
+
+        Args:
+            metrics: Parsed metrics JSON with an ``observations`` list.
+
+        Returns:
+            ObservationFinder over the observations.
+        """
+        observations = [
+            ObservationLite.model_validate(o) for o in metrics.get("observations", [])
+        ]
+        return ObservationFinder(observations)
 
     def __init__(
         self,
@@ -57,17 +98,11 @@ class QBackendIQM(QBackend, IQMBackend):
             self, client=client, architecture=architecture, name=name, **kwargs
         )
 
-        if use_metrics:
-            metrics = self._qclient.get_machine_metrics()
-            # Create observation data
-            observations = [
-                ObservationLite.model_validate(o) for o in metrics.get("observations",[])
-            ]
-
-
-            metrics = ObservationFinder(observations)
-        else:
-            metrics = None
+        metrics = (
+            self._load_metrics(self._qclient.get_machine_metrics())
+            if use_metrics
+            else None
+        )
 
         IQMBackendBase.__init__(
             self, architecture=architecture, name=name, metrics=metrics, **kwargs
@@ -235,8 +270,27 @@ class QBackendIQM(QBackend, IQMBackend):
         circuit_callback: Callable[[list[QuantumCircuit]], Any] | None = None,
         qubit_index_to_name: dict[int, str] | None = None,
         **unknown_options,
-    ) -> RunRequest:
-        """Create a run request without submitting it for execution.
+    ) -> CircuitJobDefinition:
+        """Alias of :meth:`create_circuit_job_definition` (iqm-client 35.x name)."""
+        return self.create_circuit_job_definition(
+            run_input,
+            shots=shots,
+            circuit_compilation_options=circuit_compilation_options,
+            circuit_callback=circuit_callback,
+            qubit_index_to_name=qubit_index_to_name,
+            **unknown_options,
+        )
+
+    def create_circuit_job_definition(
+        self,
+        run_input: QuantumCircuit | list[QuantumCircuit],
+        shots: int = 1024,
+        circuit_compilation_options: CircuitCompilationOptions | None = None,
+        circuit_callback: Callable[[list[QuantumCircuit]], Any] | None = None,
+        qubit_index_to_name: dict[int, str] | None = None,
+        **unknown_options,
+    ) -> CircuitJobDefinition:
+        """Create a circuit job definition (run request) without submitting it for execution.
 
         This can be used to check what would be submitted for execution by an equivalent call to :meth:`run`.
 
@@ -265,7 +319,7 @@ class QBackendIQM(QBackend, IQMBackend):
             unknown_options: Backwards compatibility for deprecated parameters.
 
         Returns:
-            The created run request object
+            The created circuit job definition.
 
         """
         circuits = [run_input] if isinstance(run_input, QuantumCircuit) else run_input
@@ -323,7 +377,7 @@ class QBackendIQM(QBackend, IQMBackend):
                 qubit_mapping: QubitMapping | None = None,
                 shots: int = 1,
                 options: CircuitCompilationOptions | None = None,
-            ) -> RunRequest:
+            ) -> CircuitJobDefinition:
                 """Create a run request for executing circuits without sending it to the server.
 
                 This is called in :meth:`submit_circuits` and does not need to be called separately in normal usage.
@@ -341,7 +395,7 @@ class QBackendIQM(QBackend, IQMBackend):
                     options: Various discrete options for compiling quantum circuits to instruction schedules.
 
                 Returns:
-                    RunRequest that would be submitted by equivalent call to :meth:`submit_circuits`.
+                    CircuitJobDefinition that would be submitted by equivalent call to :meth:`submit_circuits`.
 
                 """
                 if shots < 1:
@@ -379,7 +433,7 @@ class QBackendIQM(QBackend, IQMBackend):
                     must_close_sandwiches=False,
                 )
 
-                return RunRequest(
+                return CircuitJobDefinition(
                     qubit_mapping=qubit_mapping,
                     circuits=circuits,
                     calibration_set_id=calibration_set_id
@@ -395,7 +449,8 @@ class QBackendIQM(QBackend, IQMBackend):
                     dd_strategy=options.dd_strategy,
                 )
 
-            # Run local create_run_request fn derived from IQMClient.create_run_request
+            # Local copy of IQMClient.create_run_request (35.x) / create_circuit_job_definition (36.x),
+            # validating against the cached architecture instead of calling the IQM server.
             run_request = create_run_request(
                 circuits_serialized,
                 calibration_set_id=self._calibration_set_id,
@@ -417,7 +472,7 @@ class QBackendIQM(QBackend, IQMBackend):
             [run_input] if isinstance(run_input, QuantumCircuit) else list(run_input)
         )
 
-        run_request = self.create_run_request(
+        run_request = self.create_circuit_job_definition(
             run_input=circuits,
             shots=shots,
             circuit_compilation_options=options.get(
@@ -427,7 +482,7 @@ class QBackendIQM(QBackend, IQMBackend):
             qubit_index_to_name=options.get("qubit_index_to_name"),
         )
 
-        serialized_run_request = RunRequest.model_dump_json(run_request)
+        serialized_run_request = run_request.model_dump_json()
 
         payloads = {"run_request": serialized_run_request}
 

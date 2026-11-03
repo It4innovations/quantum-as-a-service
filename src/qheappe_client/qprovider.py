@@ -13,9 +13,12 @@ from typing import Any
 from uuid import UUID
 
 from .backend_metadata import LexisResource, QBackendMetadata
+from .iqm_compat import IQMStack, QBackendIQMFactory
 from .qclient import QClient
 from .qiskit.qbackend import QBackend
-from .qiskit.qbackend_iqm import QBackendIQM
+from .qiskit.qbackend_iqm import (
+    QBackendIQM,  # noqa: F401  # backwards-compatible re-export
+)
 
 # Backwards compatibility: these names used to be local dataclasses of this module.
 LexisResourceMetadata = LexisResource
@@ -255,8 +258,8 @@ class QProvider:
         resource_name, name = _split_target(lexis_resource, backend_name)
         client = self._get_client(resource_name, **client_kwargs)
         return client.get_quantum_backend_info(
-                backend_name=name, calibration_set_id=calibration_set_id
-            )
+            backend_name=name, calibration_set_id=calibration_set_id
+        )
 
     def get_backend(
         self,
@@ -265,23 +268,31 @@ class QProvider:
         calibration_set_id: UUID | None = None,
         *,
         use_metrics: bool = False,
+        strict_iqm_version: bool = True,
         **client_kwargs: Any,
     ) -> QBackend:
         """Create a QBackend instance bound to the specified resource and backend.
+
+        For IQM, the backend class is picked by :class:`QBackendIQMFactory` from the
+        installed iqm-client and the station-control version the backend reports.
 
         Args:
             lexis_resource: Either resource name or QBackendMetadata object.
             backend_name: Optional backend name to specify if not using metadata.
             calibration_set_id: Optional calibration set ID for specific backend state.
             use_metrics: Whether to enable metrics collection (default: False).
+            strict_iqm_version: Raise if the installed IQM libraries do not match the
+                backend; if ``False``, only warn (default: True).
             client_kwargs: Additional keyword arguments for client initialization.
 
         Returns:
-            QBackendIQM: Configured backend instance for quantum operations.
+            QBackendIQM: Configured backend instance for quantum operations
+            (``QBackendIQM35`` or ``QBackendIQM36``).
 
         Raises:
             NotImplementedError: If software stack is not 'iqm'.
             ValueError: For missing dynamic/static architecture requirements.
+            QException: Installed IQM libraries do not match the backend.
         """
         resource_name, name = _split_target(lexis_resource, backend_name)
         client = self._get_client(resource_name, **client_kwargs).bind(name)
@@ -290,12 +301,12 @@ class QProvider:
         )
         _require_iqm(backend_metadata)
 
-        return QBackendIQM(
-            client=client,
-            architecture=backend_metadata.dynamic_architecture,
+        return QBackendIQMFactory.create(
+            client,
+            backend_metadata,
+            calibration_set_id,
             use_metrics=use_metrics,
-            backend_metadata=backend_metadata,
-            calibration_set_id=calibration_set_id,
+            strict=strict_iqm_version,
         )
 
     def get_pulla(
@@ -326,6 +337,11 @@ class QProvider:
         )
         _require_iqm(backend_metadata)
 
+        if QBackendIQMFactory.installed_stack() is not IQMStack.IQM35:
+            raise NotImplementedError(
+                "QPulla needs iqm-pulla 14.x (install 'qaas[iqm35_qiskit]'). "
+                "iqm-pulla 15 (iqm-client 36.x) removed the Pulla class."
+            )
         if not is_iqm_pulla_installed():
             raise ImportError(
                 "The backend software stack is 'IQM', but the optional dependency "
