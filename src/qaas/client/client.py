@@ -13,7 +13,7 @@ import warnings
 import weakref
 from datetime import UTC, datetime
 from importlib import metadata as m
-from typing import Any
+from typing import Any, ClassVar
 from uuid import UUID
 
 import dill
@@ -101,7 +101,7 @@ class _SafeHEAppEApi(HEAppEApi):
     Closing the pool via ``close()`` (``close_session`` or ``atexit``) avoids that.
     """
 
-    _live: "weakref.WeakSet[_SafeHEAppEApi]" = weakref.WeakSet()
+    _live: ClassVar["weakref.WeakSet[_SafeHEAppEApi]"] = weakref.WeakSet()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
