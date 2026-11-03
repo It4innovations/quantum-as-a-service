@@ -51,9 +51,3 @@ Jobs travel through the following steps once `backend.run()` is called:
 - **Hardware-specific transpilation** is performed client-side before submission so that the backend always receives a valid native-gate circuit.
 - **Real-time calibration** is fetched at backend creation time, ensuring transpilation targets the current hardware state.
 - **IQM pulse-level optimisation** (`iqm-pulla`) is available as an optional post-transpilation step for advanced users.
-
-## Roadmap
-
-| Target | Item |
-|--------|------|
-| Q2 2026 | Low-level quantum circuit tuning |
