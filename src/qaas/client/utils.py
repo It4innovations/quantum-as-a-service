@@ -18,9 +18,9 @@ from qiskit.result import Counts, Result
 
 class QException(Exception):
     """
-    Base exception for QVAS.
+    Base exception for QHEAppE.
 
-    All custom exceptions in the QVAS project should inherit from this class.
+    All custom exceptions in the QHEAppE project should inherit from this class.
     Provides optional context info like user_id, resource, or additional data.
     """
 
