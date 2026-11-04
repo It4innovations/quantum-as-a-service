@@ -164,9 +164,13 @@ class QBackendIQM(QBackend, IQMBackend):
                 ]
                 if len({c.shape[0] for c in cols}) != 1:
                     raise ValueError(f"PUB {i}: keys have different shot counts")
-                bitarray = BitArray.from_bool_array(np.concatenate(cols, axis=1), order=order)
+                bitarray = BitArray.from_bool_array(
+                    np.concatenate(cols, axis=1), order=order
+                )
 
-                if "counts" in item and bitarray.num_shots != sum(item["counts"].values()):
+                if "counts" in item and bitarray.num_shots != sum(
+                    item["counts"].values()
+                ):
                     raise ValueError(f"PUB {i}: shots in measurements != sum of counts")
             else:
                 n = len(next(iter(item["counts"])))
