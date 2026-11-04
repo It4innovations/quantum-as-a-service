@@ -166,3 +166,51 @@ class TestFactory:
         md._dynamic_architecture = None
         with pytest.raises(ValueError, match="dynamic architecture"):
             QBackendIQMFactory.create(SimpleNamespace(), md)
+
+
+class TestInstallHints:
+    def test_hint_has_extra_and_index(self):
+        hint = stack_mod.install_hint(IQMStack.IQM35)
+        assert "qaas[iqm35_qiskit]" in hint
+        assert f"--extra-index-url {stack_mod.QAAS_EXTRA_INDEX_URL}" in hint
+
+    def test_mismatch_error_has_index(self):
+        mi = machine_info(f"{SC_MAJOR[OTHER]}.0.0")
+        with pytest.raises(QException, match="--extra-index-url"):
+            QBackendIQMFactory.resolve_stack(mi)
+
+    @pytest.mark.parametrize(("version", "expected"), [
+        (None, "not installed"),
+        ("30.0.0", "not supported"),
+        ("36.0.0", "incomplete or mixed"),
+    ])
+    def test_import_error_message(self, monkeypatch, version, expected):
+        monkeypatch.setattr(stack_mod, "installed_iqm_client_version", lambda: version)
+        msg = stack_mod.iqm_import_error_message(ModuleNotFoundError("x", name="qiskit"))
+        assert expected in msg
+        assert "qaas[iqm_qiskit]" in msg and "qaas[iqm35_qiskit]" in msg
+
+    @pytest.mark.parametrize(("name", "expected"), [
+        ("qiskit", True), ("iqm.pulla", True), ("exa.common", True),
+        ("aiohttp", False), (None, False),
+    ])
+    def test_is_iqm_extra_import_error(self, name, expected):
+        assert stack_mod.is_iqm_extra_import_error(ImportError("x", name=name)) is expected
+
+    def test_package_import_without_qiskit_explains_install(self):
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        import qheappe_client
+
+        src = str(Path(qheappe_client.__file__).parents[1])
+        code = (
+            "import sys; sys.path.insert(0, sys.argv[1]); sys.modules['qiskit'] = None\n"
+            "try:\n    import qheappe_client\n"
+            "except ImportError as e:\n    print(e)\n"
+        )
+        out = subprocess.run([sys.executable, "-c", code, src],
+                             capture_output=True, text=True, timeout=120, check=False).stdout
+        assert "cannot import 'qiskit'" in out
+        assert "qaas[iqm_qiskit]" in out and "--extra-index-url" in out

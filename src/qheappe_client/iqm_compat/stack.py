@@ -61,9 +61,52 @@ def _major(version: str | None) -> int | None:
     return int(m.group(1)) if m else None
 
 
+# Package index that hosts qaas (it is not on public PyPI).
+QAAS_EXTRA_INDEX_URL = "https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple"
+
+# Top-level modules provided by the IQM extras.
+IQM_EXTRA_MODULES = frozenset({"qiskit", "iqm", "exa"})
+
+
 def install_hint(stack: IQMStack) -> str:
     """Pip command that installs the given stack."""
-    return f"pip install 'qaas[{STACK_EXTRA[stack]}]'"
+    return (
+        f"pip install 'qaas[{STACK_EXTRA[stack]}]' "
+        f"--extra-index-url {QAAS_EXTRA_INDEX_URL}"
+    )
+
+
+def is_iqm_extra_import_error(error: ImportError) -> bool:
+    """True if ``error`` comes from a module that only the IQM extras provide."""
+    return (error.name or "").split(".")[0] in IQM_EXTRA_MODULES
+
+
+def iqm_import_error_message(error: ImportError) -> str:
+    """Explain an import error from the IQM libraries and how to fix it.
+
+    Args:
+        error: The ImportError raised while importing an IQM/Qiskit module.
+
+    Returns:
+        Message naming the problem and the extras to install.
+    """
+    version = installed_iqm_client_version()
+    if version is None:
+        problem = "The IQM libraries (qiskit, iqm-client) are not installed."
+    elif _major(version) not in CLIENT_MAJOR_TO_STACK:
+        supported = ", ".join(f"{m}.x" for m in CLIENT_MAJOR_TO_STACK)
+        problem = f"Installed iqm-client {version} is not supported (supported: {supported})."
+    else:
+        problem = (
+            f"The IQM libraries are incomplete or mixed (iqm-client {version}); "
+            "reinstall them with one of the commands below."
+        )
+    return (
+        f"qheappe_client cannot import '{error.name}': {problem}\n"
+        f"Install one IQM extra, matching the backend's IQM release:\n"
+        f"  current backends (station-control 14.x): {install_hint(IQMStack.IQM36)}\n"
+        f"  older backends   (station-control 13.x): {install_hint(IQMStack.IQM35)}"
+    )
 
 
 def installed_iqm_client_version() -> str | None:
