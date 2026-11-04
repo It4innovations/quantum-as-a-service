@@ -107,6 +107,10 @@ The following example demonstrates the basic usage of the QProvider and QBackend
    print("Counts:", counts)
    print(f"Bitstring: {bitstrings!s:.20s}")
 
+``job.result()`` returns a Qiskit ``PrimitiveResult`` by default, or a legacy ``Result``
+with ``qiskit_legacy=True``. The difference is explained in
+`PrimitiveResult vs. legacy Result <https://it4innovations.github.io/quantum-as-a-service/usage/#primitiveresult-vs-legacy-result>`_.
+
 How to Fetch Calibration Data
 ------------------------------
 

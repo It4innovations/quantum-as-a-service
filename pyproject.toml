@@ -38,7 +38,7 @@ dependencies = [
 # IQM stacks: install exactly one. The client picks the matching adapter at runtime
 # (qheappe_client.iqm_compat) from the station-control version the backend reports.
 
-# Current IQM stack (station-control 14.x)
+# Current IQM stack (recommended; station-control 49.x and 50.x backends)
 iqm_qiskit = [
     "qiskit>=2.0,<2.2",
     "iqm-client[qiskit]==36.0.*",

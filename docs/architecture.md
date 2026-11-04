@@ -4,50 +4,78 @@ icon: lucide/layers
 
 # Architecture
 
-## Layer design
+The QHEAppE Client is the user-side part of the QaaS solution. It talks to two services:
 
-QaaS is structured as three layers:
+- **LEXIS Platform** — authentication, projects and quantum resources (which HEAppE instances and backends you may use)
+- **HEAppE with QScheduler** — the REST API in front of each quantum computer: machine information, calibration, job submission, results and job events
 
 ```mermaid
 graph TD
-    User["User code\n(Qiskit circuits)"]
-    P["Provider layer\nprovider.py"]
-    C["Client layer\nclient.py"]
-    B["Backend layer\nbackend_iqm.py"]
-    HEAppE["HEAppE\n(job scheduler)"]
-    IQM["IQM hardware"]
+    User["User code<br/>(Qiskit circuits)"]
+    P["QProvider"]
+    B["QBackendIQM / QJob"]
+    F["QBackendIQMFactory<br/>(IQM version check)"]
+    C["QClient"]
+    LEXIS["LEXIS Platform<br/>(auth, projects, resources)"]
+    HEAppE["HEAppE + QScheduler<br/>(REST API, job events)"]
+    IQM["IQM quantum computer<br/>(station control)"]
 
     User --> P
+    User --> B
+    P --> F
+    F --> B
     P --> C
-    P --> B
+    B --> C
+    C --> LEXIS
     C --> HEAppE
-    B --> IQM
     HEAppE --> IQM
 ```
 
-### Provider layer (`provider.py`)
+## Components
 
-Authenticates against the LEXIS platform using the supplied token and project name, then resolves the requested resource to a concrete backend implementation. This is the only layer the user interacts with directly.
+### `QProvider`
 
-### Client layer (`client.py`)
+The entry point. Takes a LEXIS project and token, creates one `QClient` per quantum resource (cached), and builds backends through `QBackendIQMFactory`.
 
-Handles HEAppE job lifecycle: submission, polling, result retrieval, and error propagation back to the caller. Internally manages encrypted credentials and accounting information.
+### `QClient`
 
-### Backend layer (`backend_iqm.py`)
+Does all network communication, asynchronously (`aiohttp`), with a synchronous API on top. Sync calls run on the client's own background event loop, so they also work inside Jupyter and other code that already runs an event loop.
 
-Creates IQM-specific `QBackend` instances. Fetches real-time hardware calibration data, drives circuit transpilation through the IQM gate set, and wraps raw IQM results into the `QJob`/result abstraction.
+- verifies the LEXIS token and checks access to the project and resource
+- discovers the HEAppE clusters (backends) of the resource and checks their availability
+- reads `MachineInfo`, the machine architecture and calibration data from QScheduler
+- submits jobs, fetches results and artifacts, cancels jobs, and manages QScheduler sessions
+- listens to the HEAppE job-event websocket to know when a job finishes
 
-## HEAppE execution flow
+### `QBackendIQM` and `QJob`
 
-Jobs travel through the following steps once `backend.run()` is called:
+A Qiskit `BackendV2` built from the backend's IQM dynamic architecture. It transpiles circuits with IQM's transpiler, serializes them into an IQM circuit job definition and submits it through `QClient`. `QJob` waits for the job and converts the results into a Qiskit `PrimitiveResult` or legacy `Result`.
 
-1. **Submission** — circuit and parameters are packaged into a HEAppE command template and submitted.
-2. **Initialisation** (`run_init.sh`) — the remote environment is set up; hardware availability and system information are verified.
-3. **Execution** (`run_execution.sh`) — the quantum circuit is dispatched to IQM hardware and run for the requested number of shots.
-4. **Result retrieval** — measurement counts are collected by HEAppE and streamed back to the QaaS client, which surfaces them via `job.result().get_counts()`.
+### `QBackendIQMFactory` (IQM version selection)
 
-## Key design decisions
+Only one generation of the IQM client libraries can be installed at a time (`iqm_qiskit` = iqm-client 36, `iqm35_qiskit` = iqm-client 35). The factory compares the installed one with the `station_control_version` the backend reports in `MachineInfo`:
 
-- **Hardware-specific transpilation** is performed client-side before submission so that the backend always receives a valid native-gate circuit.
-- **Real-time calibration** is fetched at backend creation time, ensuring transpilation targets the current hardware state.
-- **IQM pulse-level optimisation** (`iqm-pulla`) is available as an optional post-transpilation step for advanced users.
+| Backend station-control | Works with |
+|-------------------------|------------|
+| 50.x (current) | iqm-client 36 |
+| 49.x (older) | iqm-client 36 (recommended) or iqm-client 35 |
+| unknown | the installed version, with a warning |
+
+On a mismatch it raises a `QException` with the `pip install` command for the right extra. The differences between the IQM versions are kept in small adapter modules (`qheappe_client.iqm_compat.iqm35` / `iqm36`).
+
+## Job flow
+
+What happens when you call `backend.run(...)` and `job.result()`:
+
+1. **Job definition** — the transpiled circuits are converted into an IQM circuit job definition (JSON), including the calibration set and shot count.
+2. **Submission** — `QClient` sends it to `POST /heappe/QScheduler/CreateAndSubmitJob`; HEAppE returns the job ID.
+3. **Execution** — QScheduler queues the job and runs it on the IQM quantum computer.
+4. **Completion** — `QClient` waits for a terminal job state from the HEAppE event websocket (`/heappe/Events`).
+5. **Results** — the results of each task are fetched from `GET /heappe/QScheduler/GetTaskResult` (and per-shot measurements as task artifacts) and converted into Qiskit result objects.
+
+## Design decisions
+
+- **Client-side transpilation** — circuits are transpiled against the backend's current calibration before submission, so the backend always receives native-gate circuits.
+- **Current calibration** — the dynamic architecture is loaded when the backend is created; `calibration_set_id` pins a specific one, and `use_metrics=True` adds calibration quality metrics to the transpiler target.
+- **Direct QScheduler API** — jobs are submitted through the QScheduler REST API instead of HEAppE command templates (used by the legacy `qaas` client).
+- **Optional IQM dependencies** — the IQM libraries come from extras, so the client can support more than one IQM release.
