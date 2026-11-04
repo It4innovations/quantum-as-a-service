@@ -67,10 +67,15 @@ jobs:
           path: dist/
 
       - name: Install package into clean environment
-        run: pip install dist/*.whl --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
+        run: pip install "$(ls dist/*.whl)[iqm_qiskit]" --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
 
+      # Only the new qheappe_client; the legacy qaas client needs iqm35_qiskit.
       - name: Smoke test — import check
-        run: python -c "import qaas; from qaas.client import QProvider; print('qaas import OK')"
+        run: |
+          python -c "
+          from qheappe_client import QProvider, QBackendIQMFactory
+          print('qheappe_client import OK, IQM stack:', QBackendIQMFactory.installed_stack())
+          "
 
   # ---------------------------------------------------------------------------
   # 3) Build Documentation — depends on check-and-build
@@ -93,7 +98,8 @@ jobs:
           path: dist/
 
       - name: Install package and doc tools
-        run: pip install "$(ls dist/*.whl)[iqm_backend]" zensical pdoc --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
+        # pdoc imports the legacy qaas client, which needs iqm-client 35 (Pulla).
+        run: pip install "$(ls dist/*.whl)[iqm_qiskit]" zensical pdoc --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
 
       - name: Build Zensical documentation
         run: zensical build --clean
