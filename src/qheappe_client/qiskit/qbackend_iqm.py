@@ -164,9 +164,9 @@ class QBackendIQM(QBackend, IQMBackend):
                 ]
                 if len({c.shape[0] for c in cols}) != 1:
                     raise ValueError(f"PUB {i}: keys have different shot counts")
-                ba = BitArray.from_bool_array(np.concatenate(cols, axis=1), order=order)
+                bitarray = BitArray.from_bool_array(np.concatenate(cols, axis=1), order=order)
 
-                if "counts" in item and ba.num_shots != sum(item["counts"].values()):
+                if "counts" in item and bitarray.num_shots != sum(item["counts"].values()):
                     raise ValueError(f"PUB {i}: shots in measurements != sum of counts")
             else:
                 n = len(next(iter(item["counts"])))
@@ -174,9 +174,9 @@ class QBackendIQM(QBackend, IQMBackend):
                     int(bs[::-1] if key_order_left_to_right else bs, 2): c
                     for bs, c in item["counts"].items()
                 }
-                ba = BitArray.from_counts(int_counts, num_bits=n)
+                bitarray = BitArray.from_counts(int_counts, num_bits=n)
 
-            data = DataBin(**{reg_name: ba}, shape=ba.shape)
+            data = DataBin(**{reg_name: bitarray}, shape=bitarray.shape)
             pubs.append(SamplerPubResult(data, metadata={"measurement_keys": keys}))
         return PrimitiveResult(pubs, metadata={})
 
