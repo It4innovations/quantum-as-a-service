@@ -98,7 +98,8 @@ jobs:
           path: dist/
 
       - name: Install package and doc tools
-        # pdoc imports the legacy qaas client, which needs iqm-client 35 (Pulla).
+        # API docs cover the new qheappe_client only; the legacy qaas client needs
+        # iqm-client 35 (iqm35_qiskit) and does not import with iqm_qiskit.
         run: pip install "$(ls dist/*.whl)[iqm_qiskit]" zensical pdoc --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
 
       - name: Build Zensical documentation
@@ -106,8 +107,8 @@ jobs:
 
       - name: Build pdoc API reference
         # Generates HTML into site/api_reference/ alongside the Zensical output.
-        # Link to it from docs/api.md, e.g.: [Full API Reference](../api_reference/qaas.html)
-        run: pdoc --output-dir site/api_reference qaas
+        # Link to it from docs/api.md, e.g.: [Full API Reference](../api_reference/qheappe_client.html)
+        run: pdoc --output-dir site/api_reference qheappe_client
         env:
           CYCLOPS_API_URL: "http://placeholder"
           CYCLOPS_KAFKA_SERVER: "placeholder:9092"
