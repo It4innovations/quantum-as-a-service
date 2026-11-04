@@ -13,7 +13,7 @@ Requirements
 ------------
 
 - Python 3.12
-- required Python packages: see `dependencies` in `pyproject.toml <pyproject.toml>`_
+- Required Python packages: see `dependencies` in `pyproject.toml <pyproject.toml>`_
 
 Installation
 ------------

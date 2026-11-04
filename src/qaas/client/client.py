@@ -1,3 +1,4 @@
+import atexit
 import base64
 import concurrent
 import json
@@ -9,9 +10,10 @@ import sys
 import time
 import urllib
 import warnings
+import weakref
 from datetime import UTC, datetime
 from importlib import metadata as m
-from typing import Any
+from typing import Any, ClassVar
 from uuid import UUID
 
 import dill
@@ -81,6 +83,53 @@ else:
 
 handler.setFormatter(formatter)
 log.addHandler(handler)
+
+
+# ---------------------------------
+# HEAppE API client with safe close
+# ---------------------------------
+
+
+class _SafeHEAppEApi(HEAppEApi):
+    """
+    py4heappe ``ApiClient`` that releases its ThreadPool deterministically.
+
+    The generated ``ApiClient`` creates a ``ThreadPool`` in ``__init__`` and only
+    closes it in ``__del__``. When the client lives until interpreter shutdown,
+    ``__del__`` runs after ``multiprocessing`` globals were cleared and prints
+    ``AttributeError: 'NoneType' object has no attribute 'debug'/'dumps'``.
+    Closing the pool via ``close()`` (``close_session`` or ``atexit``) avoids that.
+    """
+
+    _live: ClassVar["weakref.WeakSet[_SafeHEAppEApi]"] = weakref.WeakSet()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _SafeHEAppEApi._live.add(self)
+
+    def close(self) -> None:
+        pool = getattr(self, "pool", None)
+        if pool is not None:
+            self.pool = None
+            pool.close()
+            pool.join()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:  # noqa: BLE001, S110  # interpreter may be shutting down
+            pass
+
+    @classmethod
+    def _close_all(cls) -> None:
+        for client in list(cls._live):
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001, S110
+                pass
+
+
+atexit.register(_SafeHEAppEApi._close_all)
 
 
 # -----------------------
@@ -317,14 +366,14 @@ class QClient:
                 raise QException(
                     message=(
                         "Major or Minor Version Mismatch: client must be updated. "
-                        f"(expected={client_version}, actual={server_version})."
+                        f"(client={client_version}, server(expected)={server_version})."
                     )
                 )
 
             if act_patch != exp_patch:
                 warnings.warn(
                     "Patch Version Mismatch: recommending update "
-                    f"(expected={client_version}, actual={server_version}).",
+                    f"(client={client_version}, server(expected)={server_version}).",
                     category=UserWarning,
                 )
 
@@ -805,7 +854,7 @@ class QClient:
             conf: HEAppEConfiguration = HEAppEConfiguration()
             conf.host = self._backend_metadata.lexis_resource.heappe_url
 
-            heappe_client: HEAppEApi = HEAppEApi(
+            heappe_client: HEAppEApi = _SafeHEAppEApi(
                 conf, header_name="Authorization", header_value=f"Bearer {self._token}"
             )
             return heappe_client
@@ -2344,7 +2393,9 @@ class QClient:
         if self._heappe_client:
             try:
                 self._authenticated = False
-                self._heappe_client = None
+                client, self._heappe_client = self._heappe_client, None
+                if isinstance(client, _SafeHEAppEApi):
+                    client.close()
             except Exception as e:
                 log.error("Error closing session: %s", str(e))
                 raise QAuthException("Error closing exception") from e

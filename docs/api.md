@@ -6,34 +6,35 @@ icon: lucide/book-open
 
 ## QProvider
 
-Entry point for quantum resource access through the LEXIS platform.
+Entry point for quantum resource access through the LEXIS Platform.
 
 ```python
-from qaas import QProvider
+from qaas.client import QProvider
 
-provider = QProvider(token, project_name)
+provider: QProvider = QProvider(lexis_project, token)
 ```
 
 **Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `token` | `str` | LEXIS access token |
-| `project_name` | `str` | LEXIS project identifier |
+| `lexis_project` | `str` | LEXIS Platform project identifier |
+| `token` | `str` | User's LEXIS Platform access token |
 
-### `get_backend(resource_name)`
 
-Returns a [`QBackend`](#qbackend) connected to the specified resource.
+### `get_backend(resource_name) -> QBackendIQM`
+
+Returns a [`QBackendIQM`](#qbackend) connected to the specified resource.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `resource_name` | `str` | Accounting string, e.g. `"EQE1-CZ-P0001"` |
+| `lexis_resource` | `str` | Accounting string, e.g. `"EU-XX-XXXX"` |
 
 ---
 
-## QBackend
+## QBackendIQM
 
-Represents a quantum hardware interface. Obtained via `QProvider.get_backend()`.
+Represents a quantum hardware interface. Obtained via `QProvider.get_backend(lexis_resource)`.
 
 ### `architecture`
 
@@ -44,24 +45,24 @@ Hardware specifications object.
 | `architecture.qubits` | List of available qubit indices |
 | `architecture.gates` | Dict of supported gate names → definitions |
 
-### `transpile(quantum_circuit, optimize_single_qubits=False)`
+### `transpile(quantum_circuit) -> QuantumCircuit`
 
-Compiles a Qiskit `QuantumCircuit` into the IQM native gate set.
+Transpiles a Qiskit `QuantumCircuit` into the IQM native gate set.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `quantum_circuit` | `QuantumCircuit` | — | Qiskit circuit to compile |
-| `optimize_single_qubits` | `bool` | `False` | Merge single-qubit gates where possible |
+| `quantum_circuit` | `QuantumCircuit` | — | Qiskit circuit to transpile |
+| `optimize_single_qubits` | `bool` | `True` | Whether to optimize single qubit gates away |
 
 Returns a transpiled `QuantumCircuit` ready for execution.
 
-### `run(quantum_circuit, shots=1000)`
+### `run(quantum_circuit, shots=1000) -> QJob`
 
 Submits a transpiled circuit for execution.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `quantum_circuit` | `QuantumCircuit` | — | Transpiled circuit |
+| `quantum_circuit` | `QuantumCircuit` | — | Transpiled quantum circuit |
 | `shots` | `int` | `1000` | Number of measurement repetitions |
 
 Returns a [`QJob`](#qjob) handle.
@@ -72,12 +73,12 @@ Returns a [`QJob`](#qjob) handle.
 
 Manages an in-flight or completed quantum job. Obtained via `QBackend.run()`.
 
-### `result()`
+### `result() -> Result`
 
-Blocks until the job is complete, then returns a result object.
+Blocks until the job is complete, then returns a `Result` object.
 
 ```python
-result = job.result()
+result: Result = job.result()
 ```
 
 ### Result object
