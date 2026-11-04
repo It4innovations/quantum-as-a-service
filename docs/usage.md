@@ -25,7 +25,10 @@ provider = QProvider(lexis_project="YOUR_LEXIS_PROJECT")
 
 # 2. Token: e.g. for scripts on remote machines or CI
 import os
-provider = QProvider(lexis_project="YOUR_LEXIS_PROJECT", token=os.environ["LEXIS_TOKEN"])
+
+provider = QProvider(
+    lexis_project="YOUR_LEXIS_PROJECT", token=os.environ["LEXIS_TOKEN"]
+)
 ```
 
 You can get a token once through an interactive `py4lexis` login:
@@ -53,7 +56,12 @@ Detailed information about one backend:
 ```python
 info = provider.get_backend_info("YOUR_QUANTUM_RESOURCE", backend_name="VLQ")
 print(info.supplier, info.quantum_technology)
-print("QScheduler:", info.qaas_version, "| station-control:", info.machine_info.station_control_version)
+print(
+    "QScheduler:",
+    info.qaas_version,
+    "| station-control:",
+    info.machine_info.station_control_version,
+)
 ```
 
 ## Connecting to a backend
@@ -211,11 +219,15 @@ Common causes:
 import asyncio
 from qheappe_client.qclient import QClient
 
+
 async def main():
-    async with await QClient.create(TOKEN, "YOUR_LEXIS_PROJECT", "YOUR_QUANTUM_RESOURCE") as client:
+    async with await QClient.create(
+        TOKEN, "YOUR_LEXIS_PROJECT", "YOUR_QUANTUM_RESOURCE"
+    ) as client:
         md = await client.get_backend()
         print(md.backend_name, md.available)
         metrics = await client.machine_metrics()
+
 
 asyncio.run(main())
 ```
