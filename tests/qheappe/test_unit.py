@@ -90,11 +90,20 @@ class TestNormalizeQuery:
     def test_value_conversions(self):
         u = uuid4()
         out = normalize_query({"b": True, "f": False, "u": u, "i": 3, "s": "x"})
-        assert out == [("b", "true"), ("f", "false"), ("u", str(u)), ("i", 3), ("s", "x")]
+        assert out == [
+            ("b", "true"),
+            ("f", "false"),
+            ("u", str(u)),
+            ("i", 3),
+            ("s", "x"),
+        ]
 
     def test_list_repeats_key_and_skips_none(self):
         assert normalize_query({"k": ["x", None, "y"], "t": (1, 2)}) == [
-            ("k", "x"), ("k", "y"), ("t", 1), ("t", 2)
+            ("k", "x"),
+            ("k", "y"),
+            ("t", 1),
+            ("t", 2),
         ]
 
     def test_str_enum_is_sent_as_value(self):
@@ -111,7 +120,10 @@ def test_req_body_preview():
 
 def test_describe_body():
     assert req_describe_body({"a": 1}, None) == ' json={"a": 1}'
-    assert req_describe_body(None, aiohttp.MultipartWriter("form-data")) == " body=multipart/form-data"
+    assert (
+        req_describe_body(None, aiohttp.MultipartWriter("form-data"))
+        == " body=multipart/form-data"
+    )
     assert req_describe_body(None, b"raw") == " body=bytes"
     assert req_describe_body(None, None) == ""
 
@@ -153,16 +165,25 @@ class TestFromSwaggerJson:
         assert from_swagger_json({"x": 1}, "NoSuchModel") == {"x": 1}
 
     def test_nested_model(self):
-        data = [full("ClusterExt", Id=1, Name="VLQ",
-                     NodeTypes=[full("ClusterNodeTypeExt", Id=5, Name="qpu")])]
+        data = [
+            full(
+                "ClusterExt",
+                Id=1,
+                Name="VLQ",
+                NodeTypes=[full("ClusterNodeTypeExt", Id=5, Name="qpu")],
+            )
+        ]
         (cluster,) = from_swagger_json(data, "list[ClusterExt]")
         assert isinstance(cluster, heappe_models.ClusterExt)
         assert (cluster.id, cluster.name) == (1, "VLQ")
         assert cluster.node_types[0].id == 5
 
-    @pytest.mark.xfail(strict=True, raises=KeyError,
-                       reason="strict data[json_key]: a field missing in the response "
-                              "(py4heappe/HEAppE version skew) raises KeyError")
+    @pytest.mark.xfail(
+        strict=True,
+        raises=KeyError,
+        reason="strict data[json_key]: a field missing in the response "
+        "(py4heappe/HEAppE version skew) raises KeyError",
+    )
     def test_missing_field_tolerated(self):
         data = full("ClusterExt", Id=1, Name="VLQ", NodeTypes=[])
         data.pop("Description")
@@ -175,8 +196,15 @@ class TestFromSwaggerJson:
 class TestHEAppEJobState:
     @pytest.mark.parametrize(
         ("value", "name"),
-        [(1, "CONFIGURING"), (2, "SUBMITTED"), (4, "QUEUED"), (8, "RUNNING"),
-         (16, "FINISHED"), (32, "FAILED"), (64, "CANCELED")],
+        [
+            (1, "CONFIGURING"),
+            (2, "SUBMITTED"),
+            (4, "QUEUED"),
+            (8, "RUNNING"),
+            (16, "FINISHED"),
+            (32, "FAILED"),
+            (64, "CANCELED"),
+        ],
     )
     def test_readable(self, value, name):
         assert HEAppEJobState.readable(value) == name
@@ -223,7 +251,9 @@ class TestExceptions:
 
 def test_http_result_parsed():
     assert http({"a": 1}).parsed() == {"a": 1}
-    assert HttpResult(200, "application/octet-stream", b"\x00raw").parsed() == b"\x00raw"
+    assert (
+        HttpResult(200, "application/octet-stream", b"\x00raw").parsed() == b"\x00raw"
+    )
 
 
 def test_spec_value():
@@ -254,7 +284,9 @@ class TestQClientLifecycle:
 
 class TestTokenVerification:
     def test_symmetric_alg_rejected_before_any_request(self):
-        token = jwt.encode({"iss": "https://issuer.example"}, "secret", algorithm="HS256")
+        token = jwt.encode(
+            {"iss": "https://issuer.example"}, "secret", algorithm="HS256"
+        )
         c = QClient(token, "proj")
         calls = fake_routes(c, {})
         with pytest.raises(ValueError, match="Unsupported JWT algorithm"):
@@ -288,28 +320,41 @@ def authed_client(projects) -> QClient:
 
 class TestProjectAuthorization:
     def test_project_without_dates(self):
-        user, info = run(authed_client([{"ShortName": "proj"}])._authenticate_authorize_lexis())
+        user, info = run(
+            authed_client([{"ShortName": "proj"}])._authenticate_authorize_lexis()
+        )
         assert user == "user" and info["ShortName"] == "proj"
 
     def test_filter_is_not_trusted(self):
         c = authed_client([{"ShortName": "other"}, {"ShortName": "x"}])
-        with pytest.raises(QAuthException, match=r"does not have access.*\['other', 'x'\]"):
+        with pytest.raises(
+            QAuthException, match=r"does not have access.*\['other', 'x'\]"
+        ):
             run(c._authenticate_authorize_lexis())
 
     def test_active_project(self):
-        c = authed_client([{"ShortName": "proj", "StartDate": "2000-01-01T00:00:00",
-                            "EndDate": "2999-01-01T00:00:00"}])
+        c = authed_client(
+            [
+                {
+                    "ShortName": "proj",
+                    "StartDate": "2000-01-01T00:00:00",
+                    "EndDate": "2999-01-01T00:00:00",
+                }
+            ]
+        )
         assert run(c._authenticate_authorize_lexis())[0] == "user"
 
     def test_expired_project(self):
-        c = authed_client([{"ShortName": "proj", "StartDate": "2000-01-01",
-                            "EndDate": "2001-01-01"}])
+        c = authed_client(
+            [{"ShortName": "proj", "StartDate": "2000-01-01", "EndDate": "2001-01-01"}]
+        )
         with pytest.raises(QAuthException, match="expired"):
             run(c._authenticate_authorize_lexis())
 
     def test_not_started_project(self):
-        c = authed_client([{"ShortName": "proj", "StartDate": "2998-01-01",
-                            "EndDate": "2999-01-01"}])
+        c = authed_client(
+            [{"ShortName": "proj", "StartDate": "2998-01-01", "EndDate": "2999-01-01"}]
+        )
         with pytest.raises(QAuthException, match="not started"):
             run(c._authenticate_authorize_lexis())
 
@@ -334,8 +379,13 @@ class TestProjectAuthorization:
 
 
 def assignment(name, url="https://h1", loc=7, **extra):
-    a = {"LocationTypeId": loc, "LocationName": name, "ProjectResourceId": "pr-1",
-         "AllocationAmount": 10, "Specifications": [{"Key": "HEAPPE_URL", "Value": url}]}
+    a = {
+        "LocationTypeId": loc,
+        "LocationName": name,
+        "ProjectResourceId": "pr-1",
+        "AllocationAmount": 10,
+        "Specifications": [{"Key": "HEAPPE_URL", "Value": url}],
+    }
     a.update(extra)
     return a
 
@@ -353,11 +403,17 @@ def resource_client(resources) -> QClient:
 
 class TestResourceSelection:
     def test_single_quantum_resource_auto_selected(self):
-        c = resource_client([
-            resource("HPC", assignment("Karolina", loc=1)),
-            resource("Q", assignment("VLQ"), assignment("MOCK", url="https://h2"),
-                     assignment("IGNORED", loc=1)),
-        ])
+        c = resource_client(
+            [
+                resource("HPC", assignment("Karolina", loc=1)),
+                resource(
+                    "Q",
+                    assignment("VLQ"),
+                    assignment("MOCK", url="https://h2"),
+                    assignment("IGNORED", loc=1),
+                ),
+            ]
+        )
         r = run(c._authorize_lexis_resource(None))
         assert r.resource_name == "Q"
         assert r.cluster_names == ["MOCK", "VLQ"]
@@ -365,11 +421,15 @@ class TestResourceSelection:
         assert r.allocated_units == 20 and r.project_resource_id == "pr-1"
 
     def test_named_resource(self):
-        c = resource_client([resource("Q1", assignment("A")), resource("Q2", assignment("B"))])
+        c = resource_client(
+            [resource("Q1", assignment("A")), resource("Q2", assignment("B"))]
+        )
         assert run(c._authorize_lexis_resource("Q2")).cluster_names == ["B"]
 
     def test_ambiguous_without_name(self):
-        c = resource_client([resource("Q1", assignment("A")), resource("Q2", assignment("B"))])
+        c = resource_client(
+            [resource("Q1", assignment("A")), resource("Q2", assignment("B"))]
+        )
         with pytest.raises(QAuthException, match="Multiple"):
             run(c._authorize_lexis_resource(None))
 
@@ -386,8 +446,16 @@ class TestResourceSelection:
     def test_incomplete_and_duplicate_assignments(self):
         bad = assignment("NOURL")
         bad["Specifications"] = []
-        c = resource_client([resource("Q", bad, assignment("VLQ", url="https://first"),
-                                      assignment("VLQ", url="https://second"))])
+        c = resource_client(
+            [
+                resource(
+                    "Q",
+                    bad,
+                    assignment("VLQ", url="https://first"),
+                    assignment("VLQ", url="https://second"),
+                )
+            ]
+        )
         r = run(c._authorize_lexis_resource(None))
         assert r.cluster_names == ["VLQ"]
         assert r.clusters["VLQ"].heappe_url == "https://first"
@@ -400,22 +468,32 @@ class TestResourceSelection:
             run(c._authorize_lexis_resource(None))
 
     def test_resource_outside_dates(self):
-        c = resource_client([resource("Q", assignment("A"), StartDate="2000-01-01",
-                                      EndDate="2001-01-01")])
+        c = resource_client(
+            [
+                resource(
+                    "Q", assignment("A"), StartDate="2000-01-01", EndDate="2001-01-01"
+                )
+            ]
+        )
         with pytest.raises(QAuthException, match="active dates"):
             run(c._authorize_lexis_resource(None))
 
     def test_unparsable_resource_dates_are_lenient(self):
-        c = resource_client([resource("Q", assignment("A"), StartDate="x", EndDate="y")])
+        c = resource_client(
+            [resource("Q", assignment("A"), StartDate="x", EndDate="y")]
+        )
         assert run(c._authorize_lexis_resource(None)).resource_name == "Q"
 
     def test_requires_authentication(self):
         with pytest.raises(QAuthException):
             run(QClient("tok", "proj")._authorize_lexis_resource(None))
 
-    @pytest.mark.xfail(strict=True, raises=TypeError,
-                       reason="QAuthException.from_cause() is called with reason=..., "
-                              "which it does not accept")
+    @pytest.mark.xfail(
+        strict=True,
+        raises=TypeError,
+        reason="QAuthException.from_cause() is called with reason=..., "
+        "which it does not accept",
+    )
     def test_request_failure_maps_to_auth_exception(self):
         c = QClient("tok", "proj")
         c._authenticated = True
@@ -430,8 +508,9 @@ class TestResourceSelection:
 def connected_client(*clusters: QCluster, resource_name="Q") -> QClient:
     c = QClient("tok", "proj")
     c._authenticated = True
-    c._lexis_resource = LexisResource(resource_name, "pr", "-", "-",
-                                      {cl.name: cl for cl in clusters})
+    c._lexis_resource = LexisResource(
+        resource_name, "pr", "-", "-", {cl.name: cl for cl in clusters}
+    )
     return c
 
 
@@ -440,8 +519,12 @@ def cluster(name="VLQ", url="https://h1", **kw) -> QCluster:
 
 
 def heappe_cluster(name, cid, node_type_id):
-    return full("ClusterExt", Id=cid, Name=name,
-                NodeTypes=[full("ClusterNodeTypeExt", Id=node_type_id, Name="qpu")])
+    return full(
+        "ClusterExt",
+        Id=cid,
+        Name=name,
+        NodeTypes=[full("ClusterNodeTypeExt", Id=node_type_id, Name="qpu")],
+    )
 
 
 class TestHEAppEDiscovery:
@@ -455,9 +538,18 @@ class TestHEAppEDiscovery:
     def test_one_request_per_heappe_instance(self):
         a, b, other = cluster("A"), cluster("B"), cluster("C", url="https://h2")
         c = connected_client(a, b, other)
-        calls = fake_routes(c, {"/ListAvailableClusters": http(
-            [heappe_cluster("A", 1, 10), heappe_cluster("B", 2, 20), heappe_cluster("C", 3, 30)]
-        )})
+        calls = fake_routes(
+            c,
+            {
+                "/ListAvailableClusters": http(
+                    [
+                        heappe_cluster("A", 1, 10),
+                        heappe_cluster("B", 2, 20),
+                        heappe_cluster("C", 3, 30),
+                    ]
+                )
+            },
+        )
         run(c._resolve_heappe_clusters())
         assert len(calls) == 2
         assert [x.cluster_node_type_id for x in (a, b, other)] == [10, 20, 30]
@@ -465,7 +557,9 @@ class TestHEAppEDiscovery:
     def test_cluster_not_exposed(self):
         vlq = cluster()
         c = connected_client(vlq)
-        fake_routes(c, {"/ListAvailableClusters": http([heappe_cluster("OTHER", 1, 1)])})
+        fake_routes(
+            c, {"/ListAvailableClusters": http([heappe_cluster("OTHER", 1, 1)])}
+        )
         run(c._resolve_heappe_clusters())
         assert vlq.cluster_id is None and "not exposed" in vlq.error
 
@@ -511,12 +605,16 @@ class TestMachineInfo:
         return vlq
 
     def test_supported_stack(self):
-        vlq = self._fetch(http({"type": "iqm", "version": {"qscheduler_version": "1.0.0"}}))
+        vlq = self._fetch(
+            http({"type": "iqm", "version": {"qscheduler_version": "1.0.0"}})
+        )
         assert vlq.available and vlq.error is None
         assert vlq.machine_info.supplier == "IQM"
 
     def test_unsupported_stack(self):
-        vlq = self._fetch(http({"type": "other", "version": {"qscheduler_version": "1.0.0"}}))
+        vlq = self._fetch(
+            http({"type": "other", "version": {"qscheduler_version": "1.0.0"}})
+        )
         assert not vlq.available and "unsupported" in vlq.error
 
     def test_incomplete_info(self):
@@ -551,6 +649,7 @@ class TestLoopThread:
     def test_runs_on_its_own_thread(self):
         lt = _LoopThread()
         try:
+
             async def where():
                 return threading.get_ident(), asyncio.get_running_loop()
 
@@ -718,10 +817,16 @@ def heappe_server():
 def offline_client(url: str) -> QClient:
     """Client whose LEXIS/HEAppE discovery is stubbed; HTTP goes to ``url`` for real."""
     c = QClient("tok", "proj", load_machine_info=False)
-    vlq = cluster(url=url, cluster_id=1, cluster_node_type_id=2, heappe_project_id=3,
-                  machine_info=QMachineInfo.from_response(
-                      {"type": "iqm", "version": {"qscheduler_version": "1.0.0"}}),
-                  available=True)
+    vlq = cluster(
+        url=url,
+        cluster_id=1,
+        cluster_node_type_id=2,
+        heappe_project_id=3,
+        machine_info=QMachineInfo.from_response(
+            {"type": "iqm", "version": {"qscheduler_version": "1.0.0"}}
+        ),
+        available=True,
+    )
 
     async def authenticate():
         return "user", {"ShortName": "proj"}
@@ -774,7 +879,9 @@ class TestSyncAndAsyncAcrossLoops:
         try:
             app_loop.run(c._connect())
             session = c.session
-            assert c.get_job_info(3) == {"Id": 3}  # client loop -> forwarded to app loop
+            assert c.get_job_info(3) == {
+                "Id": 3
+            }  # client loop -> forwarded to app loop
             c.close()  # session closed on the app loop
             assert session.closed
         finally:
@@ -847,7 +954,9 @@ class TestMetadata:
             {"type": "iqm", "version": {"qscheduler_version": "1.2.3"}}
         )
         assert (mi.supplier, mi.quantum_technology, mi.qscheduler_version) == (
-            "IQM", "SUPERCONDUCTING", "1.2.3"
+            "IQM",
+            "SUPERCONDUCTING",
+            "1.2.3",
         )
 
     def test_machine_info_unknown_stack(self):
@@ -855,22 +964,32 @@ class TestMetadata:
         assert mi.supplier == "UNKNOWN" and mi.qscheduler_version is None
 
     def test_resource_clusters(self):
-        r = LexisResource("R", "id", "-", "-", {
-            "B": cluster(name="B", allocated_units=5),
-            "A": cluster(name="A"),
-        })
+        r = LexisResource(
+            "R",
+            "id",
+            "-",
+            "-",
+            {
+                "B": cluster(name="B", allocated_units=5),
+                "A": cluster(name="A"),
+            },
+        )
         assert r.cluster_names == ["A", "B"]
         assert r.allocated_units == 5
         with pytest.raises(KeyError, match="Available"):
             r.get_cluster("X")
 
     def test_backend_metadata_without_machine_info(self):
-        md = QBackendMetadata(LexisProject("P"), LexisResource("R", "id", "-", "-"), cluster())
+        md = QBackendMetadata(
+            LexisProject("P"), LexisResource("R", "id", "-", "-"), cluster()
+        )
         assert md.backend_name == "VLQ"
         assert md.software_stack is None and md.supplier == "-" and not md.available
 
     def test_split_target(self):
-        md = QBackendMetadata(LexisProject("P"), LexisResource("R", "id", "-", "-"), cluster())
+        md = QBackendMetadata(
+            LexisProject("P"), LexisResource("R", "id", "-", "-"), cluster()
+        )
         assert _split_target("R", "VLQ") == ("R", "VLQ")
         assert _split_target(md, None) == ("R", "VLQ")
         assert _split_target(md, "VLQ") == ("R", "VLQ")
@@ -886,13 +1005,20 @@ def test_heappe_job_id_is_int_and_callable():
     assert jid == 66 and jid() == "66"
 
 
-@pytest.mark.xfail(strict=True, reason="QUEUED / WAITINGFORSERVICEACCOUNT missing in status mapping")
+@pytest.mark.xfail(
+    strict=True, reason="QUEUED / WAITINGFORSERVICEACCOUNT missing in status mapping"
+)
 def test_every_heappe_state_is_mapped():
-    missing = {s.name.upper() for s in HEAppEJobState} - set(HEAppE_QISKIT_STATUS_MAPPING)
+    missing = {s.name.upper() for s in HEAppEJobState} - set(
+        HEAppE_QISKIT_STATUS_MAPPING
+    )
     assert not missing, missing
 
 
-@pytest.mark.xfail(strict=True, reason="QJob.status() uses JobStatus.CANCELED; Qiskit only has CANCELLED")
+@pytest.mark.xfail(
+    strict=True,
+    reason="QJob.status() uses JobStatus.CANCELED; Qiskit only has CANCELLED",
+)
 def test_qiskit_has_canceled_alias():
     assert hasattr(JobStatus, "CANCELED")
 
@@ -916,7 +1042,9 @@ def _expected(left_to_right: bool):
 @pytest.mark.parametrize("left_to_right", [False, True])
 class TestResultConversion:
     def test_primitive_counts_path(self, left_to_right):
-        res = QBackendIQM.result_to_qiskit(None, RAW, key_order_left_to_right=left_to_right)
+        res = QBackendIQM.result_to_qiskit(
+            None, RAW, key_order_left_to_right=left_to_right
+        )
         counts, _ = _expected(left_to_right)
         assert res[0].data.meas.get_counts() == counts
         assert res[0].metadata["measurement_keys"] == ["m"]
@@ -931,8 +1059,12 @@ class TestResultConversion:
 
     def test_legacy(self, left_to_right):
         res = QBackendIQM.result_to_qiskit_legacy(
-            None, RAW, measurements_raw=MEAS, key_order_left_to_right=left_to_right,
-            backend_name="b", job_id="1",
+            None,
+            RAW,
+            measurements_raw=MEAS,
+            key_order_left_to_right=left_to_right,
+            backend_name="b",
+            job_id="1",
         )
         counts, memory = _expected(left_to_right)
         assert res.get_counts() == counts
@@ -951,4 +1083,6 @@ class TestResultConversionErrors:
     def test_keys_with_different_shot_counts(self):
         raw = [{"measurement_keys": ["a", "b"], "counts": {"00": 1}}]
         with pytest.raises(ValueError, match="different shot counts"):
-            QBackendIQM.result_to_qiskit(None, raw, measurements_raw=[{"a": [[0]], "b": [[0], [1]]}])
+            QBackendIQM.result_to_qiskit(
+                None, raw, measurements_raw=[{"a": [[0]], "b": [[0], [1]]}]
+            )

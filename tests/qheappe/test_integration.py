@@ -283,8 +283,11 @@ class TestRunRequest:
     def test_default_shots_option(self, backend):
         assert backend.options.shots == 1024
 
-    @pytest.mark.xfail(strict=True, raises=TypeError,
-                       reason="run() requires shots; Options(shots=...) is not used as default")
+    @pytest.mark.xfail(
+        strict=True,
+        raises=TypeError,
+        reason="run() requires shots; Options(shots=...) is not used as default",
+    )
     def test_run_without_shots_uses_default(self, backend, bell_circuit):
         backend.run(backend.transpile(bell_circuit))
 
@@ -300,7 +303,9 @@ def bell_job(backend):
     qc.h(0)
     qc.cx(0, 1)
     qc.measure_all()
-    job = backend.run(backend.transpile(qc), shots=BELL_SHOTS, job_name="qheappe_test_bell")
+    job = backend.run(
+        backend.transpile(qc), shots=BELL_SHOTS, job_name="qheappe_test_bell"
+    )
     job.result()  # wait once; tests below reattach for other formats
     return job
 
@@ -334,7 +339,9 @@ class TestJob:
         assert sum(meas.get_counts().values()) == BELL_SHOTS
 
     def test_legacy_memory_matches_counts(self, backend, bell_job):
-        res = reattach(backend, bell_job).result(qiskit_legacy=True, with_measurements=True)
+        res = reattach(backend, bell_job).result(
+            qiskit_legacy=True, with_measurements=True
+        )
         memory = res.get_memory()
         assert len(memory) == BELL_SHOTS
         assert Counter(memory) == res.get_counts()
@@ -347,9 +354,11 @@ class TestJob:
 
     def test_key_order_reverses_bitstrings(self, backend, bell_job):
         rtl = reattach(backend, bell_job).result(qiskit_legacy=True).get_counts()
-        ltr = reattach(backend, bell_job).result(
-            qiskit_legacy=True, key_order_left_to_right=True
-        ).get_counts()
+        ltr = (
+            reattach(backend, bell_job)
+            .result(qiskit_legacy=True, key_order_left_to_right=True)
+            .get_counts()
+        )
         assert ltr == {k[::-1]: v for k, v in rtl.items()}
 
     def test_counts_identical_across_formats(self, backend, bell_job):
@@ -400,8 +409,11 @@ class TestCircuits:
         qc.cx(0, 1)
         qc.measure_all()
         for value in (0, np.pi / 4, np.pi / 2, np.pi):
-            tc = qiskit_transpile(qc.assign_parameters({theta: value}),
-                                  backend=backend, optimization_level=2)
+            tc = qiskit_transpile(
+                qc.assign_parameters({theta: value}),
+                backend=backend,
+                optimization_level=2,
+            )
             assert sum(legacy_counts(backend.run(tc, shots=50)).values()) == 50
 
     def test_zero_rotation_prepares_zero_state(self, backend):
@@ -436,34 +448,44 @@ class TestQExceptionContract:
 
 # ---------- 10. Known issues (document defects; xfail) ----------
 
-#TODO: Verify following issues. Some of them may be already solved.
+# TODO: Verify following issues. Some of them may be already solved.
+
 
 @pytest.mark.known_issue
 class TestKnownIssues:
-    @pytest.mark.xfail(strict=True, raises=QAuthException,
-                       reason="list_available_backends never connects the QClient")
+    @pytest.mark.xfail(
+        strict=True,
+        raises=QAuthException,
+        reason="list_available_backends never connects the QClient",
+    )
     def test_provider_list_available_backends(self):
         QProvider_ = type(make_provider(token="x"))
-        QProvider_.list_available_backends(TOKEN, PROJECT, lexis_resource=RESOURCE,
-                                           lexis_api_url=LEXIS_API_URL)
+        QProvider_.list_available_backends(
+            TOKEN, PROJECT, lexis_resource=RESOURCE, lexis_api_url=LEXIS_API_URL
+        )
 
     @pytest.mark.qpu
     @pytest.mark.timeout(JOB_TIMEOUT)
-    @pytest.mark.xfail(strict=True,
-                       reason="QJob._submitted_job keeps the submit-time State, so a second "
-                              "result() with another format waits on the event stream forever")
+    @pytest.mark.xfail(
+        strict=True,
+        reason="QJob._submitted_job keeps the submit-time State, so a second "
+        "result() with another format waits on the event stream forever",
+    )
     def test_submitted_job_state_refreshed_after_result(self, bell_job):
         state = HEAppEJobState.readable(bell_job._submitted_job["State"])
         assert state in TERMINAL
 
     @pytest.mark.qpu
     @pytest.mark.timeout(JOB_TIMEOUT)
-    @pytest.mark.xfail(strict=False,
-                       reason="QJob.cancel() does not await QClient.cancel_job; "
-                              "status() references JobStatus.CANCELED")
+    @pytest.mark.xfail(
+        strict=False,
+        reason="QJob.cancel() does not await QClient.cancel_job; "
+        "status() references JobStatus.CANCELED",
+    )
     def test_cancel_reaches_server(self, backend, client, ghz_circuit):
-        job = backend.run(backend.transpile(ghz_circuit), shots=20000,
-                          job_name="qheappe_test_cancel")
+        job = backend.run(
+            backend.transpile(ghz_circuit), shots=20000, job_name="qheappe_test_cancel"
+        )
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
@@ -475,4 +497,6 @@ class TestKnownIssues:
                 time.sleep(2)
             assert state == "CANCELED"
         finally:
-            client._run(client.cancel_job(int(job.job_id)))  # real cancel, save allocation
+            client._run(
+                client.cancel_job(int(job.job_id))
+            )  # real cancel, save allocation

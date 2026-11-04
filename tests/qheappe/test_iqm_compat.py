@@ -52,40 +52,55 @@ def dqa() -> DynamicQuantumArchitecture:
             "override_default_implementation": {},
         }
 
-    return DynamicQuantumArchitecture.model_validate({
-        "calibration_set_id": str(uuid4()),
-        "qubits": ["QB1", "QB2"],
-        "computational_resonators": [],
-        "gates": {
-            "prx": gate("drag_gaussian", [["QB1"], ["QB2"]]),
-            "cz": gate("tgss", [["QB1", "QB2"]]),
-            "measure": gate("constant", [["QB1"], ["QB2"]]),
-        },
-    })
+    return DynamicQuantumArchitecture.model_validate(
+        {
+            "calibration_set_id": str(uuid4()),
+            "qubits": ["QB1", "QB2"],
+            "computational_resonators": [],
+            "gates": {
+                "prx": gate("drag_gaussian", [["QB1"], ["QB2"]]),
+                "cz": gate("tgss", [["QB1", "QB2"]]),
+                "measure": gate("constant", [["QB1"], ["QB2"]]),
+            },
+        }
+    )
 
 
 def metadata(station_control_version) -> QBackendMetadata:
-    cl = QCluster(name="VLQ", heappe_url="https://h1",
-                  machine_info=machine_info(station_control_version), available=True)
-    return QBackendMetadata(LexisProject("P"), LexisResource("R", "id", "-", "-", {"VLQ": cl}),
-                            cl, dynamic_architecture=dqa())
+    cl = QCluster(
+        name="VLQ",
+        heappe_url="https://h1",
+        machine_info=machine_info(station_control_version),
+        available=True,
+    )
+    return QBackendMetadata(
+        LexisProject("P"),
+        LexisResource("R", "id", "-", "-", {"VLQ": cl}),
+        cl,
+        dynamic_architecture=dqa(),
+    )
 
 
 class TestStackDetection:
     def test_installed_stack_matches_iqm_client(self):
         from importlib.metadata import version
 
-        assert CLIENT_MAJOR_TO_STACK[int(version("iqm-client").split(".")[0])] is INSTALLED
+        assert (
+            CLIENT_MAJOR_TO_STACK[int(version("iqm-client").split(".")[0])] is INSTALLED
+        )
 
-    @pytest.mark.parametrize(("reported", "expected"), [
-        ("13.0.3", IQMStack.IQM35),
-        ("v13.1", IQMStack.IQM35),
-        ("14.0.0", IQMStack.IQM36),
-        ("14.2.0 (local editable)", IQMStack.IQM36),
-        ("99.0.0", None),
-        ("garbage", None),
-        (None, None),
-    ])
+    @pytest.mark.parametrize(
+        ("reported", "expected"),
+        [
+            ("13.0.3", IQMStack.IQM35),
+            ("v13.1", IQMStack.IQM35),
+            ("14.0.0", IQMStack.IQM36),
+            ("14.2.0 (local editable)", IQMStack.IQM36),
+            ("99.0.0", None),
+            ("garbage", None),
+            (None, None),
+        ],
+    )
     def test_required_stack(self, reported, expected):
         assert required_stack(machine_info(reported)) is expected
 
@@ -133,7 +148,13 @@ class TestFactory:
 
     def test_adapter_exposes_common_api(self):
         adapter = QBackendIQMFactory.adapter()
-        for name in ("STACK", "JobStatus", "HERALDING_KEY", "sweep_job_to_qiskit", "qiskit_to_pulla"):
+        for name in (
+            "STACK",
+            "JobStatus",
+            "HERALDING_KEY",
+            "sweep_job_to_qiskit",
+            "qiskit_to_pulla",
+        ):
             assert hasattr(adapter, name), name
         assert adapter.STACK is INSTALLED
 
@@ -153,13 +174,17 @@ class TestFactory:
         qc.measure([0, 1], [0, 1])
         job_def = backend.create_circuit_job_definition(backend.transpile(qc), shots=10)
         assert job_def.shots == 10 and len(job_def.circuits) == 1
-        assert str(job_def.calibration_set_id) == str(md.dynamic_architecture.calibration_set_id)
+        assert str(job_def.calibration_set_id) == str(
+            md.dynamic_architecture.calibration_set_id
+        )
         # 35.x name still works
         assert backend.create_run_request(backend.transpile(qc), shots=5).shots == 5
 
     def test_create_rejects_mismatched_server(self):
         with pytest.raises(QException, match="needs the"):
-            QBackendIQMFactory.create(SimpleNamespace(), metadata(f"{SC_MAJOR[OTHER]}.0.0"))
+            QBackendIQMFactory.create(
+                SimpleNamespace(), metadata(f"{SC_MAJOR[OTHER]}.0.0")
+            )
 
     def test_create_requires_dynamic_architecture(self):
         md = metadata(f"{SC_MAJOR[INSTALLED]}.0.0")
@@ -179,23 +204,36 @@ class TestInstallHints:
         with pytest.raises(QException, match="--extra-index-url"):
             QBackendIQMFactory.resolve_stack(mi)
 
-    @pytest.mark.parametrize(("version", "expected"), [
-        (None, "not installed"),
-        ("30.0.0", "not supported"),
-        ("36.0.0", "incomplete or mixed"),
-    ])
+    @pytest.mark.parametrize(
+        ("version", "expected"),
+        [
+            (None, "not installed"),
+            ("30.0.0", "not supported"),
+            ("36.0.0", "incomplete or mixed"),
+        ],
+    )
     def test_import_error_message(self, monkeypatch, version, expected):
         monkeypatch.setattr(stack_mod, "installed_iqm_client_version", lambda: version)
-        msg = stack_mod.iqm_import_error_message(ModuleNotFoundError("x", name="qiskit"))
+        msg = stack_mod.iqm_import_error_message(
+            ModuleNotFoundError("x", name="qiskit")
+        )
         assert expected in msg
         assert "qaas[iqm_qiskit]" in msg and "qaas[iqm35_qiskit]" in msg
 
-    @pytest.mark.parametrize(("name", "expected"), [
-        ("qiskit", True), ("iqm.pulla", True), ("exa.common", True),
-        ("aiohttp", False), (None, False),
-    ])
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("qiskit", True),
+            ("iqm.pulla", True),
+            ("exa.common", True),
+            ("aiohttp", False),
+            (None, False),
+        ],
+    )
     def test_is_iqm_extra_import_error(self, name, expected):
-        assert stack_mod.is_iqm_extra_import_error(ImportError("x", name=name)) is expected
+        assert (
+            stack_mod.is_iqm_extra_import_error(ImportError("x", name=name)) is expected
+        )
 
     def test_package_import_without_qiskit_explains_install(self):
         import subprocess
@@ -210,7 +248,12 @@ class TestInstallHints:
             "try:\n    import qheappe_client\n"
             "except ImportError as e:\n    print(e)\n"
         )
-        out = subprocess.run([sys.executable, "-c", code, src],
-                             capture_output=True, text=True, timeout=120, check=False).stdout
+        out = subprocess.run(
+            [sys.executable, "-c", code, src],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        ).stdout
         assert "cannot import 'qiskit'" in out
         assert "qaas[iqm_qiskit]" in out and "--extra-index-url" in out

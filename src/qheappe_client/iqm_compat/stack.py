@@ -62,7 +62,9 @@ def _major(version: str | None) -> int | None:
 
 
 # Package index that hosts qaas (it is not on public PyPI).
-QAAS_EXTRA_INDEX_URL = "https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple"
+QAAS_EXTRA_INDEX_URL = (
+    "https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple"
+)
 
 # Top-level modules provided by the IQM extras.
 IQM_EXTRA_MODULES = frozenset({"qiskit", "iqm", "exa"})
@@ -95,7 +97,9 @@ def iqm_import_error_message(error: ImportError) -> str:
         problem = "The IQM libraries (qiskit, iqm-client) are not installed."
     elif _major(version) not in CLIENT_MAJOR_TO_STACK:
         supported = ", ".join(f"{m}.x" for m in CLIENT_MAJOR_TO_STACK)
-        problem = f"Installed iqm-client {version} is not supported (supported: {supported})."
+        problem = (
+            f"Installed iqm-client {version} is not supported (supported: {supported})."
+        )
     else:
         problem = (
             f"The IQM libraries are incomplete or mixed (iqm-client {version}); "
