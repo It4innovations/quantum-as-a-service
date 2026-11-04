@@ -58,7 +58,7 @@ iqm36_qiskit = [
     "protobuf<7.0",
 ]
 
-# Previous IQM stack (station-control 13.x), for backends not yet upgraded
+# Previous IQM stack (station-control 49.x backends only); needed only for Pulla / legacy qaas client
 iqm35_qiskit = [
     "qiskit>=2.0,<2.2",
     "iqm-client[qiskit]==35.0.*",

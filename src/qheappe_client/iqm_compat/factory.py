@@ -2,9 +2,9 @@
 
 The installed IQM libraries decide which adapter *can* be loaded; the
 ``station_control_version`` reported by ``/heappe/QScheduler/MachineInfo``
-decides which one the backend *needs*. The factory checks they match and
-builds the matching :class:`~qheappe_client.qiskit.qbackend_iqm.QBackendIQM`
-subclass.
+decides which ones the backend *accepts*. The factory checks the installed one
+is accepted and builds the matching
+:class:`~qheappe_client.qiskit.qbackend_iqm.QBackendIQM` subclass.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from ..backend_metadata import QBackendMetadata, QMachineInfo
 from ..utils import QException
 from .stack import (
     IQMStack,
+    compatible_stacks,
     install_hint,
     installed_iqm_client_version,
     installed_stack,
@@ -56,7 +57,7 @@ class QBackendIQMFactory:
 
     @classmethod
     def required_stack(cls, machine_info: QMachineInfo | None) -> IQMStack | None:
-        """Stack the backend needs, or ``None`` if unknown (see :func:`.stack.required_stack`)."""
+        """Recommended stack for the backend, or ``None`` if unknown (see :func:`.stack.required_stack`)."""
         return required_stack(machine_info)
 
     @classmethod
@@ -72,7 +73,7 @@ class QBackendIQMFactory:
         Args:
             machine_info: Parsed ``MachineInfo`` of the backend.
             backend_name: Used in messages only.
-            strict: Raise on a mismatch between installed and required stack.
+            strict: Raise if the installed stack does not work with the backend.
                 If ``False``, log a warning and use the installed stack.
 
         Returns:
@@ -80,14 +81,14 @@ class QBackendIQMFactory:
 
         Raises:
             QException: No supported ``iqm-client`` installed, or (``strict``)
-                the backend needs a different stack than the installed one.
+                the installed stack does not work with the backend.
         """
         installed = installed_stack()
-        required = required_stack(machine_info)
+        compatible = compatible_stacks(machine_info)
         name = backend_name or "<backend>"
         reported = machine_info.station_control_version if machine_info else None
 
-        if required is None:
+        if not compatible:
             log.warning(
                 "Backend '%s' reports station_control_version=%r; cannot tell which IQM "
                 "stack it needs. Using the installed one (%s).",
@@ -97,7 +98,8 @@ class QBackendIQMFactory:
             )
             return installed
 
-        if required != installed:
+        if installed not in compatible:
+            required = compatible[0]
             msg = (
                 f"Backend '{name}' runs IQM station-control {reported}, which needs the "
                 f"{required.value} IQM stack, but iqm-client {installed_iqm_client_version()} "

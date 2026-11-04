@@ -21,20 +21,33 @@ from qheappe_client.backend_metadata import (
 )
 from qheappe_client.iqm_compat import (
     CLIENT_MAJOR_TO_STACK,
-    STATION_CONTROL_MAJOR_TO_STACK,
+    STATION_CONTROL_MAJOR_TO_STACKS,
     IQMStack,
     QBackendIQMFactory,
+    compatible_stacks,
     installed_stack,
     required_stack,
 )
+from qheappe_client.iqm_compat import factory as factory_mod
 from qheappe_client.iqm_compat import stack as stack_mod
 from qheappe_client.qiskit.qbackend_iqm import QBackendIQM
 from qheappe_client.utils import QException
 
 INSTALLED = installed_stack()
 OTHER = IQMStack.IQM35 if INSTALLED is IQMStack.IQM36 else IQMStack.IQM36
-# station-control major that each stack talks to
-SC_MAJOR = {s: m for m, s in STATION_CONTROL_MAJOR_TO_STACK.items()}
+# station-control majors the installed stack works with
+SC_OK = [m for m, st in STATION_CONTROL_MAJOR_TO_STACKS.items() if INSTALLED in st]
+
+
+# Current station-control service; only iqm-client 36 supports it.
+NEW_SC = "50.0.0"
+
+
+@pytest.fixture
+def as_iqm35(monkeypatch):
+    """Pretend iqm-client 35 is installed (it cannot talk to NEW_SC backends)."""
+    monkeypatch.setattr(factory_mod, "installed_stack", lambda: IQMStack.IQM35)
+    monkeypatch.setattr(factory_mod, "installed_iqm_client_version", lambda: "35.0.3")
 
 
 def machine_info(station_control_version):
@@ -92,10 +105,12 @@ class TestStackDetection:
     @pytest.mark.parametrize(
         ("reported", "expected"),
         [
-            ("13.0.3", IQMStack.IQM35),
-            ("v13.1", IQMStack.IQM35),
-            ("14.0.0", IQMStack.IQM36),
-            ("14.2.0 (local editable)", IQMStack.IQM36),
+            ("49.0.3", IQMStack.IQM36),
+            ("v49.1", IQMStack.IQM36),
+            ("49.2.0 (local editable)", IQMStack.IQM36),
+            ("50.0.0", IQMStack.IQM36),
+            ("13.0.3", None),  # client-library versions are not service versions
+            ("14.0.0", None),
             ("99.0.0", None),
             ("garbage", None),
             (None, None),
@@ -106,6 +121,19 @@ class TestStackDetection:
 
     def test_required_stack_without_machine_info(self):
         assert required_stack(None) is None
+
+    @pytest.mark.parametrize(
+        ("reported", "expected"),
+        [
+            ("49.0.3", (IQMStack.IQM36, IQMStack.IQM35)),
+            ("50.1.0", (IQMStack.IQM36,)),
+            ("14.0.0", ()),
+            ("99.0.0", ()),
+            (None, ()),
+        ],
+    )
+    def test_compatible_stacks(self, reported, expected):
+        assert compatible_stacks(machine_info(reported)) == expected
 
     def test_missing_iqm_client(self, monkeypatch):
         monkeypatch.setattr(stack_mod, "installed_iqm_client_version", lambda: None)
@@ -119,20 +147,32 @@ class TestStackDetection:
 
 
 class TestResolveStack:
-    def test_match(self):
-        mi = machine_info(f"{SC_MAJOR[INSTALLED]}.0.0")
+    @pytest.mark.parametrize("major", SC_OK)
+    def test_match(self, major):
+        mi = machine_info(f"{major}.0.0")
         assert QBackendIQMFactory.resolve_stack(mi) is INSTALLED
 
-    def test_mismatch_raises_with_install_hint(self):
-        mi = machine_info(f"{SC_MAJOR[OTHER]}.0.0")
-        extra = stack_mod.STACK_EXTRA[OTHER]
-        with pytest.raises(QException, match=rf"qaas\[{extra}\]"):
+    @pytest.mark.parametrize("version", ["49.0.3", NEW_SC])
+    def test_iqm36_serves_old_and_new_backends(self, monkeypatch, caplog, version):
+        monkeypatch.setattr(factory_mod, "installed_stack", lambda: IQMStack.IQM36)
+        with caplog.at_level(logging.WARNING):
+            mi = machine_info(version)
+            assert QBackendIQMFactory.resolve_stack(mi) is IQMStack.IQM36
+        assert caplog.text == ""
+
+    def test_iqm35_serves_old_backend(self, as_iqm35):
+        mi = machine_info("49.0.3")
+        assert QBackendIQMFactory.resolve_stack(mi) is IQMStack.IQM35
+
+    def test_mismatch_raises_with_install_hint(self, as_iqm35):
+        mi = machine_info(NEW_SC)
+        with pytest.raises(QException, match=r"qaas\[iqm_qiskit\]"):
             QBackendIQMFactory.resolve_stack(mi, backend_name="VLQ")
 
-    def test_mismatch_non_strict_warns(self, caplog):
-        mi = machine_info(f"{SC_MAJOR[OTHER]}.0.0")
+    def test_mismatch_non_strict_warns(self, as_iqm35, caplog):
+        mi = machine_info(NEW_SC)
         with caplog.at_level(logging.WARNING):
-            assert QBackendIQMFactory.resolve_stack(mi, strict=False) is INSTALLED
+            assert QBackendIQMFactory.resolve_stack(mi, strict=False) is IQMStack.IQM35
         assert "strict=False" in caplog.text
 
     def test_unknown_server_version_uses_installed(self, caplog):
@@ -163,7 +203,7 @@ class TestFactory:
             QBackendIQMFactory.adapter(OTHER)
 
     def test_create_and_build_job_definition(self):
-        md = metadata(f"{SC_MAJOR[INSTALLED]}.0.0")
+        md = metadata(f"{SC_OK[0]}.0.0")
         backend = QBackendIQMFactory.create(SimpleNamespace(), md)
         assert type(backend).iqm_stack is INSTALLED
         assert backend.num_qubits == 2
@@ -180,14 +220,12 @@ class TestFactory:
         # 35.x name still works
         assert backend.create_run_request(backend.transpile(qc), shots=5).shots == 5
 
-    def test_create_rejects_mismatched_server(self):
+    def test_create_rejects_mismatched_server(self, as_iqm35):
         with pytest.raises(QException, match="needs the"):
-            QBackendIQMFactory.create(
-                SimpleNamespace(), metadata(f"{SC_MAJOR[OTHER]}.0.0")
-            )
+            QBackendIQMFactory.create(SimpleNamespace(), metadata(NEW_SC))
 
     def test_create_requires_dynamic_architecture(self):
-        md = metadata(f"{SC_MAJOR[INSTALLED]}.0.0")
+        md = metadata(f"{SC_OK[0]}.0.0")
         md._dynamic_architecture = None
         with pytest.raises(ValueError, match="dynamic architecture"):
             QBackendIQMFactory.create(SimpleNamespace(), md)
@@ -199,8 +237,8 @@ class TestInstallHints:
         assert "qaas[iqm35_qiskit]" in hint
         assert f"--extra-index-url {stack_mod.QAAS_EXTRA_INDEX_URL}" in hint
 
-    def test_mismatch_error_has_index(self):
-        mi = machine_info(f"{SC_MAJOR[OTHER]}.0.0")
+    def test_mismatch_error_has_index(self, as_iqm35):
+        mi = machine_info(NEW_SC)
         with pytest.raises(QException, match="--extra-index-url"):
             QBackendIQMFactory.resolve_stack(mi)
 

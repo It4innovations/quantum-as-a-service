@@ -2,17 +2,29 @@
 
 Supported stacks (only one can be installed at a time):
 
-========  ===================  ===========================  =====================
-Stack     iqm-client           iqm-station-control-client   qaas extra
-========  ===================  ===========================  =====================
-IQM35     35.x                 13.x                         ``iqm35_qiskit``
-IQM36     36.x                 14.x                         ``iqm_qiskit``
-========  ===================  ===========================  =====================
+========  ==========  ===========================  ===================
+Stack     iqm-client  iqm-station-control-client   qaas extra
+========  ==========  ===========================  ===================
+IQM36     36.x        14.x                         ``iqm_qiskit``
+IQM35     35.x        13.x                         ``iqm35_qiskit``
+========  ==========  ===========================  ===================
 
-The backend side is identified by ``version.station_control_version`` from
-``/heappe/QScheduler/MachineInfo``. This mirrors IQM's own compatibility check,
-which compares the *major* version of ``iqm-station-control-client`` on client
-and server.
+The backend is identified by ``version.station_control_version`` from
+``/heappe/QScheduler/MachineInfo``. This is the version of IQM's station-control
+*service* on the server (e.g. ``49.0.3``), not of the client library. Its major
+version is looked up in :data:`STATION_CONTROL_MAJOR_TO_STACKS`; an unknown
+major only logs a warning and the installed stack is used.
+
+==================  ==========================================
+station-control     IQM stacks that work (recommended first)
+==================  ==========================================
+50.x (current)      IQM36
+49.x                IQM36 (tested live), IQM35
+==================  ==========================================
+
+``iqm_qiskit`` (IQM36) is the recommended extra for every backend;
+``iqm35_qiskit`` is only needed for code that uses Pulla (e.g. the legacy
+``qaas`` client) and works with 49.x backends only.
 
 This module imports no IQM packages, so it works with any (or no) stack installed.
 """
@@ -40,10 +52,11 @@ CLIENT_MAJOR_TO_STACK: dict[int, IQMStack] = {
     36: IQMStack.IQM36,
 }
 
-# iqm-station-control-client major (reported by the backend) -> stack
-STATION_CONTROL_MAJOR_TO_STACK: dict[int, IQMStack] = {
-    13: IQMStack.IQM35,
-    14: IQMStack.IQM36,
+# Station-control *service* major (reported by the backend) -> stacks that work
+# with it, recommended first. Add newer backend versions here once known.
+STATION_CONTROL_MAJOR_TO_STACKS: dict[int, tuple[IQMStack, ...]] = {
+    49: (IQMStack.IQM36, IQMStack.IQM35),  # older backends, e.g. VLQ 49.0.3
+    50: (IQMStack.IQM36,),  # current backends
 }
 
 # stack -> qaas optional-dependency group that installs it
@@ -107,9 +120,9 @@ def iqm_import_error_message(error: ImportError) -> str:
         )
     return (
         f"qheappe_client cannot import '{error.name}': {problem}\n"
-        f"Install one IQM extra, matching the backend's IQM release:\n"
-        f"  current backends (station-control 14.x): {install_hint(IQMStack.IQM36)}\n"
-        f"  older backends   (station-control 13.x): {install_hint(IQMStack.IQM35)}"
+        f"Install one IQM extra:\n"
+        f"  recommended (station-control 49.x and 50.x): {install_hint(IQMStack.IQM36)}\n"
+        f"  with Pulla  (station-control 49.x only):     {install_hint(IQMStack.IQM35)}"
     )
 
 
@@ -143,18 +156,24 @@ def installed_stack() -> IQMStack:
     return stack
 
 
-def required_stack(machine_info: QMachineInfo | None) -> IQMStack | None:
-    """Stack the backend needs, from its reported station-control version.
+def compatible_stacks(machine_info: QMachineInfo | None) -> tuple[IQMStack, ...]:
+    """Stacks that work with the backend, recommended first.
 
     Args:
         machine_info: Parsed ``MachineInfo`` of the backend.
 
     Returns:
-        The required stack, or ``None`` if the backend does not report a
+        The compatible stacks, or ``()`` if the backend does not report a
         station-control version or reports one this client does not know.
     """
     if machine_info is None:
-        return None
-    return STATION_CONTROL_MAJOR_TO_STACK.get(
-        _major(machine_info.station_control_version)
+        return ()
+    return STATION_CONTROL_MAJOR_TO_STACKS.get(
+        _major(machine_info.station_control_version), ()
     )
+
+
+def required_stack(machine_info: QMachineInfo | None) -> IQMStack | None:
+    """Recommended stack for the backend, or ``None`` if its version is unknown."""
+    stacks = compatible_stacks(machine_info)
+    return stacks[0] if stacks else None
