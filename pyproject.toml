@@ -72,11 +72,23 @@ iqm35_qiskit = [
 testenv = [
     "pytest",
     "pytest-dotenv",
-    "pytest-timeout"
+    "pytest-timeout",
+    "pytest-cov",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Coverage of the offline test suite; tests/README.md is generated from it by
+# scripts/update_test_readme.py.
+[tool.coverage.run]
+source = ["qheappe_client"]
+branch = true
+
+[tool.coverage.report]
+show_missing = false
+skip_empty = true
+precision = 1
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402"]
