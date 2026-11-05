@@ -8,7 +8,7 @@ Public surface exercised:
 
 Tests marked `qpu` submit jobs and consume allocation. Tests marked `known_issue`
 document confirmed defects (xfail); deselect them with  -m "not known_issue".
-QPulla is not implemented yet and is not covered.
+QPulla is covered in test_integration_qpulla.py.
 
 Run: pytest -m integration -v
 """

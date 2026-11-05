@@ -26,17 +26,17 @@ QHEAppE can be installed using pip. To install the package along with optional d
 
 ``iqm_qiskit`` installs the current IQM libraries (iqm-client 36.x). They work with
 current backends (station-control 50.x) and with older ones (49.x), so this is the
-extra to use. ``qaas[iqm35_qiskit]`` (iqm-client 35.x) is only needed for code that
-uses Pulla (e.g. the legacy ``qaas`` client) and works with 49.x backends only.
+extra to use, also for pulse-level access (Pulla). ``qaas[iqm35_qiskit]`` (iqm-client 35.x)
+is only needed for the legacy ``qaas`` client and works with 49.x backends only.
 Install only one of the two. ``QProvider.get_backend()`` checks the version the backend
 reports and raises an error that names the extra to install if it does not match.
 
 .. note::
 
-   **Pulla is currently not available** with ``iqm_qiskit`` (iqm-client 36.x):
-   iqm-pulla 15 removed the ``Pulla`` class. ``QProvider.get_pulla()`` and
-   ``qiskit_to_pulla()`` raise ``NotImplementedError`` with this extra. Pulse-level
-   work needs ``qaas[iqm35_qiskit]`` and a station-control 49.x backend.
+   **Pulse-level access (Pulla)** works with ``iqm_qiskit`` (iqm-client 36.x, iqm-pulla 15.x):
+   ``QProvider.get_pulla()`` returns a ``QPulla``, an ``iqm.iqm_client.IQMClient``
+   connected through HEAppE. It needs QScheduler v0.2.2+ with pulse access enabled for
+   the machine, and HEAppE 6.7.0 or newer. See the usage documentation.
 
 Architecture
 -------------

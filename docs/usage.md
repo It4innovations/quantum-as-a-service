@@ -187,6 +187,38 @@ for state, count in sorted(counts.items()):
     print(f"|{state}⟩: {count}")
 ```
 
+## Pulse-level access (Pulla)
+
+`get_pulla()` gives an IQM pulse-level client (`QPulla`, an `iqm.iqm_client.IQMClient`) for a backend. Compile circuits on your machine with IQM's compiler, then run the compiled job through HEAppE:
+
+```python
+pulla = provider.get_pulla(lexis_resource="YOUR_QUANTUM_RESOURCE")
+
+qc = QuantumCircuit(2)
+qc.h(0)
+qc.cx(0, 1)
+qc.measure_all()
+
+# Qiskit circuit -> IQM circuit + compiler for this backend
+circuits, compiler = pulla.qiskit_to_iqm(pulla.backend.transpile(qc))
+
+settings = compiler.get_settings(circuits=circuits)
+settings.set_shots(1000)
+run_definition, context = compiler.compile(circuits, settings=settings)
+
+job = pulla.submit_playlist(run_definition, context=context)
+job.wait_for_completion()
+print(pulla.sweep_job_to_qiskit(job, shots=1000).get_counts())
+```
+
+Between `get_settings()` and `compile()` you can change pulse-level settings, or build schedules yourself with `compiler.get_schedule_builder()`; see IQM's Pulla documentation.
+
+Requirements:
+
+- `qaas[iqm_qiskit]` (iqm-client 36.x, iqm-pulla 15.x)
+- QScheduler v0.2.2 or newer, with pulse access enabled for the machine
+- HEAppE 6.7.0 or newer (forwards the task `Kind`, machine artifacts and whole calibration sets)
+
 ## Error handling
 
 All client errors derive from `QException`:

@@ -287,6 +287,48 @@ class MachineCalibrationIQMEndpoint(str, Enum):
     DYNAMIC_QUANTUM_ARCHITECTURE = "dynamic-quantum-architecture"
 
 
+class MachineArtifactIQM(str, Enum):
+    """
+    Quantum-computer artifacts exposed via ``/heappe/QScheduler/MachineArtifact``.
+
+    These are the inputs IQM's pulse-level compiler (Pulla) needs on the client
+    (QScheduler ``GET /machine/{machine}/artifacts/{name}``, v0.2.2+).
+
+    Attributes:
+        SETTINGS: Station settings tree (protobuf).
+        CHIP_DESIGN_RECORDS: Chip design records (JSON list with one item).
+        CHANNEL_PROPERTIES: Control channel properties (protobuf).
+        STATIC_QUANTUM_ARCHITECTURES: Static quantum architectures (JSON list).
+        DUTS: Devices under test (JSON list), carries the chip label.
+    """
+
+    SETTINGS = "settings"
+    CHIP_DESIGN_RECORDS = "chip-design-records"
+    CHANNEL_PROPERTIES = "channel-properties"
+    STATIC_QUANTUM_ARCHITECTURES = "static-quantum-architectures"
+    DUTS = "duts"
+
+
+#: Artifacts the backend serves as protobuf; requested with ``Accept: application/protobuf``.
+PROTOBUF_MACHINE_ARTIFACTS = frozenset(
+    {MachineArtifactIQM.SETTINGS, MachineArtifactIQM.CHANNEL_PROPERTIES}
+)
+
+
+class QSchedulerTaskKind(str, Enum):
+    """
+    What a QScheduler task payload describes (``kind`` of ``POST /tasks``, v0.2.2+).
+
+    Attributes:
+        CIRCUIT: Gate-level circuits as JSON (default).
+        PULSE: Compiled pulse-level job as protobuf, e.g. an IQM ``RunDefinition``.
+            Accepted only by machines with pulse-level access enabled.
+    """
+
+    CIRCUIT = "circuit"
+    PULSE = "pulse"
+
+
 class QClient:
     """
     Async client for quantum backends behind LEXIS and HEAppE QScheduler.
@@ -745,6 +787,7 @@ class QClient:
         json_body: Any = None,
         data: Any = None,
         timeout: float | None = None,
+        headers: dict[str, str] | None = None,
     ) -> HttpResult:
         """
         Perform one authenticated HTTP request and read the whole body.
@@ -759,6 +802,8 @@ class QClient:
             json_body (Any): JSON body.
             data (Any): Raw body, e.g. :class:`aiohttp.MultipartWriter`.
             timeout (float or None): Total timeout in seconds; :attr:`DEFAULT_TIMEOUT` if ``None``.
+            headers (dict[str, str] or None): Extra request headers (e.g. ``Accept``); the
+                ``Authorization`` header is always set by the client.
 
         Returns:
             HttpResult: Status, content type and body.
@@ -779,6 +824,7 @@ class QClient:
                 json_body=json_body,
                 data=data,
                 timeout=timeout,
+                headers=headers,
             )
         )
 
@@ -791,6 +837,7 @@ class QClient:
         json_body: Any = None,
         data: Any = None,
         timeout: float | None = None,
+        headers: dict[str, str] | None = None,
     ) -> HttpResult:
         """Body of :meth:`_request`; must run on the session's loop."""
         session = self._require_session()
@@ -804,7 +851,7 @@ class QClient:
                 params=query,
                 json=json_body,
                 data=data,
-                headers=self._auth_headers(),
+                headers={**(headers or {}), **self._auth_headers()},
                 timeout=aiohttp.ClientTimeout(total=timeout or self.DEFAULT_TIMEOUT),
             ) as resp:
                 body = await resp.read()
@@ -2038,6 +2085,10 @@ class QClient:
                 [{"Name": "GroverTask", "MachineId": "iqm_simulator",
                   "WalltimeLimitSecs": 3600, "PayloadPartName": "circuit1",
                   "UseSessions": False}]
+
+                An optional ``"Kind"`` (see :class:`QSchedulerTaskKind`) selects the
+                QScheduler task kind; ``"pulse"`` submits a protobuf pulse-level job
+                (QScheduler v0.2.2+, machine needs pulse access). Omitted means ``"circuit"``.
             job_name (str): HEAppE job name.
             circuit_payloads (dict[str, bytes | str] or None): Maps a task's ``PayloadPartName`` to the file
                 content uploaded with the job; ``str`` is encoded as UTF-8.
@@ -2190,7 +2241,12 @@ class QClient:
         return res.parsed()
 
     async def get_task_artifact(
-        self, task_id: int, artifact_name: str, backend_name: str | None = None
+        self,
+        task_id: int,
+        artifact_name: str,
+        backend_name: str | None = None,
+        *,
+        raw: bool = False,
     ) -> Any:
         """
         Named task artifact via ``GET /heappe/QScheduler/GetTaskArtifact``.
@@ -2198,11 +2254,13 @@ class QClient:
         Args:
             task_id (int): HEAppE task ID.
             artifact_name (str): Artifact name, e.g. ``measurements``,
-                ``measurements_counts``, ``sweep_results``.
+                ``measurement_counts``, ``sweep_results``.
             backend_name (str or None): Backend that runs the job; active backend if ``None``.
+            raw (bool): Return the body as bytes without trying to decode JSON
+                (use for binary artifacts such as the protobuf ``sweep_results`` of a pulse task).
 
         Returns:
-            Any: Decoded JSON, or raw bytes for non-JSON responses.
+            Any: Decoded JSON, or raw bytes for non-JSON responses (always bytes if ``raw``).
 
         Raises:
             QResultsFailed: Request failed.
@@ -2217,7 +2275,7 @@ class QClient:
             raise QResultsFailed(
                 task_id, f"Failed to fetch task artifact '{artifact_name}': {e!s}"
             ) from e
-        return res.parsed()
+        return res.body if raw else res.parsed()
 
     async def aget_job_results(
         self,
@@ -2461,6 +2519,156 @@ class QClient:
                 owning the HTTP session.
         """
         return self._run(self.machine_metrics(backend_name, calibration_set_id))
+
+    async def machine_artifact(
+        self,
+        name: MachineArtifactIQM | str,
+        accept: str | None = None,
+        cluster_node_type_id: int | None = None,
+        project_id: int | None = None,
+        backend_name: str | None = None,
+        cluster: QCluster | None = None,
+    ) -> HttpResult:
+        """
+        Quantum-computer artifact via ``GET /heappe/QScheduler/MachineArtifact``.
+
+        Proxies QScheduler ``GET /machine/{machine}/artifacts/{name}`` (v0.2.2+): the
+        inputs for compiling pulse-level jobs on the client (IQM Pulla). The body is
+        returned unparsed, since ``settings`` and ``channel-properties`` are protobuf.
+
+        Args:
+            name (MachineArtifactIQM or str): Artifact name, see :class:`MachineArtifactIQM`.
+            accept (str or None): ``Accept`` header forwarded to the backend; defaults to
+                ``application/protobuf`` for the protobuf artifacts (see
+                :data:`PROTOBUF_MACHINE_ARTIFACTS`) and is omitted otherwise.
+            cluster_node_type_id (int or None): Override of the cluster's node type ID.
+            project_id (int or None): Override of the HEAppE ProjectId.
+            backend_name (str or None): Backend name; active backend if ``None``. Ignored if
+                ``cluster`` is given.
+            cluster (QCluster or None): Cluster object (internal shortcut).
+
+        Returns:
+            HttpResult: Status, content type and raw body.
+
+        Raises:
+            QException: Backend unknown or request failed.
+        """
+        cluster = cluster or self._resolve_cluster(backend_name)
+        artifact = name.value if isinstance(name, Enum) else str(name)
+        if accept is None and artifact in PROTOBUF_MACHINE_ARTIFACTS:
+            accept = "application/protobuf"
+        log.debug(
+            "Fetching machine artifact '%s' of '%s' (accept=%s)",
+            artifact,
+            cluster.name,
+            accept,
+        )
+        return await self._heappe_get(
+            cluster,
+            "/heappe/QScheduler/MachineArtifact",
+            {
+                "ClusterNodeTypeId": cluster_node_type_id
+                or cluster.cluster_node_type_id,
+                "ArtifactName": artifact,
+                "ProjectId": project_id
+                if project_id is not None
+                else await self._project_id_for(cluster),
+            },
+            headers={"Accept": accept} if accept else None,
+        )
+
+    def get_machine_artifact(
+        self,
+        name: MachineArtifactIQM | str,
+        accept: str | None = None,
+        backend_name: str | None = None,
+    ) -> HttpResult:
+        """
+        Sync wrapper of :meth:`machine_artifact`.
+
+        Args:
+            name (MachineArtifactIQM or str): Artifact name.
+            accept (str or None): ``Accept`` header forwarded to the backend.
+            backend_name (str or None): Target backend; active backend if ``None``.
+
+        Returns:
+            HttpResult
+
+        Raises:
+            QException: Request failed or called from the loop owning the HTTP session.
+        """
+        return self._run(self.machine_artifact(name, accept, backend_name=backend_name))
+
+    async def machine_calibration_set(
+        self,
+        backend_name: str | None = None,
+        calibration_set_id: UUID | str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Whole calibration set (all observations) as parsed JSON.
+
+        Proxies QScheduler ``GET /machine/{machine}/calibration/{calibration}``, as used
+        by IQM's pulse-level compiler. Sent as ``MachineCalibration`` without ``Endpoint``.
+
+        Args:
+            backend_name (str or None): Target backend; active backend if ``None``.
+            calibration_set_id (UUID or str or None): Calibration set; current (``"default"``) if ``None``.
+
+        Returns:
+            dict[str, Any]: Calibration set with an ``observations`` list.
+
+        Raises:
+            QException: Backend unknown, request failed or response is not a JSON object.
+        """
+        cluster = self._resolve_cluster(backend_name)
+        try:
+            # No endpoint: the whole set. 'dynamic-quantum-architecture' or 'metrics'
+            # are different documents and cannot replace it.
+            raw = await self.machine_calibration(
+                cluster=cluster,
+                calibration_set_id=calibration_set_id or "default",
+                endpoint=None,
+            )
+        except QException as e:
+            if "Endpoint must be provided" in str(e):
+                raise QException(
+                    f"HEAppE of backend '{cluster.name}' cannot return a whole calibration "
+                    "set: its MachineCalibration requires an Endpoint. Pulse-level "
+                    "compilation needs HEAppE 6.7.0+, where Endpoint is optional "
+                    "(-> QScheduler GET /machine/{machine}/calibration/{calibration})."
+                ) from e
+            raise
+        try:
+            calibration_set = json.loads(raw)
+        except ValueError:
+            calibration_set = None
+        if not isinstance(calibration_set, dict):
+            raise QException(
+                f"Calibration set of backend '{cluster.name}' is not a JSON object: "
+                f"{req_body_preview(raw, 200)}"
+            )
+        return calibration_set
+
+    def get_machine_calibration_set(
+        self,
+        backend_name: str | None = None,
+        calibration_set_id: UUID | str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Sync wrapper of :meth:`machine_calibration_set`.
+
+        Args:
+            backend_name (str or None): Target backend; active backend if ``None``.
+            calibration_set_id (UUID or str or None): Calibration set; current if ``None``.
+
+        Returns:
+            dict[str, Any]
+
+        Raises:
+            QException: Request failed, invalid JSON, or called from the loop
+                owning the HTTP session.
+        """
+        return self._run(self.machine_calibration_set(backend_name, calibration_set_id))
 
     # =================================================================
     # QScheduler: sessions
