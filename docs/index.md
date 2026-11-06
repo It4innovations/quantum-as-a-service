@@ -4,6 +4,9 @@ icon: lucide/atom
 
 # QHEAppE Client
 
+[![PyPI version](https://img.shields.io/pypi/v/qaas)](https://pypi.org/project/qaas/)
+[![Python versions](https://img.shields.io/pypi/pyversions/qaas)](https://pypi.org/project/qaas/)
+
 **QHEAppE Client** is the Python client of **QaaS (Quantum-as-a-Service)**, developed by IT4Innovations. It gives access to IQM quantum computers, such as the VLQ machine at IT4Innovations, through the [LEXIS Platform](https://docs.lexis.tech/) and [HEAppE](https://heappe.eu/).
 
 You write circuits in [Qiskit](https://www.ibm.com/quantum/qiskit); the client handles LEXIS authentication, finds the quantum backends of your LEXIS project, transpiles circuits for the hardware, submits jobs through the HEAppE **QScheduler** API and returns the results as Qiskit objects.
