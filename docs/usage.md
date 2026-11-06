@@ -213,6 +213,8 @@ print(pulla.sweep_job_to_qiskit(job, shots=1000).get_counts())
 
 Between `get_settings()` and `compile()` you can change pulse-level settings, or build schedules yourself with `compiler.get_schedule_builder()`; see IQM's Pulla documentation.
 
+Example: [`examples/qheappe_client/pulse_level_custom_x_gate.ipynb`](https://github.com/It4innovations/quantum-as-a-service/blob/main/examples/qheappe_client/pulse_level_custom_x_gate.ipynb) defines a custom pulse shape for the `prx` gate, calibrates its amplitude with Rabi sweeps (`Sweep` over gate parameters), and compares X and X·X with the native gate. It follows the calibration workflow of [Filippos Dakis, Experimental_results_IQM](https://github.com/Filippos-Dakis/Experimental_results_IQM).
+
 Requirements:
 
 - `qaas[iqm_qiskit]` (iqm-client 36.x, iqm-pulla 15.x)
