@@ -37,6 +37,10 @@ dependencies = [
     "py4lexis==7.1.*"
 ]
 
+[project.urls]
+Homepage = "https://github.com/It4innovations/quantum-as-a-service"
+Documentation = "https://it4innovations.github.io/quantum-as-a-service/"
+
 # --- Optional Subpackages (Extras) ---
 [project.optional-dependencies]
 # IQM stacks: install exactly one. The client picks the matching adapter at runtime
