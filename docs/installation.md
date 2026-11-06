@@ -21,7 +21,7 @@ pip install 'qaas[iqm_qiskit]' --extra-index-url https://opencode.it4i.eu/api/v4
 
 The `--extra-index-url` is required: it also provides `py4lexis`, which handles LEXIS authentication and is installed automatically.
 
-`1.0.0` is a pre-release. To pin it, put the extra before the version:
+To pin a version, put the extra before it:
 
 ```bash
 pip install 'qaas[iqm_qiskit]==1.0.0' --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
