@@ -1,7 +1,13 @@
 QHEAppE — Quantum-as-a-Service through HEAppE
 ==============================================
-[![PyPI version](https://img.shields.io/pypi/v/qaas)](https://pypi.org/project/qaas/)
-[![Python versions](https://img.shields.io/pypi/pyversions/qaas)](https://pypi.org/project/qaas/)
+
+.. image:: https://img.shields.io/pypi/v/qaas
+   :target: https://pypi.org/project/qaas/
+   :alt: PyPI version
+
+.. image:: https://img.shields.io/pypi/pyversions/qaas
+   :target: https://pypi.org/project/qaas/
+   :alt: Python versions
 
 .. image:: https://img.shields.io/badge/docs-GitHub%20Pages-blue
    :target: https://it4innovations.github.io/quantum-as-a-service/
