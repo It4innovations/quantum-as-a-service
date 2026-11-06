@@ -2,8 +2,8 @@
 
 Only one generation can be installed at a time:
 
-* ``qaas[iqm_qiskit]``    -> iqm-client 36.x (``IQMStack.IQM36``), station-control 49.x and 50.x (recommended)
-* ``qaas[iqm35_qiskit]``  -> iqm-client 35.x (``IQMStack.IQM35``), station-control 49.x only (Pulla)
+* ``qaas[iqm_qiskit]``    -> iqm-client 36.x (``IQMStack.IQM36``), station-control 49.x and 50.x (recommended, QPulla)
+* ``qaas[iqm35_qiskit]``  -> iqm-client 35.x (``IQMStack.IQM35``), station-control 49.x only (legacy qaas client)
 
 :class:`QBackendIQMFactory` checks the installed one against the version the
 backend reports and builds the matching backend. The adapter modules

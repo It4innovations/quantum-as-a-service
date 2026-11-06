@@ -22,9 +22,9 @@ station-control     IQM stacks that work (recommended first)
 49.x                IQM36 (tested live), IQM35
 ==================  ==========================================
 
-``iqm_qiskit`` (IQM36) is the recommended extra for every backend;
-``iqm35_qiskit`` is only needed for code that uses Pulla (e.g. the legacy
-``qaas`` client) and works with 49.x backends only.
+``iqm_qiskit`` (IQM36) is the recommended extra for every backend, also for
+pulse-level access (:class:`~qheappe_client.qpulla.QPulla`); ``iqm35_qiskit`` is
+only needed for the legacy ``qaas`` client and works with 49.x backends only.
 
 This module imports no IQM packages, so it works with any (or no) stack installed.
 """
@@ -122,7 +122,7 @@ def iqm_import_error_message(error: ImportError) -> str:
         f"qheappe_client cannot import '{error.name}': {problem}\n"
         f"Install one IQM extra:\n"
         f"  recommended (station-control 49.x and 50.x): {install_hint(IQMStack.IQM36)}\n"
-        f"  with Pulla  (station-control 49.x only):     {install_hint(IQMStack.IQM35)}"
+        f"  legacy qaas (station-control 49.x only):     {install_hint(IQMStack.IQM35)}"
     )
 
 

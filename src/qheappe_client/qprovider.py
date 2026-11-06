@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from .backend_metadata import LexisResource, QBackendMetadata
 from .iqm_compat import IQMStack, QBackendIQMFactory
+from .iqm_compat.stack import install_hint
 from .qclient import QClient
 from .qiskit.qbackend import QBackend
 from .qiskit.qbackend_iqm import (
@@ -29,21 +30,23 @@ DEFAULT_LEXIS_API_URL = "https://api.lexis.tech/"
 IQM_SW_STACK = "iqm"  # value of "type" in /heappe/QScheduler/MachineInfo
 
 
+if TYPE_CHECKING:
+    from .qpulla import QPulla
+
+
 def is_iqm_pulla_installed() -> bool:
-    """Check if the optional iqm-pulla dependency is available.
+    """Check if IQM's pulse-level compiler (iqm-pulla) is installed.
 
     Returns:
-        bool: True if either 'iqm.pulla' or 'pulla' package is installed, False otherwise.
+        bool: True if ``iqm.cpc`` (iqm-pulla 15+) or ``iqm.pulla`` (older) is importable.
     """
-    return (
-        importlib.util.find_spec("iqm.pulla") is not None
-        or importlib.util.find_spec("pulla") is not None
-    )
-
-
-# Import QPulla only when available to avoid circular imports
-if is_iqm_pulla_installed():
-    from qheappe_client.qpulla import QPulla
+    try:
+        return (
+            importlib.util.find_spec("iqm.cpc") is not None
+            or importlib.util.find_spec("iqm.pulla") is not None
+        )
+    except ModuleNotFoundError:  # no 'iqm' namespace package at all
+        return False
 
 
 def _split_target(
@@ -314,43 +317,70 @@ class QProvider:
         lexis_resource: str | QBackendMetadata | None = None,
         backend_name: str | None = None,
         calibration_set_id: UUID | None = None,
+        *,
+        strict_iqm_version: bool = True,
+        walltime_limit_secs: int = 3600,
+        job_name: str = "qpulla_job",
+        use_sessions: bool = False,
         **client_kwargs: Any,
     ) -> QPulla:
-        """Get a PULLA instance for the specified backend.
+        """Get pulse-level access (IQM Pulla) to a backend.
+
+        The returned :class:`~qheappe_client.qpulla.QPulla` is an
+        :class:`iqm.iqm_client.IQMClient` connected through HEAppE: compile with
+        ``get_standard_compiler()`` / ``qiskit_to_iqm()`` and run with
+        ``submit_playlist()``, as in IQM's Pulla documentation. Its ``backend`` is the
+        Qiskit backend of the same machine.
+
+        Needs the IQM 36 stack (``qaas[iqm_qiskit]``), QScheduler v0.2.2+ with pulse
+        access enabled for the machine, and HEAppE 6.7.0+.
 
         Args:
             lexis_resource: Either resource name or QBackendMetadata object.
             backend_name: Optional backend name to specify if not using metadata.
-            calibration_set_id: Optional calibration set ID for specific backend state.
+            calibration_set_id: Calibration set of the Qiskit backend (transpilation);
+                current if ``None``.
+            strict_iqm_version: Raise if the installed IQM libraries do not match the
+                backend; if ``False``, only warn (default: True).
+            walltime_limit_secs: HEAppE walltime limit of each submitted task.
+            job_name: HEAppE job name of submitted jobs.
+            use_sessions: Run submitted tasks in QScheduler sessions.
             client_kwargs: Additional keyword arguments for client initialization.
 
         Returns:
-            QPulla: Configured PULLA instance for backend monitoring.
+            QPulla: Pulse-level client bound to the backend.
 
         Raises:
-            ImportError: If IQM software stack but 'iqm-pulla' is not installed.
+            NotImplementedError: Software stack is not 'iqm', or the installed IQM stack
+                is not the IQM 36 one.
+            ValueError: Missing dynamic/static architecture.
+            QException: Installed IQM libraries do not match the backend.
         """
-        resource_name, name = _split_target(lexis_resource, backend_name)
-        client = self._get_client(resource_name, **client_kwargs).bind(name)
-        backend_metadata = client.get_quantum_backend_info(
-            backend_name=name, calibration_set_id=calibration_set_id
+        backend = self.get_backend(
+            lexis_resource,
+            backend_name,
+            calibration_set_id,
+            strict_iqm_version=strict_iqm_version,
+            **client_kwargs,
         )
-        _require_iqm(backend_metadata)
-
-        if QBackendIQMFactory.installed_stack() is not IQMStack.IQM35:
+        if backend.iqm_stack is not IQMStack.IQM36:
             raise NotImplementedError(
-                "QPulla needs iqm-pulla 14.x (install 'qaas[iqm35_qiskit]'). "
-                "iqm-pulla 15 (iqm-client 36.x) removed the Pulla class."
-            )
-        if not is_iqm_pulla_installed():
-            raise ImportError(
-                "The backend software stack is 'IQM', but the optional dependency "
-                "'iqm-pulla' is not installed in the environment."
+                f"QPulla needs the IQM 36 stack (iqm-client 36.x, iqm-pulla 15.x); "
+                f"{backend.iqm_stack} is installed. Install it with: "
+                f"{install_hint(IQMStack.IQM36)}"
             )
 
-        pulla_data, pulla = client.get_pulla()
-        qbackend = QBackend(client, backend_metadata=backend_metadata)
-        return QPulla(client, pulla, qbackend, **pulla_data)
+        from .qpulla import QPulla
+
+        pulla = QPulla(
+            backend._qclient,
+            backend,
+            walltime_limit_secs=walltime_limit_secs,
+            job_name=job_name,
+            use_sessions=use_sessions,
+        )
+        backend.client = pulla
+        return pulla
 
     def get_client(
         self,

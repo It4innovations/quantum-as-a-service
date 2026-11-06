@@ -10,7 +10,8 @@ Changes from 35.x that matter here:
   ``IQMBackend.create_run_request`` -> ``create_circuit_job_definition``
   (handled in :class:`~qheappe_client.qiskit.qbackend_iqm.QBackendIQM`).
 * iqm-pulla 15 no longer ships ``iqm.pulla`` (no ``Pulla`` / ``PullaJob``);
-  pulse-level helpers moved to ``iqm.qiskit_iqm.pulse_level_utils``.
+  pulse-level access moved into ``IQMClient`` and ``iqm.qiskit_iqm.pulse_level_utils``.
+  :class:`~qheappe_client.qpulla.QPulla` provides it through HEAppE.
 * ``JobStatus`` moved to ``iqm.station_control.interface.models.jobs_new``.
 * Constructing ``ObservationLite`` directly emits a DeprecationWarning.
 """
@@ -68,6 +69,6 @@ def qiskit_to_pulla(*_args, **_kwargs):
     """
     raise NotImplementedError(
         "qiskit_to_pulla needs iqm-pulla 14.x (install 'qaas[iqm35_qiskit]'). "
-        "With iqm-client 36.x use iqm.qiskit_iqm.pulse_level_utils.qiskit_to_iqm "
-        "(re-exported here as qiskit_to_iqm)."
+        "With iqm-client 36.x use QProvider.get_pulla(...).qiskit_to_iqm(circuits) "
+        "(or iqm.qiskit_iqm.pulse_level_utils.qiskit_to_iqm, re-exported here)."
     )

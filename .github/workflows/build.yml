@@ -130,6 +130,12 @@ jobs:
     if: >
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    # Only one Pages deployment at a time. A second run (e.g. a push to main
+    # and a v* tag on the same commit) waits instead of failing with
+    # "in progress deployment".
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write

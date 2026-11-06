@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qaas"
-version = "1.0.0a1"
+version = "1.0.0"
 description = "Quantum-as-a-Service utilizing IQMProvider, IQMBackend, IQMJob and HEAppE. Developed by IT4Innovations."
 authors = [
     { name="Jan Swiatkowski", email="jan.swiatkowski@vsb.cz" },
@@ -14,6 +14,10 @@ authors = [
 ]
 readme = "README.rst"
 requires-python = ">=3.12, <3.13"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
 
 # --- Base Dependencies (Client Always installed) ---
 dependencies = [
@@ -32,6 +36,10 @@ dependencies = [
     "symengine",
     "py4lexis==7.1.*"
 ]
+
+[project.urls]
+Homepage = "https://github.com/It4innovations/quantum-as-a-service"
+Documentation = "https://it4innovations.github.io/quantum-as-a-service/"
 
 # --- Optional Subpackages (Extras) ---
 [project.optional-dependencies]
@@ -58,7 +66,7 @@ iqm36_qiskit = [
     "protobuf<7.0",
 ]
 
-# Previous IQM stack (station-control 49.x backends only); needed only for Pulla / legacy qaas client
+# Previous IQM stack (station-control 49.x backends only); needed only for the legacy qaas client
 iqm35_qiskit = [
     "qiskit>=2.0,<2.2",
     "iqm-client[qiskit]==35.0.*",
@@ -72,11 +80,23 @@ iqm35_qiskit = [
 testenv = [
     "pytest",
     "pytest-dotenv",
-    "pytest-timeout"
+    "pytest-timeout",
+    "pytest-cov",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Coverage of the offline test suite; tests/README.md is generated from it by
+# scripts/update_test_readme.py.
+[tool.coverage.run]
+source = ["qheappe_client"]
+branch = true
+
+[tool.coverage.report]
+show_missing = false
+skip_empty = true
+precision = 1
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402"]

@@ -51,9 +51,15 @@ Metadata of one backend, including its architecture, without creating a backend.
 
 Low-level client bound to a resource or backend (machine metrics, job info, sessions).
 
-### `get_pulla(...)`
+### `get_pulla(lexis_resource, backend_name=None, calibration_set_id=None, *, strict_iqm_version=True, walltime_limit_secs=3600, job_name="qpulla_job", use_sessions=False) -> QPulla`
 
-Not available with `iqm_qiskit` (iqm-client 36): raises `NotImplementedError`. Requires `qaas[iqm35_qiskit]`.
+Pulse-level access to a backend, see [QPulla](#qpulla). Needs `qaas[iqm_qiskit]` (iqm-client 36) and QScheduler v0.2.2+ with pulse access enabled for the machine; raises `NotImplementedError` with another IQM stack.
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `walltime_limit_secs` | `3600` | HEAppE walltime limit of each pulse task |
+| `job_name` | `"qpulla_job"` | HEAppE job name |
+| `use_sessions` | `False` | Run tasks in QScheduler sessions |
 
 ### `clear_cache()`
 
@@ -100,6 +106,33 @@ Builds the IQM job definition without submitting it. `create_run_request` is an 
 ### `iqm_stack`
 
 Which IQM library generation the backend uses (`IQMStack.IQM36` or `IQMStack.IQM35`).
+
+### `client -> QPulla`
+
+IQM client of the backend, connected through HEAppE (created on first use, IQM 36 stack only). It lets IQM's helpers that take a backend work with this one, e.g. `iqm.qiskit_iqm.pulse_level_utils.qiskit_to_iqm(backend, circuits)`.
+
+---
+
+## QPulla
+
+Pulse-level access (IQM Pulla) to one backend. A subclass of `iqm.iqm_client.IQMClient` whose requests go through HEAppE/QScheduler, so IQM's pulse-level API works as IQM documents it. Returned by `QProvider.get_pulla()`.
+
+| Member | Description |
+|--------|-------------|
+| `backend` | The `QBackendIQM` of the same machine |
+| `qiskit_to_iqm(circuits)` | Transpiled Qiskit circuits → IQM circuits and a compiler with the backend's qubit mapping |
+| `get_qiskit_compiler(...)` | Compiler that also transpiles Qiskit circuits |
+| `get_standard_compiler(...)` | IQM's standard compiler (default calibration set) |
+| `submit_playlist(run_definition, context=...)` | Submit a compiled `RunDefinition`; returns IQM's `RunJobTracker` |
+| `sweep_job_to_qiskit(job, shots=...)` | Results of a finished job as a Qiskit `Result` |
+| `get_calibration_set()`, `get_calibration_set_stash()` | Calibration data |
+| `get_chip_label()`, `get_chip_topology()` | Chip information |
+| `get_dynamic_quantum_architecture()`, `get_static_quantum_architecture()` | Architectures |
+| `executor` | Submission options: `walltime_limit_secs`, `job_name`, `use_sessions` |
+
+The returned `RunJobTracker` works as in IQM's client: `wait_for_completion()`, `status`, `cancel()`, `result()`, `result_sweep()`. Its `job_id` is the HEAppE job id as a UUID (`UUID(int=heappe_job_id)`).
+
+Writing calibration data (observations, runs, sequences) and `get_health()` are not available through HEAppE and raise `NotImplementedError`.
 
 ---
 

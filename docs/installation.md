@@ -21,10 +21,10 @@ pip install 'qaas[iqm_qiskit]' --extra-index-url https://opencode.it4i.eu/api/v4
 
 The `--extra-index-url` is required: it also provides `py4lexis`, which handles LEXIS authentication and is installed automatically.
 
-`1.0.0a1` is a pre-release. To pin it, put the extra before the version:
+To pin a version, put the extra before it:
 
 ```bash
-pip install 'qaas[iqm_qiskit]==1.0.0a1' --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
+pip install 'qaas[iqm_qiskit]==1.0.0' --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
 ```
 
 In a Jupyter notebook use `%pip install ...` with the same arguments and restart the kernel afterwards.
@@ -38,13 +38,13 @@ Install exactly one of the extras. They pin different, incompatible versions of 
 
 | Extra | IQM libraries | Works with backends on station-control | Use it when |
 |-------|---------------|----------------------------------------|-------------|
-| `iqm_qiskit` (alias `iqm36_qiskit`) | iqm-client 36.x | **50.x** (current) and **49.x** (older) | Always, unless you need Pulla — **recommended** |
-| `iqm35_qiskit` | iqm-client 35.x | 49.x only | You need Pulla (pulse-level access) |
+| `iqm_qiskit` (alias `iqm36_qiskit`) | iqm-client 36.x | **50.x** (current) and **49.x** (older) | Always, including Pulla (pulse-level access) — **recommended** |
+| `iqm35_qiskit` | iqm-client 35.x | 49.x only | Only for the legacy `qaas.client` |
 
 When you call `QProvider.get_backend()`, the client reads the station-control version the backend reports and checks that the installed IQM libraries work with it. If they don't (for example `iqm35_qiskit` against a 50.x backend), you get a `QException` with the command for the right extra. Pass `strict_iqm_version=False` to get a warning instead.
 
-!!! note "Pulla is currently not available"
-    With `iqm_qiskit` (iqm-client 36.x), Pulla is not available: iqm-pulla 15 removed the `Pulla` class. `QProvider.get_pulla()` raises `NotImplementedError`. Pulse-level work needs `qaas[iqm35_qiskit]` and a station-control 49.x backend.
+!!! note "Pulse-level access (Pulla)"
+    `QProvider.get_pulla()` needs `iqm_qiskit` (iqm-client 36.x, iqm-pulla 15.x), QScheduler v0.2.2 or newer with pulse access enabled for the machine, and HEAppE 6.7.0 or newer. With `iqm35_qiskit` it raises `NotImplementedError`.
 
 ## Development install
 

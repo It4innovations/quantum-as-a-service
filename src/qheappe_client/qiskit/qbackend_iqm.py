@@ -51,6 +51,7 @@ from qheappe_client.utils import is_valid_uuid
 
 if TYPE_CHECKING:
     from qheappe_client.iqm_compat.stack import IQMStack
+    from qheappe_client.qpulla import QPulla
 
 __all__ = ["CircuitJobDefinition", "QBackendIQM", "transpile_to_IQM"]
 
@@ -115,6 +116,25 @@ class QBackendIQM(QBackend, IQMBackend):
         self._architecture = architecture
         self._max_circuits: int | None = None
         self._calibration_set_id = architecture.calibration_set_id
+
+    @property
+    def client(self) -> QPulla:
+        """IQM client of this backend, connected through HEAppE (pulse-level access).
+
+        A :class:`~qheappe_client.qpulla.QPulla`, created on first use, so IQM's
+        pulse-level helpers that take a backend work with this one too, e.g.
+        ``iqm.qiskit_iqm.pulse_level_utils.qiskit_to_iqm(backend, circuits)``.
+        Needs the IQM 36 stack.
+        """
+        if getattr(self, "_iqm_client", None) is None:
+            from qheappe_client.qpulla import QPulla
+
+            self._iqm_client = QPulla(self._qclient, backend=self)
+        return self._iqm_client
+
+    @client.setter
+    def client(self, value: QPulla) -> None:
+        self._iqm_client = value
 
     @property
     def max_circuits(self) -> int | None:
