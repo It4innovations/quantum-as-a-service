@@ -1,15 +1,15 @@
 QHEAppE — Quantum-as-a-Service through HEAppE
 ==============================================
 
-.. image:: https://img.shields.io/pypi/v/qaas
+|version| |python| |docs|
+
+.. |version| image:: https://img.shields.io/pypi/v/qaas
    :target: https://pypi.org/project/qaas/
    :alt: PyPI version
-
-.. image:: https://img.shields.io/pypi/pyversions/qaas
+.. |python| image:: https://img.shields.io/pypi/pyversions/qaas
    :target: https://pypi.org/project/qaas/
    :alt: Python versions
-
-.. image:: https://img.shields.io/badge/docs-GitHub%20Pages-blue
+.. |docs| image:: https://img.shields.io/badge/docs-GitHub%20Pages-blue
    :target: https://it4innovations.github.io/quantum-as-a-service/
    :alt: Documentation
 
@@ -22,6 +22,43 @@ Requirements
 
 - Python 3.12
 - Required Python packages: see `dependencies` in `pyproject.toml <pyproject.toml>`_
+- Server side: HEAppE and QScheduler, see `Compatibility`_
+
+Compatibility
+-------------
+
+Install **one** IQM extra:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Extra
+     - iqm-client
+     - Backends (station-control)
+     - Used by
+   * - ``iqm_qiskit`` (recommended), ``iqm36_qiskit``
+     - 36.0
+     - 49.x, 50.x
+     - QHEAppE Client, pulse-level access (QPulla)
+   * - ``iqm35_qiskit``
+     - 35.0
+     - 49.x
+     - legacy ``qaas.client``
+
+Minimum server versions:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Feature
+     - HEAppE
+     - QScheduler
+   * - Circuit jobs
+     - 6.6+
+     - 0.2+
+   * - Pulse-level access (QPulla)
+     - 6.7.0+
+     - 0.2.2+, with pulse access enabled for the machine
 
 Installation
 ------------
@@ -32,19 +69,14 @@ QHEAppE can be installed using pip. To install the package along with optional d
 
    pip install qaas[iqm_qiskit] --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
 
-``iqm_qiskit`` installs the current IQM libraries (iqm-client 36.x). They work with
-current backends (station-control 50.x) and with older ones (49.x), so this is the
-extra to use, also for pulse-level access (Pulla). ``qaas[iqm35_qiskit]`` (iqm-client 35.x)
-is only needed for the legacy ``qaas`` client and works with 49.x backends only.
-Install only one of the two. ``QProvider.get_backend()`` checks the version the backend
-reports and raises an error that names the extra to install if it does not match.
+For the other extras see `Compatibility`_. ``QProvider.get_backend()`` checks the version
+the backend reports and raises an error that names the extra to install if it does not match.
 
 .. note::
 
-   **Pulse-level access (Pulla)** works with ``iqm_qiskit`` (iqm-client 36.x, iqm-pulla 15.x):
-   ``QProvider.get_pulla()`` returns a ``QPulla``, an ``iqm.iqm_client.IQMClient``
-   connected through HEAppE. It needs QScheduler v0.2.2+ with pulse access enabled for
-   the machine, and HEAppE 6.7.0 or newer. See the usage documentation.
+   **Pulse-level access (Pulla)**: ``QProvider.get_pulla()`` returns a ``QPulla``, an
+   ``iqm.iqm_client.IQMClient`` connected through HEAppE. See the
+   `usage documentation <https://it4innovations.github.io/quantum-as-a-service/usage/#pulse-level-access-pulla>`_.
 
 Architecture
 -------------

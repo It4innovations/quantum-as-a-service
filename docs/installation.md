@@ -43,8 +43,17 @@ Install exactly one of the extras. They pin different, incompatible versions of 
 
 When you call `QProvider.get_backend()`, the client reads the station-control version the backend reports and checks that the installed IQM libraries work with it. If they don't (for example `iqm35_qiskit` against a 50.x backend), you get a `QException` with the command for the right extra. Pass `strict_iqm_version=False` to get a warning instead.
 
+## Server versions
+
+Minimum versions on the server side:
+
+| Feature | HEAppE | QScheduler |
+|---------|--------|------------|
+| Circuit jobs | 6.6+ | 0.2+ |
+| Pulse-level access (Pulla) | 6.7.0+ | 0.2.2+, with pulse access enabled for the machine |
+
 !!! note "Pulse-level access (Pulla)"
-    `QProvider.get_pulla()` needs `iqm_qiskit` (iqm-client 36.x, iqm-pulla 15.x), QScheduler v0.2.2 or newer with pulse access enabled for the machine, and HEAppE 6.7.0 or newer. With `iqm35_qiskit` it raises `NotImplementedError`.
+    `QProvider.get_pulla()` needs `iqm_qiskit` (iqm-client 36.x, iqm-pulla 15.x). With `iqm35_qiskit` it raises `NotImplementedError`.
 
 ## Development install
 
