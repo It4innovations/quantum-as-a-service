@@ -196,9 +196,7 @@ for state, count in sorted(counts.items()):
 `get_pulla()` gives an IQM pulse-level client (`QPulla`, an `iqm.iqm_client.IQMClient`) for a backend. Compile circuits on your machine with IQM's compiler, then run the compiled job through HEAppE:
 
 ```python
-pulla = provider.get_pulla(
-    lexis_resource="YOUR_QUANTUM_RESOURCE", backend_name="VLQ"
-)
+pulla = provider.get_pulla(lexis_resource="YOUR_QUANTUM_RESOURCE", backend_name="VLQ")
 
 qc = QuantumCircuit(2)
 qc.h(0)
