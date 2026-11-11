@@ -30,7 +30,9 @@ from qiskit import QuantumCircuit
 # Without a token, a browser login to LEXIS opens
 provider = QProvider(lexis_project="YOUR_LEXIS_PROJECT")
 
-backend = provider.get_backend(lexis_resource="YOUR_QUANTUM_RESOURCE")
+backend = provider.get_backend(
+    lexis_resource="YOUR_QUANTUM_RESOURCE", backend_name="VLQ"
+)
 
 qc = QuantumCircuit(2)
 qc.h(0)

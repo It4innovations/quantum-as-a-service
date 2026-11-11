@@ -120,7 +120,7 @@ The following example demonstrates the basic usage of the QProvider and QBackend
 
    # 3. Initialize the QBackend with the client
    backend = provider.get_backend(
-       lexis_resource=resource_name, backend_name="target_backend_name"
+       lexis_resource=resource_name, backend_name="VLQ"
    )
 
    # 4. Transpile the circuit
@@ -165,6 +165,7 @@ default calibration set, pass ``None`` instead.
    provider = QProvider("your_project_name")
    calibration_set = provider.get_backend(
        lexis_resource="your_resource_name",
+       backend_name="VLQ",
        calibration_set_id=UUID("3a83e2f3-c5a8-43b7-9aa1-e9738ca3204b")
    ).get_backend_info().calibration_set_id
 
