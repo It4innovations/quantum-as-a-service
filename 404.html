@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Page not found</title>
+  <script>
+    (function () {
+      var base = '/quantum-as-a-service/';
+      var channels = ["stable", "pre"];
+      var path = location.pathname;
+      if (path.indexOf(base) !== 0) return;
+      var rest = path.slice(base.length);
+      if (channels.indexOf(rest.split("/")[0]) !== -1) return;
+      location.replace(base + "stable/" + rest + location.search + location.hash);
+    })();
+  </script>
+</head>
+<body>
+  <h1>Page not found</h1>
+  <p><a href="/quantum-as-a-service/stable/">Go to the documentation</a></p>
+</body>
+</html>
