@@ -33,7 +33,12 @@ from qheappe_client.qclient import (
     QClient,
     _LoopThread,
 )
-from qheappe_client.qiskit.qbackend import HEAppE_QISKIT_STATUS_MAPPING, _HEAppEJobId
+from qheappe_client.qiskit.qbackend import (
+    HEAppE_QISKIT_STATUS_MAPPING,
+    QBackend,
+    QJob,
+    _HEAppEJobId,
+)
 from qheappe_client.qiskit.qbackend_iqm import QBackendIQM
 from qheappe_client.qprovider import _split_target
 from qheappe_client.utils import (
@@ -1005,9 +1010,6 @@ def test_heappe_job_id_is_int_and_callable():
     assert jid == 66 and jid() == "66"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="QUEUED / WAITINGFORSERVICEACCOUNT missing in status mapping"
-)
 def test_every_heappe_state_is_mapped():
     missing = {s.name.upper() for s in HEAppEJobState} - set(
         HEAppE_QISKIT_STATUS_MAPPING
@@ -1086,3 +1088,139 @@ class TestResultConversionErrors:
             QBackendIQM.result_to_qiskit(
                 None, raw, measurements_raw=[{"a": [[0]], "b": [[0], [1]]}]
             )
+
+
+# --- run(memory=...) -> QJob.result(with_measurements=...) (issue #49) ---
+
+
+class _FakeJobClient:
+    """QClient stand-in: a finished job whose artifacts include per-shot data."""
+
+    TERMINAL_JOB_STATES = QClient.TERMINAL_JOB_STATES
+
+    def __init__(self):
+        self.requested_artifacts = []
+
+    def get_quantum_backend_info(self):
+        return SimpleNamespace(backend_name="VLQ")
+
+    async def submit_quantum_job(self, **kwargs):
+        return {"Id": 7}
+
+    def _run(self, coro):
+        return asyncio.run(coro)
+
+    def get_job_results(self, submitted_job, artifact_names):
+        self.requested_artifacts.append(list(artifact_names))
+        artifacts = {QJob._COUNTS_ARTIFACT: RAW}
+        if QJob._MEAS_ARTIFACT in artifact_names:
+            artifacts[QJob._MEAS_ARTIFACT] = MEAS
+        return {7: {"artifacts": artifacts}}
+
+
+class _FakeBackend:
+    name = "fake"
+    result_to_qiskit = QBackendIQM.result_to_qiskit
+    result_to_qiskit_legacy = QBackendIQM.result_to_qiskit_legacy
+    _submit = QBackend._submit
+
+    def __init__(self):
+        self._qclient = _FakeJobClient()
+        self.options = QBackend._default_options()
+
+
+def _finished_job(memory=None):
+    backend = _FakeBackend()
+    options = {} if memory is None else {"memory": memory}
+    job = backend._submit({"run_request": "{}"}, shots=4, **options)
+    job._submitted_job = {"Id": 7, "Tasks": [], "State": HEAppEJobState.Finished.value}
+    return job
+
+
+class TestRunMemory:
+    def test_default_options_include_memory(self):
+        assert QBackend._default_options().memory is False
+
+    @pytest.mark.parametrize(
+        "memory, expected", [(None, False), (False, False), (True, True)]
+    )
+    def test_submit_passes_memory_to_job(self, memory, expected):
+        assert _finished_job(memory)._memory is expected
+
+    def test_memory_true_returns_per_shot_data(self):
+        job = _finished_job(memory=True)
+        res = job.result(qiskit_legacy=True)
+        assert res.get_memory() == _expected(False)[1]
+        assert job._backend._qclient.requested_artifacts[-1] == [
+            QJob._COUNTS_ARTIFACT,
+            QJob._MEAS_ARTIFACT,
+        ]
+
+    def test_memory_false_skips_measurements(self):
+        job = _finished_job()
+        job.result(qiskit_legacy=True)
+        assert job._backend._qclient.requested_artifacts == [[QJob._COUNTS_ARTIFACT]]
+
+    def test_explicit_with_measurements_overrides_memory(self):
+        job = _finished_job(memory=True)
+        job.result(with_measurements=False, qiskit_legacy=True)
+        assert job._backend._qclient.requested_artifacts == [[QJob._COUNTS_ARTIFACT]]
+
+        job = _finished_job(memory=False)
+        res = job.result(with_measurements=True, qiskit_legacy=True)
+        assert res.get_memory() == _expected(False)[1]
+
+    def test_backend_sampler_v2_gets_per_shot_data(self):
+        """Mirrors what BackendSamplerV2 does: run(memory=True), then read Result memory."""
+        job = _finished_job(memory=True)
+        res = job.result(qiskit_legacy=True)
+        assert res.results[0].data.memory is not None
+
+
+# ---------- live status ----------
+
+
+class _StatusClient(_FakeJobClient):
+    """Returns the given HEAppE states, one per get_job_info call."""
+
+    def __init__(self, states):
+        super().__init__()
+        self.states = list(states)
+        self.info_calls = 0
+
+    def get_job_info(self, job_id, backend_name=None):
+        self.info_calls += 1
+        return {"Id": int(job_id), "State": self.states.pop(0)}
+
+
+def _status_job(states):
+    backend = _FakeBackend()
+    backend._qclient = _StatusClient(states)
+    return backend._submit({"run_request": "{}"}, shots=4)
+
+
+class TestLiveStatus:
+    def test_status_polls_heappe_without_result(self):
+        S = HEAppEJobState
+        job = _status_job([S.Queued.value, S.Running.value, S.Finished.value])
+        assert job.status() == JobStatus.QUEUED
+        assert job.status() == JobStatus.RUNNING
+        assert job.status() == JobStatus.DONE
+        assert job.done() and job.in_final_state()
+
+    def test_no_more_queries_after_terminal_state(self):
+        job = _status_job([HEAppEJobState.Failed.value])
+        assert job.status() == JobStatus.ERROR
+        assert job.status() == JobStatus.ERROR
+        assert job._qclient.info_calls == 1
+
+    def test_wait_for_final_state_returns(self):
+        S = HEAppEJobState
+        job = _status_job([S.Submitted.value, S.Running.value, S.Finished.value])
+        job.wait_for_final_state(timeout=5, wait=0)
+        assert job.status() == JobStatus.DONE
+
+    def test_missing_state_keeps_last_status(self):
+        job = _status_job([])
+        job._qclient.get_job_info = lambda job_id, backend_name=None: {"Id": 7}
+        assert job.status() == JobStatus.QUEUED
