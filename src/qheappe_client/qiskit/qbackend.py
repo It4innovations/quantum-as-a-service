@@ -16,6 +16,8 @@ HEAppE_QISKIT_STATUS_MAPPING = {
     "WAITING": JobStatus.RUNNING,
     "RUNNING": JobStatus.RUNNING,
     "SUBMITTED": JobStatus.QUEUED,
+    "QUEUED": JobStatus.QUEUED,
+    "WAITINGFORSERVICEACCOUNT": JobStatus.QUEUED,
     "CONFIGURING": JobStatus.INITIALIZING,
     "FAILED": JobStatus.ERROR,
     "CANCELLED": JobStatus.CANCELLED,
@@ -60,9 +62,9 @@ class QBackend(BackendV2, ABC):
         """Return the default options for the backend.
 
         Returns:
-            Options: The default options with shots set to 1024.
+            Options: The default options: ``shots=1024`` and ``memory=False``.
         """
-        return Options(shots=1024)
+        return Options(shots=1024, memory=False)
 
     @abstractmethod
     def run(
@@ -139,7 +141,8 @@ class QBackend(BackendV2, ABC):
         Args:
             circuit_payloads (dict[str, str]): A dictionary mapping part names to circuit payloads.
             shots (int): The number of shots to execute.
-            **options: Additional options for the submission, such as walltime_limit_secs and use_sessions.
+            **options: Additional options for the submission, such as walltime_limit_secs, use_sessions
+                and memory (if True, the job's results include per-shot measurements by default).
 
         Returns:
             QJob: The QJob instance representing the submitted job.
@@ -176,6 +179,7 @@ class QBackend(BackendV2, ABC):
             heappe_job_id=heappe_job_id,
             submitted_job=submitted_job,
             shots=shots,
+            memory=bool(options.get("memory", self.options.memory)),
         )
 
     @abstractmethod
@@ -206,6 +210,7 @@ class QJob(JobV1):
         submitted_job: dict[str, Any] | None = None,
         job_type: str = "circuit",
         shots: int | None = None,
+        memory: bool = False,
     ):
         """Initialize the QJob.
 
@@ -215,6 +220,8 @@ class QJob(JobV1):
             submitted_job (dict[str, Any] | None): The submitted job details.
             job_type (str): The type of job, default is "circuit".
             shots (int | None): The number of shots for the job.
+            memory (bool): The ``memory`` option passed to ``backend.run()``. Used as the
+                default for ``with_measurements`` in :meth:`result`.
         """
         super().__init__(backend, str(heappe_job_id))
         self.job_id = _HEAppEJobId(heappe_job_id)
@@ -222,6 +229,7 @@ class QJob(JobV1):
         self._qclient: QClient = backend._qclient
         self._submitted_job = submitted_job or {"Id": heappe_job_id}
         self._shots = shots if shots is not None else backend.options.shots
+        self._memory = memory
         self.remote_job = None
         self._cancel_requested = False
         self._last_known_status: str = "SUBMITTED"
@@ -233,6 +241,8 @@ class QJob(JobV1):
     def status(self) -> JobStatus:
         """Queries HEAppE job status via QClient and maps it to Qiskit JobStatus.
 
+        HEAppE is queried on every call until the job reaches a terminal state.
+
         Returns:
             JobStatus: The current status of the job.
         """
@@ -241,6 +251,11 @@ class QJob(JobV1):
 
         if self._cancel_requested:
             return JobStatus.CANCELED
+
+        if self._last_known_status.upper() not in self._qclient.TERMINAL_JOB_STATES:
+            state = self._qclient.get_job_info(self.job_id()).get("State")
+            if state is not None:
+                self._last_known_status = HEAppEJobState.readable(state)
 
         return self._to_qiskit_status(self._last_known_status.upper())
 
@@ -286,15 +301,17 @@ class QJob(JobV1):
 
     def result(
         self,
-        with_measurements=False,
-        key_order_left_to_right=False,
-        qiskit_legacy=False,
+        with_measurements: bool | None = None,
+        key_order_left_to_right: bool = False,
+        qiskit_legacy: bool = False,
     ) -> Result | PrimitiveResult:
         """Execute a quantum circuit on a quantum backend.
 
         Args:
-            with_measurements (bool): If True, include particular shot measurements into the Qiskit Result.
+            with_measurements (bool | None): If True, include particular shot measurements into the Qiskit Result.
                 This allows accessing per-shot memory and counts directly from the result object.
+                If None (default), follows the ``memory`` option passed to ``backend.run()``.
+                An explicit True or False always wins.
             key_order_left_to_right (bool): If True, the bit order of the measurement results is from left to right.
                 If False, the bit order is from right to left.
             qiskit_legacy (bool): Whether to use qiskit legacy result type or PrimitiveResult.
@@ -314,6 +331,9 @@ class QJob(JobV1):
             - res.get_counts() # counts dictionary
             - res.get_memory() # per-shot memory list
         """
+        if with_measurements is None:
+            with_measurements = self._memory
+
         # Return cached and formatted result
         key = (qiskit_legacy, with_measurements, key_order_left_to_right)
         if key in self._result_cache:
