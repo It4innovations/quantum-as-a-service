@@ -67,10 +67,12 @@ print(
 ## Connecting to a backend
 
 ```python
-backend = provider.get_backend(lexis_resource="YOUR_QUANTUM_RESOURCE")
+backend = provider.get_backend(
+    lexis_resource="YOUR_QUANTUM_RESOURCE", backend_name="VLQ"
+)
 ```
 
-If the resource has more than one backend, choose one with `backend_name="..."`.
+`backend_name` selects the backend (here the VLQ machine). You can leave it out if the resource has only one backend.
 
 Useful options of `get_backend()`:
 
@@ -173,7 +175,9 @@ from qheappe_client import QProvider
 from qiskit import QuantumCircuit
 
 provider = QProvider(lexis_project="YOUR_LEXIS_PROJECT")
-backend = provider.get_backend(lexis_resource="YOUR_QUANTUM_RESOURCE")
+backend = provider.get_backend(
+    lexis_resource="YOUR_QUANTUM_RESOURCE", backend_name="VLQ"
+)
 
 qc = QuantumCircuit(2)
 qc.h(0)
@@ -192,7 +196,7 @@ for state, count in sorted(counts.items()):
 `get_pulla()` gives an IQM pulse-level client (`QPulla`, an `iqm.iqm_client.IQMClient`) for a backend. Compile circuits on your machine with IQM's compiler, then run the compiled job through HEAppE:
 
 ```python
-pulla = provider.get_pulla(lexis_resource="YOUR_QUANTUM_RESOURCE")
+pulla = provider.get_pulla(lexis_resource="YOUR_QUANTUM_RESOURCE", backend_name="VLQ")
 
 qc = QuantumCircuit(2)
 qc.h(0)
@@ -229,7 +233,9 @@ All client errors derive from `QException`:
 from qheappe_client.utils import QAuthException, QException
 
 try:
-    backend = provider.get_backend(lexis_resource="YOUR_QUANTUM_RESOURCE")
+    backend = provider.get_backend(
+        lexis_resource="YOUR_QUANTUM_RESOURCE", backend_name="VLQ"
+    )
     result = backend.run(backend.transpile(qc), shots=1000).result()
 except QAuthException as e:
     print("Authentication / access problem:", e)
@@ -258,7 +264,7 @@ async def main():
     async with await QClient.create(
         TOKEN, "YOUR_LEXIS_PROJECT", "YOUR_QUANTUM_RESOURCE"
     ) as client:
-        md = await client.get_backend()
+        md = await client.get_backend(backend_name="VLQ")
         print(md.backend_name, md.available)
         metrics = await client.machine_metrics()
 
