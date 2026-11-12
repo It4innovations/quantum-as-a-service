@@ -379,6 +379,109 @@ class TestJob:
         assert sum(legacy_counts(job).values()) == 50
 
 
+# ---------- 8b. run(memory=True) -> per-shot results (issue #49) ----------
+
+MEMORY_SHOTS = 200
+
+
+@pytest.fixture(scope="module")
+def memory_job(backend):
+    qc = QuantumCircuit(2)
+    qc.h(0)
+    qc.cx(0, 1)
+    qc.measure_all()
+    job = backend.run(
+        backend.transpile(qc),
+        shots=MEMORY_SHOTS,
+        memory=True,
+        job_name="qheappe_test_memory",
+    )
+    job.result()  # wait once; tests below reattach for other formats
+    return job
+
+
+def reattach_memory(backend, job: QJob, memory: bool = True) -> QJob:
+    """Fresh QJob for an existing job, as if submitted with run(memory=...)."""
+    return QJob(backend, int(job.job_id), memory=memory)
+
+
+@pytest.mark.qpu
+@pytest.mark.timeout(JOB_TIMEOUT)
+class TestRunMemory:
+    def test_job_remembers_memory_option(self, memory_job):
+        assert memory_job._memory is True
+
+    def test_legacy_memory_without_with_measurements(self, backend, memory_job):
+        res = reattach_memory(backend, memory_job).result(qiskit_legacy=True)
+        memory = res.get_memory()
+        assert len(memory) == MEMORY_SHOTS
+        assert Counter(memory) == res.get_counts()
+        # what BackendSamplerV2 reads
+        assert res.results[0].data.memory is not None
+
+    def test_primitive_bitstrings_without_with_measurements(self, backend, memory_job):
+        meas = reattach_memory(backend, memory_job).result()[0].data.meas
+        bitstrings = meas.get_bitstrings()
+        assert len(bitstrings) == MEMORY_SHOTS
+        assert Counter(bitstrings) == meas.get_counts()
+
+    def test_memory_shows_bell_correlation(self, backend, memory_job):
+        memory = (
+            reattach_memory(backend, memory_job).result(qiskit_legacy=True).get_memory()
+        )
+        assert fraction(Counter(memory), ("00", "11")) > MIN_FIDELITY
+
+    def test_explicit_with_measurements_false_wins(self, backend, memory_job):
+        res = reattach_memory(backend, memory_job).result(
+            qiskit_legacy=True, with_measurements=False
+        )
+        assert getattr(res.results[0].data, "memory", None) is None
+        assert sum(res.get_counts().values()) == MEMORY_SHOTS
+
+    def test_default_run_has_no_memory(self, backend, bell_job):
+        """run() without memory keeps the old behavior: counts only."""
+        res = reattach(backend, bell_job).result(qiskit_legacy=True)
+        assert getattr(res.results[0].data, "memory", None) is None
+
+
+# ---------- 8c. status() queries HEAppE without result() ----------
+
+STATUS_SHOTS = 100
+STATUS_POLL = 2
+
+
+@pytest.mark.qpu
+@pytest.mark.timeout(JOB_TIMEOUT)
+class TestLiveStatus:
+    """status(), done(), in_final_state() and wait_for_final_state() follow the
+    server state without calling result() first, as qaas.client QJob did."""
+
+    def test_status_reaches_done_without_result(self, backend, client, bell_circuit):
+        job = backend.run(backend.transpile(bell_circuit), shots=STATUS_SHOTS)
+        seen = []
+        deadline = time.monotonic() + JOB_TIMEOUT - 30
+        while not job.in_final_state():
+            seen.append(job.status())
+            assert time.monotonic() < deadline, f"stuck in {seen[-1]}"
+            time.sleep(STATUS_POLL)
+        assert job.status() == JobStatus.DONE and job.done()
+        assert JobStatus.ERROR not in seen, seen
+        assert heappe_state(client, job.job_id) == "FINISHED"
+        # result() still works after status polling
+        assert sum(legacy_counts(job).values()) == STATUS_SHOTS
+
+    def test_wait_for_final_state_returns(self, backend, bell_circuit):
+        job = backend.run(backend.transpile(bell_circuit), shots=STATUS_SHOTS)
+        job.wait_for_final_state(timeout=JOB_TIMEOUT - 30, wait=STATUS_POLL)
+        assert job.status() == JobStatus.DONE
+
+    def test_reattached_finished_job_is_done(self, backend, bell_job):
+        """A fresh QJob for a finished job reports DONE without result()."""
+        job = reattach(backend, bell_job)
+        assert job.status() == JobStatus.DONE
+        assert job.done() and job.in_final_state()
+
+
 @pytest.mark.qpu
 @pytest.mark.timeout(JOB_TIMEOUT)
 class TestCircuits:

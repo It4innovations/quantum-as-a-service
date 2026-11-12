@@ -144,13 +144,13 @@ A submitted job. Returned by `QBackendIQM.run()`, or created from an existing HE
 
 HEAppE job ID as an `int`. `job.job_id()` returns it as a string (Qiskit style).
 
-### `result(with_measurements=False, key_order_left_to_right=False, qiskit_legacy=False) -> PrimitiveResult | Result`
+### `result(with_measurements=None, key_order_left_to_right=False, qiskit_legacy=False) -> PrimitiveResult | Result`
 
 Waits until the job finishes and returns the results.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `with_measurements` | `False` | Include per-shot results |
+| `with_measurements` | `None` | Include per-shot results. `None` follows the `memory` option given to `backend.run()` (default `False`) |
 | `key_order_left_to_right` | `False` | Bit order of bitstrings; `False` = Qiskit's right-to-left order |
 | `qiskit_legacy` | `False` | Return a legacy `Result` instead of a `PrimitiveResult` |
 

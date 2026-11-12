@@ -153,7 +153,7 @@ The measurements are always in the `meas` register of a `PrimitiveResult`.
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `with_measurements` | `False` | Include per-shot results (bitstrings / memory) |
+| `with_measurements` | `None` | Include per-shot results (bitstrings / memory). `None` follows `backend.run(..., memory=True)`; an explicit `True`/`False` always wins |
 | `key_order_left_to_right` | `False` | Bit order of the bitstrings; `False` matches Qiskit's right-to-left order |
 | `qiskit_legacy` | `False` | Return a legacy `Result` instead of a `PrimitiveResult` |
 

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{#- Shown on every docs version except the default one (stable), i.e. on pre/. -#}
+{% block outdated %}
+  You are viewing the documentation for a <strong>pre-release</strong>.
+  <a href="{{ '../' ~ base_url }}">
+    <strong>Go to the stable documentation.</strong>
+  </a>
+{% endblock %}
