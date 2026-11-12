@@ -6,17 +6,25 @@
   <script>
     (function () {
       var base = '/quantum-as-a-service/';
-      var channels = ["stable", "pre"];
+      var folders = ["latest", "pre", "1.0.1"];
+      var renamed = {"stable": "latest"};
       var path = location.pathname;
       if (path.indexOf(base) !== 0) return;
       var rest = path.slice(base.length);
-      if (channels.indexOf(rest.split("/")[0]) !== -1) return;
-      location.replace(base + "stable/" + rest + location.search + location.hash);
+      var first = rest.split("/")[0];
+      if (renamed[first]) {
+        rest = renamed[first] + rest.slice(first.length);
+      } else if (folders.indexOf(first) !== -1) {
+        return;
+      } else {
+        rest = 'latest' + "/" + rest;
+      }
+      location.replace(base + rest + location.search + location.hash);
     })();
   </script>
 </head>
 <body>
   <h1>Page not found</h1>
-  <p><a href="/quantum-as-a-service/stable/">Go to the documentation</a></p>
+  <p><a href="/quantum-as-a-service/latest/">Go to the documentation</a></p>
 </body>
 </html>

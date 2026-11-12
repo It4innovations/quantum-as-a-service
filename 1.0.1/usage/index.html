@@ -1,0 +1,1202 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Quantum as a service">
+      
+      
+        <meta name="author" content="IT4Innovations">
+      
+      
+        <link rel="canonical" href="https://it4innovations.github.io/quantum-as-a-service/latest/usage/">
+      
+      
+      
+        <link rel="prev" href="../installation/">
+      
+      
+        <link rel="next" href="../api/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.1.1">
+    
+    
+      
+        <title>Usage - Quantum as a service</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.ebb7f775.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+          <aside class="md-banner md-banner--warning">
+            <div class="md-banner__inner md-grid md-typeset">
+              
+  You are viewing the documentation for a <strong>pre-release or an earlier
+  release</strong>.
+  <a href="../..">
+    <strong>Go to the latest stable documentation.</strong>
+  </a>
+
+            </div>
+            <script>var el=document.querySelector("[data-md-component=outdated]"),base=new URL("..",location),outdated=__md_get("__outdated",sessionStorage,base);!0===outdated&&el&&(el.hidden=!1)</script>
+          </aside>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="Quantum as a service" class="md-header__button md-logo" aria-label="Quantum as a service" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Quantum as a service
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Usage
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/It4innovations/quantum-as-a-service" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    It4innovations/quantum-as-a-service
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="Quantum as a service" class="md-nav__button md-logo" aria-label="Quantum as a service" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    Quantum as a service
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/It4innovations/quantum-as-a-service" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    It4innovations/quantum-as-a-service
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-atom" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73zM12 22V12"/><path d="M3.29 7 12 12l8.71-5M7.5 4.27l9 5.15"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  Usage
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  Usage
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Authentication
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#finding-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Finding backends
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connecting-to-a-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Connecting to a backend
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-the-hardware" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Inspecting the hardware
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transpiling-circuits" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Transpiling circuits
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-a-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Running a job
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reading results
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reading results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#primitiveresult-vs-legacy-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        PrimitiveResult vs. legacy Result
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#getting-the-results-of-an-earlier-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Getting the results of an earlier job
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Full example
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pulse-level-access-pulla" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pulse-level access (Pulla)
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Error handling
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#async-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Async API
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  API Reference
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  Architecture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Authentication
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#finding-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Finding backends
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connecting-to-a-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Connecting to a backend
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-the-hardware" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Inspecting the hardware
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transpiling-circuits" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Transpiling circuits
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-a-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Running a job
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reading results
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reading results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#primitiveresult-vs-legacy-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        PrimitiveResult vs. legacy Result
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#getting-the-results-of-an-earlier-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Getting the results of an earlier job
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Full example
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pulse-level-access-pulla" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pulse-level access (Pulla)
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Error handling
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#async-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Async API
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+  
+  
+
+
+<h1 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h1>
+<p>You need a LEXIS Platform project with an allocated quantum resource (for example the VLQ machine at IT4Innovations, VSB – Technical University of Ostrava). How to get an allocation for VLQ is described in the <a href="https://docs.it4i.cz/en/docs/clusters/vlq/access">IT4I documentation</a>; access to LEXIS projects is described there and in the <a href="https://docs.lexis.tech/">LEXIS Platform documentation</a>.</p>
+<p>You will need two names from your project:</p>
+<ul>
+<li><strong>LEXIS project</strong> — the project short name, e.g. <code>EU-XX-XXX</code></li>
+<li><strong>Quantum resource</strong> — the name of the quantum resource in that project, e.g. <code>VLQ-EU</code></li>
+</ul>
+<p>Ask the PI of your LEXIS project if you don't know them.</p>
+<h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
+<p><code>QProvider</code> needs a LEXIS access token. There are two ways to provide it:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QProvider</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># 1. Interactive: without a token, a LEXIS login opens in the browser</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">provider</span> <span class="o">=</span> <span class="n">QProvider</span><span class="p">(</span><span class="n">lexis_project</span><span class="o">=</span><span class="s2">"YOUR_LEXIS_PROJECT"</span><span class="p">)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># 2. Token: e.g. for scripts on remote machines or CI</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">provider</span> <span class="o">=</span> <span class="n">QProvider</span><span class="p">(</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">lexis_project</span><span class="o">=</span><span class="s2">"YOUR_LEXIS_PROJECT"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"LEXIS_TOKEN"</span><span class="p">]</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>You can get a token once through an interactive <code>py4lexis</code> login:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">py4lexis.session</span><span class="w"> </span><span class="kn">import</span> <span class="n">LexisSession</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">token</span> <span class="o">=</span> <span class="n">LexisSession</span><span class="p">()</span><span class="o">.</span><span class="n">get_access_token</span><span class="p">()</span>
+</span></code></pre></div>
+<p>The client verifies the token and checks that you have access to the project and resource. If not, it raises <code>QAuthException</code> with the projects or resources you do have access to.</p>
+<h2 id="finding-backends">Finding backends<a class="headerlink" href="#finding-backends" title="Permanent link">&para;</a></h2>
+<p>A quantum resource can have one or more backends (quantum machines behind HEAppE clusters):</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">backends</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">available_backends</span><span class="p">(</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">md</span> <span class="ow">in</span> <span class="n">backends</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="s2">"available"</span> <span class="k">if</span> <span class="n">md</span><span class="o">.</span><span class="n">available</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"unavailable: </span><span class="si">{</span><span class="n">md</span><span class="o">.</span><span class="n">error</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Detailed information about one backend:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">info</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">get_backend_info</span><span class="p">(</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">,</span> <span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span><span class="p">)</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">supplier</span><span class="p">,</span> <span class="n">info</span><span class="o">.</span><span class="n">quantum_technology</span><span class="p">)</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nb">print</span><span class="p">(</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="s2">"QScheduler:"</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">info</span><span class="o">.</span><span class="n">qaas_version</span><span class="p">,</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="s2">"| station-control:"</span><span class="p">,</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">info</span><span class="o">.</span><span class="n">machine_info</span><span class="o">.</span><span class="n">station_control_version</span><span class="p">,</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">)</span>
+</span></code></pre></div>
+<h2 id="connecting-to-a-backend">Connecting to a backend<a class="headerlink" href="#connecting-to-a-backend" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">backend</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">get_backend</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">lexis_resource</span><span class="o">=</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">,</span> <span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><code>backend_name</code> selects the backend (here the VLQ machine). You can leave it out if the resource has only one backend.</p>
+<p>Useful options of <code>get_backend()</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>backend_name</code></td>
+<td>Backend (cluster) to use; required if the resource has several</td>
+</tr>
+<tr>
+<td><code>calibration_set_id</code></td>
+<td>Use a specific calibration set (UUID) instead of the current default</td>
+</tr>
+<tr>
+<td><code>use_metrics</code></td>
+<td>Load calibration quality metrics into the transpiler target (better qubit selection)</td>
+</tr>
+<tr>
+<td><code>strict_iqm_version</code></td>
+<td><code>True</code> (default): raise if the installed IQM libraries don't work with the backend; <code>False</code>: only warn</td>
+</tr>
+</tbody>
+</table>
+<h2 id="inspecting-the-hardware">Inspecting the hardware<a class="headerlink" href="#inspecting-the-hardware" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"Qubits:"</span><span class="p">,</span> <span class="n">backend</span><span class="o">.</span><span class="n">architecture</span><span class="o">.</span><span class="n">qubits</span><span class="p">)</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"Gates:"</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">architecture</span><span class="o">.</span><span class="n">gates</span><span class="p">))</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"Calibration set:"</span><span class="p">,</span> <span class="n">backend</span><span class="o">.</span><span class="n">architecture</span><span class="o">.</span><span class="n">calibration_set_id</span><span class="p">)</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"Number of qubits:"</span><span class="p">,</span> <span class="n">backend</span><span class="o">.</span><span class="n">num_qubits</span><span class="p">)</span>
+</span></code></pre></div>
+<h2 id="transpiling-circuits">Transpiling circuits<a class="headerlink" href="#transpiling-circuits" title="Permanent link">&para;</a></h2>
+<p>Circuits must be transpiled to the IQM native gate set and qubit connectivity before they are run:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qiskit</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuantumCircuit</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">qc</span> <span class="o">=</span> <span class="n">QuantumCircuit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">qc</span><span class="o">.</span><span class="n">h</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">qc</span><span class="o">.</span><span class="n">cx</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">qc</span><span class="o">.</span><span class="n">measure_all</span><span class="p">()</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">qc_transpiled</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">)</span>
+</span></code></pre></div>
+<p><code>transpile()</code> also accepts a list of circuits. Keyword arguments are passed to IQM's <code>transpile_to_IQM</code>, for example <code>optimize_single_qubits=False</code>, <code>initial_layout=...</code> or <code>restrict_to_qubits=[...]</code>.</p>
+<h2 id="running-a-job">Running a job<a class="headerlink" href="#running-a-job" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">job</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">qc_transpiled</span><span class="p">,</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">job_name</span><span class="o">=</span><span class="s2">"bell_state"</span><span class="p">)</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"HEAppE job ID:"</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">job_id</span><span class="p">)</span>
+</span></code></pre></div>
+<ul>
+<li><code>shots</code> is required.</li>
+<li>Pass a list of transpiled circuits to run several circuits in one job.</li>
+<li><code>job_name</code> sets the name of the job in HEAppE.</li>
+</ul>
+<h2 id="reading-results">Reading results<a class="headerlink" href="#reading-results" title="Permanent link">&para;</a></h2>
+<p><code>job.result()</code> waits until the job finishes. It returns a Qiskit <code>PrimitiveResult</code> by default, or a legacy Qiskit <code>Result</code> with <code>qiskit_legacy=True</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># PrimitiveResult: one entry per circuit</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">with_measurements</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">meas</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">meas</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">meas</span><span class="o">.</span><span class="n">get_counts</span><span class="p">())</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">meas</span><span class="o">.</span><span class="n">get_bitstrings</span><span class="p">()[:</span><span class="mi">10</span><span class="p">])</span>  <span class="c1"># per-shot results</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># Legacy Result</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">legacy</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">qiskit_legacy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">with_measurements</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">legacy</span><span class="o">.</span><span class="n">get_counts</span><span class="p">())</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">legacy</span><span class="o">.</span><span class="n">get_memory</span><span class="p">()[:</span><span class="mi">10</span><span class="p">])</span>  <span class="c1"># per-shot results</span>
+</span></code></pre></div>
+<h3 id="primitiveresult-vs-legacy-result">PrimitiveResult vs. legacy Result<a class="headerlink" href="#primitiveresult-vs-legacy-result" title="Permanent link">&para;</a></h3>
+<p>Both contain the same measurement data; they differ in shape and in which Qiskit code expects them.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>PrimitiveResult</code> (default)</th>
+<th>Legacy <code>Result</code> (<code>qiskit_legacy=True</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Qiskit API</td>
+<td>Current Qiskit primitives format (as returned by <code>SamplerV2</code>)</td>
+<td>Older <code>backend.run()</code> format (<code>qiskit.result.Result</code>)</td>
+</tr>
+<tr>
+<td>Several circuits</td>
+<td>One entry per circuit: <code>result[i]</code></td>
+<td>One experiment per circuit: <code>result.get_counts(i)</code></td>
+</tr>
+<tr>
+<td>Counts</td>
+<td><code>result[i].data.meas.get_counts()</code></td>
+<td><code>result.get_counts()</code></td>
+</tr>
+<tr>
+<td>Per-shot results</td>
+<td><code>result[i].data.meas.get_bitstrings()</code></td>
+<td><code>result.get_memory()</code></td>
+</tr>
+<tr>
+<td>Use it for</td>
+<td>New code, Qiskit primitives-based workflows</td>
+<td>Existing code and tutorials that call <code>get_counts()</code> on the result</td>
+</tr>
+</tbody>
+</table>
+<p>The measurements are always in the <code>meas</code> register of a <code>PrimitiveResult</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>with_measurements</code></td>
+<td><code>None</code></td>
+<td>Include per-shot results (bitstrings / memory). <code>None</code> follows <code>backend.run(..., memory=True)</code>; an explicit <code>True</code>/<code>False</code> always wins</td>
+</tr>
+<tr>
+<td><code>key_order_left_to_right</code></td>
+<td><code>False</code></td>
+<td>Bit order of the bitstrings; <code>False</code> matches Qiskit's right-to-left order</td>
+</tr>
+<tr>
+<td><code>qiskit_legacy</code></td>
+<td><code>False</code></td>
+<td>Return a legacy <code>Result</code> instead of a <code>PrimitiveResult</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="getting-the-results-of-an-earlier-job">Getting the results of an earlier job<a class="headerlink" href="#getting-the-results-of-an-earlier-job" title="Permanent link">&para;</a></h2>
+<p>You can attach to a job submitted earlier using its HEAppE job ID:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QJob</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">job</span> <span class="o">=</span> <span class="n">QJob</span><span class="p">(</span><span class="n">backend</span><span class="p">,</span> <span class="mi">12345</span><span class="p">)</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">counts</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">qiskit_legacy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">get_counts</span><span class="p">()</span>
+</span></code></pre></div>
+<h2 id="full-example">Full example<a class="headerlink" href="#full-example" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QProvider</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qiskit</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuantumCircuit</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">provider</span> <span class="o">=</span> <span class="n">QProvider</span><span class="p">(</span><span class="n">lexis_project</span><span class="o">=</span><span class="s2">"YOUR_LEXIS_PROJECT"</span><span class="p">)</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">backend</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">get_backend</span><span class="p">(</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="n">lexis_resource</span><span class="o">=</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">,</span> <span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="p">)</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="n">qc</span> <span class="o">=</span> <span class="n">QuantumCircuit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">qc</span><span class="o">.</span><span class="n">h</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="n">qc</span><span class="o">.</span><span class="n">cx</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="n">qc</span><span class="o">.</span><span class="n">measure_all</span><span class="p">()</span>
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="n">job</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">),</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">job_name</span><span class="o">=</span><span class="s2">"bell_state"</span><span class="p">)</span>
+</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="n">counts</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">qiskit_legacy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">get_counts</span><span class="p">()</span>
+</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>
+</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="k">for</span> <span class="n">state</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">counts</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"|</span><span class="si">{</span><span class="n">state</span><span class="si">}</span><span class="s2">⟩: </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span></code></pre></div>
+<h2 id="pulse-level-access-pulla">Pulse-level access (Pulla)<a class="headerlink" href="#pulse-level-access-pulla" title="Permanent link">&para;</a></h2>
+<p><code>get_pulla()</code> gives an IQM pulse-level client (<code>QPulla</code>, an <code>iqm.iqm_client.IQMClient</code>) for a backend. Compile circuits on your machine with IQM's compiler, then run the compiled job through HEAppE:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">pulla</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">get_pulla</span><span class="p">(</span><span class="n">lexis_resource</span><span class="o">=</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">,</span> <span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span><span class="p">)</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">qc</span> <span class="o">=</span> <span class="n">QuantumCircuit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">qc</span><span class="o">.</span><span class="n">h</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">qc</span><span class="o">.</span><span class="n">cx</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">qc</span><span class="o">.</span><span class="n">measure_all</span><span class="p">()</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="c1"># Qiskit circuit -&gt; IQM circuit + compiler for this backend</span>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="n">circuits</span><span class="p">,</span> <span class="n">compiler</span> <span class="o">=</span> <span class="n">pulla</span><span class="o">.</span><span class="n">qiskit_to_iqm</span><span class="p">(</span><span class="n">pulla</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">))</span>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="n">settings</span> <span class="o">=</span> <span class="n">compiler</span><span class="o">.</span><span class="n">get_settings</span><span class="p">(</span><span class="n">circuits</span><span class="o">=</span><span class="n">circuits</span><span class="p">)</span>
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="n">settings</span><span class="o">.</span><span class="n">set_shots</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span>
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="n">run_definition</span><span class="p">,</span> <span class="n">context</span> <span class="o">=</span> <span class="n">compiler</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">circuits</span><span class="p">,</span> <span class="n">settings</span><span class="o">=</span><span class="n">settings</span><span class="p">)</span>
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>
+</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="n">job</span> <span class="o">=</span> <span class="n">pulla</span><span class="o">.</span><span class="n">submit_playlist</span><span class="p">(</span><span class="n">run_definition</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">)</span>
+</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="n">job</span><span class="o">.</span><span class="n">wait_for_completion</span><span class="p">()</span>
+</span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">pulla</span><span class="o">.</span><span class="n">sweep_job_to_qiskit</span><span class="p">(</span><span class="n">job</span><span class="p">,</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span><span class="o">.</span><span class="n">get_counts</span><span class="p">())</span>
+</span></code></pre></div>
+<p>Between <code>get_settings()</code> and <code>compile()</code> you can change pulse-level settings, or build schedules yourself with <code>compiler.get_schedule_builder()</code>; see IQM's Pulla documentation.</p>
+<p>Example: <a href="https://github.com/It4innovations/quantum-as-a-service/blob/main/examples/qheappe_client/pulse_level_custom_x_gate.ipynb"><code>examples/qheappe_client/pulse_level_custom_x_gate.ipynb</code></a> defines a custom pulse shape for the <code>prx</code> gate, calibrates its amplitude with Rabi sweeps (<code>Sweep</code> over gate parameters), and compares X and X·X with the native gate. It follows the calibration workflow of <a href="https://github.com/Filippos-Dakis/Experimental_results_IQM">Filippos Dakis, Experimental_results_IQM</a>.</p>
+<p>Requirements:</p>
+<ul>
+<li><code>qaas[iqm_qiskit]</code> (iqm-client 36.x, iqm-pulla 15.x)</li>
+<li>QScheduler v0.2.2 or newer, with pulse access enabled for the machine</li>
+<li>HEAppE 6.7.0 or newer (forwards the task <code>Kind</code>, machine artifacts and whole calibration sets)</li>
+</ul>
+<h2 id="error-handling">Error handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<p>All client errors derive from <code>QException</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">QAuthException</span><span class="p">,</span> <span class="n">QException</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="n">backend</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">get_backend</span><span class="p">(</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>        <span class="n">lexis_resource</span><span class="o">=</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">,</span> <span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="p">)</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">),</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="k">except</span> <span class="n">QAuthException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"Authentication / access problem:"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="k">except</span> <span class="n">QException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"QHEAppE Client error:"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Common causes:</p>
+<ul>
+<li>Expired or invalid LEXIS token</li>
+<li>Wrong LEXIS project or quantum resource name (the message lists the available ones)</li>
+<li>Backend unavailable or under maintenance</li>
+<li>Installed IQM libraries don't work with the backend (the message gives the <code>pip install</code> command)</li>
+<li>Circuits not transpiled for the backend</li>
+</ul>
+<h2 id="async-api">Async API<a class="headerlink" href="#async-api" title="Permanent link">&para;</a></h2>
+<p><code>QProvider</code> and the backends use a synchronous API that also works inside Jupyter. For async code, <code>QClient</code> offers the same operations as coroutines:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client.qclient</span><span class="w"> </span><span class="kn">import</span> <span class="n">QClient</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="k">async</span> <span class="k">with</span> <span class="k">await</span> <span class="n">QClient</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>        <span class="n">TOKEN</span><span class="p">,</span> <span class="s2">"YOUR_LEXIS_PROJECT"</span><span class="p">,</span> <span class="s2">"YOUR_QUANTUM_RESOURCE"</span>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>    <span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>        <span class="n">md</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get_backend</span><span class="p">(</span><span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span><span class="p">)</span>
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">md</span><span class="o">.</span><span class="n">backend_name</span><span class="p">,</span> <span class="n">md</span><span class="o">.</span><span class="n">available</span><span class="p">)</span>
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>        <span class="n">metrics</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">machine_metrics</span><span class="p">()</span>
+</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>
+</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>
+</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</span></code></pre></div>
+
+
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../installation/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Installation">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Installation
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../api/" class="md-footer__link md-footer__link--next" aria-label="Next: API Reference">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                API Reference
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 The authors
+
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["announce.dismiss","content.code.annotate","content.code.copy","content.code.select","content.footnote.tooltips","content.tabs.link","content.tooltips","navigation.footer","navigation.indexes","navigation.instant","navigation.instant.prefetch","navigation.path","navigation.sections","navigation.top","navigation.tracking","search.highlight"],"redirect":null,"search":"../assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"default":"latest","provider":"mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.3cb411a8.min.js"></script>
+      
+    
+  </body>
+</html>

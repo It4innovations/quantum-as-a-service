@@ -1,0 +1,1507 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Quantum as a service">
+      
+      
+        <meta name="author" content="IT4Innovations">
+      
+      
+        <link rel="canonical" href="https://it4innovations.github.io/quantum-as-a-service/latest/api/">
+      
+      
+      
+        <link rel="prev" href="../usage/">
+      
+      
+        <link rel="next" href="../architecture/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.1.1">
+    
+    
+      
+        <title>API Reference - Quantum as a service</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.ebb7f775.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+          <aside class="md-banner md-banner--warning">
+            <div class="md-banner__inner md-grid md-typeset">
+              
+  You are viewing the documentation for a <strong>pre-release or an earlier
+  release</strong>.
+  <a href="../..">
+    <strong>Go to the latest stable documentation.</strong>
+  </a>
+
+            </div>
+            <script>var el=document.querySelector("[data-md-component=outdated]"),base=new URL("..",location),outdated=__md_get("__outdated",sessionStorage,base);!0===outdated&&el&&(el.hidden=!1)</script>
+          </aside>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="Quantum as a service" class="md-header__button md-logo" aria-label="Quantum as a service" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Quantum as a service
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/It4innovations/quantum-as-a-service" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    It4innovations/quantum-as-a-service
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="Quantum as a service" class="md-nav__button md-logo" aria-label="Quantum as a service" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    Quantum as a service
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/It4innovations/quantum-as-a-service" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    It4innovations/quantum-as-a-service
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-atom" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73zM12 22V12"/><path d="M3.29 7 12 12l8.71-5M7.5 4.27l9 5.15"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  Usage
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  API Reference
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  API Reference
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#qprovider" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QProvider
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="QProvider">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get_backendlexis_resource-backend_namenone-calibration_set_idnone-use_metricsfalse-strict_iqm_versiontrue-qbackendiqm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>get_backend(lexis_resource, backend_name=None, calibration_set_>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#available_backendslexis_resource-dictstr-qbackendmetadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>available_backends(lexis_resource) -&gt; dict[str, QBackendMetadata]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_backend_infolexis_resource-backend_namenone-calibration_set_idnone-qbackendmetadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>get_backend_info(lexis_resource, backend_name=None, calibration_set_>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_clientlexis_resource-backend_namenone-qclient" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>get_client(lexis_resource, backend_name=None) -&gt; QClient</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_pullalexis_resource-backend_namenone-calibration_set_idnone-strict_iqm_versiontrue-walltime_limit_secs3600-job_nameqpulla_job-use_sessionsfalse-qpulla" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>get_pulla(lexis_resource, backend_name=None, calibration_set_qpulla_job", use_sessions=False) -&gt; QPulla</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clear_cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>clear_cache()</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qbackendiqm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QBackendIQM
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="QBackendIQM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>architecture</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transpilecircuits-kwargs-quantumcircuit-listquantumcircuit" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>transpile(circuits, **kwargs) -&gt; QuantumCircuit | list[QuantumCircuit]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runrun_input-shots-options-qjob" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>run(run_input, shots, **options) -&gt; QJob</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_circuit_job_definitionrun_input-shots1024-circuitjobdefinition" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>create_circuit_job_definition(run_input, shots=1024, ...) -&gt; CircuitJobDefinition</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iqm_stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>iqm_stack</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-qpulla" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>client -&gt; QPulla</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qpulla" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QPulla
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qjob" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QJob
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="QJob">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#job_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>job_id</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resultwith_measurementsnone-key_order_left_to_rightfalse-qiskit_legacyfalse-primitiveresult-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>result(with_measurements=None, key_order_left_to_right=False, qiskit_legacy=False) -&gt; PrimitiveResult | Result</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#status-jobstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>status() -&gt; JobStatus</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qbackendmetadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QBackendMetadata
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Exceptions
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+  Architecture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#qprovider" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QProvider
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="QProvider">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get_backendlexis_resource-backend_namenone-calibration_set_idnone-use_metricsfalse-strict_iqm_versiontrue-qbackendiqm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>get_backend(lexis_resource, backend_name=None, calibration_set_>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#available_backendslexis_resource-dictstr-qbackendmetadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>available_backends(lexis_resource) -&gt; dict[str, QBackendMetadata]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_backend_infolexis_resource-backend_namenone-calibration_set_idnone-qbackendmetadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>get_backend_info(lexis_resource, backend_name=None, calibration_set_>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_clientlexis_resource-backend_namenone-qclient" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>get_client(lexis_resource, backend_name=None) -&gt; QClient</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_pullalexis_resource-backend_namenone-calibration_set_idnone-strict_iqm_versiontrue-walltime_limit_secs3600-job_nameqpulla_job-use_sessionsfalse-qpulla" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>get_pulla(lexis_resource, backend_name=None, calibration_set_qpulla_job", use_sessions=False) -&gt; QPulla</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clear_cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>clear_cache()</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qbackendiqm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QBackendIQM
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="QBackendIQM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>architecture</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transpilecircuits-kwargs-quantumcircuit-listquantumcircuit" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>transpile(circuits, **kwargs) -&gt; QuantumCircuit | list[QuantumCircuit]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runrun_input-shots-options-qjob" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>run(run_input, shots, **options) -&gt; QJob</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_circuit_job_definitionrun_input-shots1024-circuitjobdefinition" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>create_circuit_job_definition(run_input, shots=1024, ...) -&gt; CircuitJobDefinition</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iqm_stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>iqm_stack</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-qpulla" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>client -&gt; QPulla</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qpulla" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QPulla
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qjob" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QJob
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="QJob">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#job_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>job_id</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resultwith_measurementsnone-key_order_left_to_rightfalse-qiskit_legacyfalse-primitiveresult-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>result(with_measurements=None, key_order_left_to_right=False, qiskit_legacy=False) -&gt; PrimitiveResult | Result</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#status-jobstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>status() -&gt; JobStatus</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qbackendmetadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QBackendMetadata
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Exceptions
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+  
+  
+
+
+<h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
+<p>This page covers the main classes of the QHEAppE Client. The full, generated reference of every module is in the <a href="../../api_reference/qheappe_client.html">API reference (pdoc)</a>.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QProvider</span><span class="p">,</span> <span class="n">QBackendIQM</span><span class="p">,</span> <span class="n">QJob</span><span class="p">,</span> <span class="n">QBackendMetadata</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">QException</span><span class="p">,</span> <span class="n">QAuthException</span>
+</span></code></pre></div>
+<hr />
+<h2 id="qprovider">QProvider<a class="headerlink" href="#qprovider" title="Permanent link">&para;</a></h2>
+<p>Entry point. Authenticates to LEXIS and creates backends for the quantum resources of a LEXIS project. Clients are cached per resource.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">provider</span> <span class="o">=</span> <span class="n">QProvider</span><span class="p">(</span><span class="n">lexis_project</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lexis_api_url</span><span class="o">=</span><span class="s2">"https://api.lexis.tech/"</span><span class="p">)</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lexis_project</code></td>
+<td><code>str</code></td>
+<td>LEXIS project short name</td>
+</tr>
+<tr>
+<td><code>token</code></td>
+<td><code>str \| None</code></td>
+<td>LEXIS access token; if <code>None</code>, an interactive <code>py4lexis</code> login is started</td>
+</tr>
+<tr>
+<td><code>lexis_api_url</code></td>
+<td><code>str</code></td>
+<td>LEXIS API base URL</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get_backendlexis_resource-backend_namenone-calibration_set_idnone-use_metricsfalse-strict_iqm_versiontrue-qbackendiqm"><code>get_backend(lexis_resource, backend_name=None, calibration_set_id=None, *, use_metrics=False, strict_iqm_version=True) -&gt; QBackendIQM</code><a class="headerlink" href="#get_backendlexis_resource-backend_namenone-calibration_set_idnone-use_metricsfalse-strict_iqm_versiontrue-qbackendiqm" title="Permanent link">&para;</a></h3>
+<p>Creates a backend for a quantum resource. Checks that the installed IQM libraries work with the backend's station-control version.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lexis_resource</code></td>
+<td><code>str \| QBackendMetadata</code></td>
+<td>—</td>
+<td>Quantum resource name, or metadata from <code>available_backends()</code></td>
+</tr>
+<tr>
+<td><code>backend_name</code></td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>Backend (cluster) name; required if the resource has several</td>
+</tr>
+<tr>
+<td><code>calibration_set_id</code></td>
+<td><code>UUID \| None</code></td>
+<td><code>None</code></td>
+<td>Calibration set; <code>None</code> = current default</td>
+</tr>
+<tr>
+<td><code>use_metrics</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Load calibration metrics into the transpiler target</td>
+</tr>
+<tr>
+<td><code>strict_iqm_version</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>Raise <code>QException</code> on an IQM version mismatch; <code>False</code> only warns</td>
+</tr>
+</tbody>
+</table>
+<h3 id="available_backendslexis_resource-dictstr-qbackendmetadata"><code>available_backends(lexis_resource) -&gt; dict[str, QBackendMetadata]</code><a class="headerlink" href="#available_backendslexis_resource-dictstr-qbackendmetadata" title="Permanent link">&para;</a></h3>
+<p>All backends of a resource, including unavailable ones (check <code>.available</code> and <code>.error</code>).</p>
+<h3 id="get_backend_infolexis_resource-backend_namenone-calibration_set_idnone-qbackendmetadata"><code>get_backend_info(lexis_resource, backend_name=None, calibration_set_id=None) -&gt; QBackendMetadata</code><a class="headerlink" href="#get_backend_infolexis_resource-backend_namenone-calibration_set_idnone-qbackendmetadata" title="Permanent link">&para;</a></h3>
+<p>Metadata of one backend, including its architecture, without creating a backend.</p>
+<h3 id="get_clientlexis_resource-backend_namenone-qclient"><code>get_client(lexis_resource, backend_name=None) -&gt; QClient</code><a class="headerlink" href="#get_clientlexis_resource-backend_namenone-qclient" title="Permanent link">&para;</a></h3>
+<p>Low-level client bound to a resource or backend (machine metrics, job info, sessions).</p>
+<h3 id="get_pullalexis_resource-backend_namenone-calibration_set_idnone-strict_iqm_versiontrue-walltime_limit_secs3600-job_nameqpulla_job-use_sessionsfalse-qpulla"><code>get_pulla(lexis_resource, backend_name=None, calibration_set_id=None, *, strict_iqm_version=True, walltime_limit_secs=3600, job_name="qpulla_job", use_sessions=False) -&gt; QPulla</code><a class="headerlink" href="#get_pullalexis_resource-backend_namenone-calibration_set_idnone-strict_iqm_versiontrue-walltime_limit_secs3600-job_nameqpulla_job-use_sessionsfalse-qpulla" title="Permanent link">&para;</a></h3>
+<p>Pulse-level access to a backend, see <a href="#qpulla">QPulla</a>. Needs <code>qaas[iqm_qiskit]</code> (iqm-client 36) and QScheduler v0.2.2+ with pulse access enabled for the machine; raises <code>NotImplementedError</code> with another IQM stack.</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>walltime_limit_secs</code></td>
+<td><code>3600</code></td>
+<td>HEAppE walltime limit of each pulse task</td>
+</tr>
+<tr>
+<td><code>job_name</code></td>
+<td><code>"qpulla_job"</code></td>
+<td>HEAppE job name</td>
+</tr>
+<tr>
+<td><code>use_sessions</code></td>
+<td><code>False</code></td>
+<td>Run tasks in QScheduler sessions</td>
+</tr>
+</tbody>
+</table>
+<h3 id="clear_cache"><code>clear_cache()</code><a class="headerlink" href="#clear_cache" title="Permanent link">&para;</a></h3>
+<p>Forget the cached clients; the next call connects again.</p>
+<hr />
+<h2 id="qbackendiqm">QBackendIQM<a class="headerlink" href="#qbackendiqm" title="Permanent link">&para;</a></h2>
+<p>Qiskit <code>BackendV2</code> for an IQM quantum computer. Returned by <code>QProvider.get_backend()</code>.</p>
+<h3 id="architecture"><code>architecture</code><a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h3>
+<p>The backend's dynamic quantum architecture (from the active calibration set).</p>
+<table>
+<thead>
+<tr>
+<th>Attribute</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>architecture.qubits</code></td>
+<td>Qubit names</td>
+</tr>
+<tr>
+<td><code>architecture.gates</code></td>
+<td>Supported gates and their loci</td>
+</tr>
+<tr>
+<td><code>architecture.calibration_set_id</code></td>
+<td>Calibration set the architecture belongs to</td>
+</tr>
+</tbody>
+</table>
+<p><code>num_qubits</code> and <code>target</code> are the standard Qiskit backend properties.</p>
+<h3 id="transpilecircuits-kwargs-quantumcircuit-listquantumcircuit"><code>transpile(circuits, **kwargs) -&gt; QuantumCircuit | list[QuantumCircuit]</code><a class="headerlink" href="#transpilecircuits-kwargs-quantumcircuit-listquantumcircuit" title="Permanent link">&para;</a></h3>
+<p>Transpiles one circuit or a list of circuits to the native gate set and connectivity. Keyword arguments go to IQM's <code>transpile_to_IQM</code> (e.g. <code>optimize_single_qubits</code>, <code>initial_layout</code>, <code>restrict_to_qubits</code>).</p>
+<h3 id="runrun_input-shots-options-qjob"><code>run(run_input, shots, **options) -&gt; QJob</code><a class="headerlink" href="#runrun_input-shots-options-qjob" title="Permanent link">&para;</a></h3>
+<p>Submits one transpiled circuit or a list of them as one job.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run_input</code></td>
+<td><code>QuantumCircuit \| list[QuantumCircuit]</code></td>
+<td>—</td>
+<td>Transpiled circuit(s)</td>
+</tr>
+<tr>
+<td><code>shots</code></td>
+<td><code>int</code></td>
+<td>—</td>
+<td>Number of shots (required)</td>
+</tr>
+<tr>
+<td><code>job_name</code></td>
+<td><code>str</code></td>
+<td><code>"qiskit_qasm_job"</code></td>
+<td>Job name in HEAppE</td>
+</tr>
+<tr>
+<td><code>walltime_limit_secs</code></td>
+<td><code>int</code></td>
+<td><code>3600</code></td>
+<td>Walltime limit of the job</td>
+</tr>
+<tr>
+<td><code>circuit_compilation_options</code></td>
+<td><code>CircuitCompilationOptions</code></td>
+<td>IQM default</td>
+<td>IQM server-side compilation options</td>
+</tr>
+</tbody>
+</table>
+<h3 id="create_circuit_job_definitionrun_input-shots1024-circuitjobdefinition"><code>create_circuit_job_definition(run_input, shots=1024, ...) -&gt; CircuitJobDefinition</code><a class="headerlink" href="#create_circuit_job_definitionrun_input-shots1024-circuitjobdefinition" title="Permanent link">&para;</a></h3>
+<p>Builds the IQM job definition without submitting it. <code>create_run_request</code> is an alias (iqm-client 35 name).</p>
+<h3 id="iqm_stack"><code>iqm_stack</code><a class="headerlink" href="#iqm_stack" title="Permanent link">&para;</a></h3>
+<p>Which IQM library generation the backend uses (<code>IQMStack.IQM36</code> or <code>IQMStack.IQM35</code>).</p>
+<h3 id="client-qpulla"><code>client -&gt; QPulla</code><a class="headerlink" href="#client-qpulla" title="Permanent link">&para;</a></h3>
+<p>IQM client of the backend, connected through HEAppE (created on first use, IQM 36 stack only). It lets IQM's helpers that take a backend work with this one, e.g. <code>iqm.qiskit_iqm.pulse_level_utils.qiskit_to_iqm(backend, circuits)</code>.</p>
+<hr />
+<h2 id="qpulla">QPulla<a class="headerlink" href="#qpulla" title="Permanent link">&para;</a></h2>
+<p>Pulse-level access (IQM Pulla) to one backend. A subclass of <code>iqm.iqm_client.IQMClient</code> whose requests go through HEAppE/QScheduler, so IQM's pulse-level API works as IQM documents it. Returned by <code>QProvider.get_pulla()</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>backend</code></td>
+<td>The <code>QBackendIQM</code> of the same machine</td>
+</tr>
+<tr>
+<td><code>qiskit_to_iqm(circuits)</code></td>
+<td>Transpiled Qiskit circuits → IQM circuits and a compiler with the backend's qubit mapping</td>
+</tr>
+<tr>
+<td><code>get_qiskit_compiler(...)</code></td>
+<td>Compiler that also transpiles Qiskit circuits</td>
+</tr>
+<tr>
+<td><code>get_standard_compiler(...)</code></td>
+<td>IQM's standard compiler (default calibration set)</td>
+</tr>
+<tr>
+<td><code>submit_playlist(run_definition, context=...)</code></td>
+<td>Submit a compiled <code>RunDefinition</code>; returns IQM's <code>RunJobTracker</code></td>
+</tr>
+<tr>
+<td><code>sweep_job_to_qiskit(job, shots=...)</code></td>
+<td>Results of a finished job as a Qiskit <code>Result</code></td>
+</tr>
+<tr>
+<td><code>get_calibration_set()</code>, <code>get_calibration_set_stash()</code></td>
+<td>Calibration data</td>
+</tr>
+<tr>
+<td><code>get_chip_label()</code>, <code>get_chip_topology()</code></td>
+<td>Chip information</td>
+</tr>
+<tr>
+<td><code>get_dynamic_quantum_architecture()</code>, <code>get_static_quantum_architecture()</code></td>
+<td>Architectures</td>
+</tr>
+<tr>
+<td><code>executor</code></td>
+<td>Submission options: <code>walltime_limit_secs</code>, <code>job_name</code>, <code>use_sessions</code></td>
+</tr>
+</tbody>
+</table>
+<p>The returned <code>RunJobTracker</code> works as in IQM's client: <code>wait_for_completion()</code>, <code>status</code>, <code>cancel()</code>, <code>result()</code>, <code>result_sweep()</code>. Its <code>job_id</code> is the HEAppE job id as a UUID (<code>UUID(int=heappe_job_id)</code>).</p>
+<p>Writing calibration data (observations, runs, sequences) and <code>get_health()</code> are not available through HEAppE and raise <code>NotImplementedError</code>.</p>
+<hr />
+<h2 id="qjob">QJob<a class="headerlink" href="#qjob" title="Permanent link">&para;</a></h2>
+<p>A submitted job. Returned by <code>QBackendIQM.run()</code>, or created from an existing HEAppE job ID with <code>QJob(backend, job_id)</code>.</p>
+<h3 id="job_id"><code>job_id</code><a class="headerlink" href="#job_id" title="Permanent link">&para;</a></h3>
+<p>HEAppE job ID as an <code>int</code>. <code>job.job_id()</code> returns it as a string (Qiskit style).</p>
+<h3 id="resultwith_measurementsnone-key_order_left_to_rightfalse-qiskit_legacyfalse-primitiveresult-result"><code>result(with_measurements=None, key_order_left_to_right=False, qiskit_legacy=False) -&gt; PrimitiveResult | Result</code><a class="headerlink" href="#resultwith_measurementsnone-key_order_left_to_rightfalse-qiskit_legacyfalse-primitiveresult-result" title="Permanent link">&para;</a></h3>
+<p>Waits until the job finishes and returns the results.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>with_measurements</code></td>
+<td><code>None</code></td>
+<td>Include per-shot results. <code>None</code> follows the <code>memory</code> option given to <code>backend.run()</code> (default <code>False</code>)</td>
+</tr>
+<tr>
+<td><code>key_order_left_to_right</code></td>
+<td><code>False</code></td>
+<td>Bit order of bitstrings; <code>False</code> = Qiskit's right-to-left order</td>
+</tr>
+<tr>
+<td><code>qiskit_legacy</code></td>
+<td><code>False</code></td>
+<td>Return a legacy <code>Result</code> instead of a <code>PrimitiveResult</code></td>
+</tr>
+</tbody>
+</table>
+<p>Accessing the results:</p>
+<table>
+<thead>
+<tr>
+<th>Result type</th>
+<th>Counts</th>
+<th>Per-shot results</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PrimitiveResult</code></td>
+<td><code>res[i].data.meas.get_counts()</code></td>
+<td><code>res[i].data.meas.get_bitstrings()</code></td>
+</tr>
+<tr>
+<td><code>Result</code> (legacy)</td>
+<td><code>res.get_counts()</code></td>
+<td><code>res.get_memory()</code></td>
+</tr>
+</tbody>
+</table>
+<p>Raises <code>RuntimeError</code> if the job failed or was cancelled.</p>
+<h3 id="status-jobstatus"><code>status() -&gt; JobStatus</code><a class="headerlink" href="#status-jobstatus" title="Permanent link">&para;</a></h3>
+<p>Current job state as a Qiskit <code>JobStatus</code>.</p>
+<hr />
+<h2 id="qbackendmetadata">QBackendMetadata<a class="headerlink" href="#qbackendmetadata" title="Permanent link">&para;</a></h2>
+<p>Describes one backend of a quantum resource (returned by <code>available_backends()</code> and <code>get_backend_info()</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>backend_name</code></td>
+<td>Backend (cluster) name</td>
+</tr>
+<tr>
+<td><code>available</code> / <code>error</code></td>
+<td>Whether the backend can be used, and why not</td>
+</tr>
+<tr>
+<td><code>supplier</code>, <code>quantum_technology</code></td>
+<td>e.g. <code>IQM</code>, <code>SUPERCONDUCTING</code></td>
+</tr>
+<tr>
+<td><code>qaas_version</code></td>
+<td>QScheduler version</td>
+</tr>
+<tr>
+<td><code>machine_info</code></td>
+<td>Parsed <code>MachineInfo</code>, incl. <code>station_control_version</code></td>
+</tr>
+<tr>
+<td><code>dynamic_architecture</code> / <code>static_architecture</code></td>
+<td>IQM architectures, if loaded</td>
+</tr>
+<tr>
+<td><code>lexis_project</code>, <code>lexis_resource</code>, <code>heappe_url</code>, <code>allocated_units</code></td>
+<td>LEXIS and HEAppE details</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="exceptions">Exceptions<a class="headerlink" href="#exceptions" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Exception</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>QException</code></td>
+<td>Base class of all client errors</td>
+</tr>
+<tr>
+<td><code>QAuthException</code></td>
+<td>Token is invalid or you have no access to the project/resource</td>
+</tr>
+<tr>
+<td><code>QResultsFailed</code></td>
+<td>Results of a job could not be retrieved</td>
+</tr>
+</tbody>
+</table>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">QException</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="o">...</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">except</span> <span class="n">QException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+</span></code></pre></div>
+
+
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../usage/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Usage">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Usage
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../architecture/" class="md-footer__link md-footer__link--next" aria-label="Next: Architecture">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Architecture
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 The authors
+
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["announce.dismiss","content.code.annotate","content.code.copy","content.code.select","content.footnote.tooltips","content.tabs.link","content.tooltips","navigation.footer","navigation.indexes","navigation.instant","navigation.instant.prefetch","navigation.path","navigation.sections","navigation.top","navigation.tracking","search.highlight"],"redirect":null,"search":"../assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"default":"latest","provider":"mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.3cb411a8.min.js"></script>
+      
+    
+  </body>
+</html>
