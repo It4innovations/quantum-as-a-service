@@ -619,10 +619,10 @@
 </span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="n">qc</span><span class="o">.</span><span class="n">measure_all</span><span class="p">()</span>
 </span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>
 </span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="n">job</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">),</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
-</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="n">counts</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">qiskit_legacy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">get_counts</span><span class="p">()</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="n">counts</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_counts</span><span class="p">()</span>
 </span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="nb">print</span><span class="p">(</span><span class="n">counts</span><span class="p">)</span>  <span class="c1"># e.g. {'00': 497, '11': 489, '01': 8, '10': 6}</span>
 </span></code></pre></div>
-<p><code>job.result()</code> returns a Qiskit <code>PrimitiveResult</code> by default, or a legacy <code>Result</code> with <code>qiskit_legacy=True</code>. See <a href="usage/#primitiveresult-vs-legacy-result">PrimitiveResult vs. legacy Result</a> for the difference.</p>
+<p><code>job.result()</code> returns a Qiskit <code>Result</code>, as <code>backend.run()</code> does in Qiskit. For <code>PrimitiveResult</code> output, use the sampler primitive <code>QSamplerV2</code>. See <a href="usage/#reading-results">Reading results</a>.</p>
 <h2 id="pages">Pages<a class="headerlink" href="#pages" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -642,7 +642,7 @@
 </tr>
 <tr>
 <td><a href="api/">API Reference</a></td>
-<td><code>QProvider</code>, <code>QBackendIQM</code>, <code>QJob</code>, <code>QBackendMetadata</code>, exceptions</td>
+<td><code>QProvider</code>, <code>QBackendIQM</code>, <code>QJob</code>, <code>QSamplerV2</code>, <code>QBackendMetadata</code>, exceptions</td>
 </tr>
 <tr>
 <td><a href="architecture/">Architecture</a></td>

@@ -438,6 +438,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Running a job">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#waiting-for-a-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Waiting for a job
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -453,10 +470,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#primitiveresult-vs-legacy-result" class="md-nav__link">
+  <a href="#sampler-primitive-primitiveresult" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        PrimitiveResult vs. legacy Result
+        Sampler primitive (PrimitiveResult)
       </span>
     </span>
   </a>
@@ -691,6 +708,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Running a job">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#waiting-for-a-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Waiting for a job
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -706,10 +740,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#primitiveresult-vs-legacy-result" class="md-nav__link">
+  <a href="#sampler-primitive-primitiveresult" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        PrimitiveResult vs. legacy Result
+        Sampler primitive (PrimitiveResult)
       </span>
     </span>
   </a>
@@ -904,62 +938,30 @@
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"HEAppE job ID:"</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">job_id</span><span class="p">)</span>
 </span></code></pre></div>
 <ul>
-<li><code>shots</code> is required.</li>
+<li><code>shots</code> defaults to <code>backend.options.shots</code> (1024).</li>
 <li>Pass a list of transpiled circuits to run several circuits in one job.</li>
 <li><code>job_name</code> sets the name of the job in HEAppE.</li>
 </ul>
-<h2 id="reading-results">Reading results<a class="headerlink" href="#reading-results" title="Permanent link">&para;</a></h2>
-<p><code>job.result()</code> waits until the job finishes. It returns a Qiskit <code>PrimitiveResult</code> by default, or a legacy Qiskit <code>Result</code> with <code>qiskit_legacy=True</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># PrimitiveResult: one entry per circuit</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">with_measurements</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">meas</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">meas</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">meas</span><span class="o">.</span><span class="n">get_counts</span><span class="p">())</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">meas</span><span class="o">.</span><span class="n">get_bitstrings</span><span class="p">()[:</span><span class="mi">10</span><span class="p">])</span>  <span class="c1"># per-shot results</span>
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># Legacy Result</span>
-</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">legacy</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">qiskit_legacy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">with_measurements</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">legacy</span><span class="o">.</span><span class="n">get_counts</span><span class="p">())</span>
-</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">legacy</span><span class="o">.</span><span class="n">get_memory</span><span class="p">()[:</span><span class="mi">10</span><span class="p">])</span>  <span class="c1"># per-shot results</span>
+<h3 id="waiting-for-a-job">Waiting for a job<a class="headerlink" href="#waiting-for-a-job" title="Permanent link">&para;</a></h3>
+<p>To wait until a job finishes without reading its results yet, use <code>job.wait_for_final_state()</code> instead of calling <code>job.status()</code> in a loop:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qiskit.providers.jobstatus</span><span class="w"> </span><span class="kn">import</span> <span class="n">JobStatus</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># Recommended: returns as soon as HEAppE reports the job finished</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">job</span><span class="o">.</span><span class="n">wait_for_final_state</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">600</span><span class="p">)</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="c1"># Avoid: one HEAppE request per loop, and up to 10 s late</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="k">while</span> <span class="n">job</span><span class="o">.</span><span class="n">status</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">JobStatus</span><span class="o">.</span><span class="n">DONE</span><span class="p">,</span> <span class="n">JobStatus</span><span class="o">.</span><span class="n">ERROR</span><span class="p">,</span> <span class="n">JobStatus</span><span class="o">.</span><span class="n">CANCELLED</span><span class="p">):</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
 </span></code></pre></div>
-<h3 id="primitiveresult-vs-legacy-result">PrimitiveResult vs. legacy Result<a class="headerlink" href="#primitiveresult-vs-legacy-result" title="Permanent link">&para;</a></h3>
-<p>Both contain the same measurement data; they differ in shape and in which Qiskit code expects them.</p>
-<table>
-<thead>
-<tr>
-<th></th>
-<th><code>PrimitiveResult</code> (default)</th>
-<th>Legacy <code>Result</code> (<code>qiskit_legacy=True</code>)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Qiskit API</td>
-<td>Current Qiskit primitives format (as returned by <code>SamplerV2</code>)</td>
-<td>Older <code>backend.run()</code> format (<code>qiskit.result.Result</code>)</td>
-</tr>
-<tr>
-<td>Several circuits</td>
-<td>One entry per circuit: <code>result[i]</code></td>
-<td>One experiment per circuit: <code>result.get_counts(i)</code></td>
-</tr>
-<tr>
-<td>Counts</td>
-<td><code>result[i].data.meas.get_counts()</code></td>
-<td><code>result.get_counts()</code></td>
-</tr>
-<tr>
-<td>Per-shot results</td>
-<td><code>result[i].data.meas.get_bitstrings()</code></td>
-<td><code>result.get_memory()</code></td>
-</tr>
-<tr>
-<td>Use it for</td>
-<td>New code, Qiskit primitives-based workflows</td>
-<td>Existing code and tutorials that call <code>get_counts()</code> on the result</td>
-</tr>
-</tbody>
-</table>
-<p>The measurements are always in the <code>meas</code> register of a <code>PrimitiveResult</code>.</p>
+<p><code>wait_for_final_state()</code> listens to HEAppE's event stream (a websocket), so:</p>
+<ul>
+<li>It returns as soon as the job finishes, not at the next poll.</li>
+<li>A <code>job.status()</code> loop reads HEAppE's job information, which can still say the job is queued for a few seconds after it finished. The event stream reports the finish first.</li>
+<li>It needs fewer requests for the same response time. Polling only notices the finish faster if you poll more often.</li>
+</ul>
+<p>The event stream only reports changes that happen after it connects. So <code>wait_for_final_state()</code> also asks HEAppE for the job's state every <code>wait</code> seconds (default 5) as a backup. You can raise <code>wait</code> (e.g. <code>wait=60</code>) to send fewer requests: the event stream still ends the wait as soon as the job finishes.</p>
 <table>
 <thead>
 <tr>
@@ -970,68 +972,136 @@
 </thead>
 <tbody>
 <tr>
-<td><code>with_measurements</code></td>
+<td><code>timeout</code></td>
 <td><code>None</code></td>
-<td>Include per-shot results (bitstrings / memory). <code>None</code> follows <code>backend.run(..., memory=True)</code>; an explicit <code>True</code>/<code>False</code> always wins</td>
+<td>Seconds to wait before raising <code>JobTimeoutError</code>; <code>None</code> waits indefinitely</td>
 </tr>
 <tr>
-<td><code>key_order_left_to_right</code></td>
-<td><code>False</code></td>
-<td>Bit order of the bitstrings; <code>False</code> matches Qiskit's right-to-left order</td>
+<td><code>wait</code></td>
+<td><code>5</code></td>
+<td>Seconds between backup status requests</td>
 </tr>
 <tr>
-<td><code>qiskit_legacy</code></td>
-<td><code>False</code></td>
-<td>Return a legacy <code>Result</code> instead of a <code>PrimitiveResult</code></td>
+<td><code>callback</code></td>
+<td><code>None</code></td>
+<td>Called as <code>callback(job_id, status, job)</code> with the current status and on each status change before the final one</td>
+</tr>
+</tbody>
+</table>
+<p>To follow progress:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">job</span><span class="o">.</span><span class="n">wait_for_final_state</span><span class="p">(</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">job_id</span><span class="p">,</span> <span class="n">status</span><span class="p">,</span> <span class="n">job</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="n">job_id</span><span class="p">,</span> <span class="n">status</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><code>job.result()</code> waits the same way, so you don't need <code>wait_for_final_state()</code> before <code>result()</code>. Sampler jobs from <code>QSamplerV2</code> have the same method.</p>
+<h2 id="reading-results">Reading results<a class="headerlink" href="#reading-results" title="Permanent link">&para;</a></h2>
+<p><code>job.result()</code> waits until the job finishes and returns a Qiskit <code>Result</code>, as <code>backend.run()</code> does in Qiskit:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">job</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">qc_transpiled</span><span class="p">,</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">memory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get_counts</span><span class="p">())</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get_memory</span><span class="p">()[:</span><span class="mi">10</span><span class="p">])</span>  <span class="c1"># per-shot results (needs memory=True)</span>
+</span></code></pre></div>
+<p>With several circuits in one job, use <code>result.get_counts(i)</code> and <code>result.get_memory(i)</code>.</p>
+<p>Bitstrings follow the Qiskit order: classical registers in circuit order, bit 0 rightmost. With several classical registers, they are separated by a space (e.g. <code>"0 01"</code>), as in Qiskit.</p>
+<p>Each result is named after its circuit and carries the circuit's metadata, so <code>result.get_counts(circuit)</code> works. A job re-created from its ID (below) has no access to the circuits: its results are named <code>circuit-0</code>, <code>circuit-1</code>, … with empty metadata, but keep the classical registers.</p>
+<p>Because <code>job.result()</code> returns a <code>Result</code>, Qiskit tools that take a backend work unchanged, e.g. <code>qiskit.primitives.BackendSamplerV2(backend=backend)</code>, <code>BackendEstimatorV2</code> and <code>qiskit-experiments</code>.</p>
+<h3 id="sampler-primitive-primitiveresult">Sampler primitive (PrimitiveResult)<a class="headerlink" href="#sampler-primitive-primitiveresult" title="Permanent link">&para;</a></h3>
+<p>For results in the Qiskit primitives format, use <code>QSamplerV2</code>. It takes sampler PUBs (circuits, optionally with parameter values and shots) and returns a <code>PrimitiveResult</code> with one entry per PUB and one <code>BitArray</code> per classical register:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QSamplerV2</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">sampler</span> <span class="o">=</span> <span class="n">QSamplerV2</span><span class="p">(</span><span class="n">backend</span><span class="p">)</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">job</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">)],</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">result</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">meas</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">meas</span>  <span class="c1"># register name, "meas" for measure_all()</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">meas</span><span class="o">.</span><span class="n">get_counts</span><span class="p">())</span>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">meas</span><span class="o">.</span><span class="n">get_bitstrings</span><span class="p">()[:</span><span class="mi">10</span><span class="p">])</span>  <span class="c1"># per-shot results</span>
+</span></code></pre></div>
+<ul>
+<li>Circuits must be transpiled first (<code>backend.transpile(qc)</code>).</li>
+<li>Parameterized circuits: <code>sampler.run([(circuit, parameter_values)])</code>. The result keeps the shape of <code>parameter_values</code>.</li>
+<li>PUBs with different shot counts are submitted as separate HEAppE jobs; <code>job.jobs</code> lists them.</li>
+<li><code>QSamplerV2(backend, default_shots=..., run_options={...})</code> sets the default shots and extra <code>backend.run()</code> options such as <code>job_name</code>.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Legacy <code>Result</code> (<code>job.result()</code>)</th>
+<th><code>PrimitiveResult</code> (<code>QSamplerV2</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Several circuits</td>
+<td><code>result.get_counts(i)</code></td>
+<td><code>result[i]</code></td>
+</tr>
+<tr>
+<td>Counts</td>
+<td><code>result.get_counts()</code></td>
+<td><code>result[i].data.&lt;register&gt;.get_counts()</code></td>
+</tr>
+<tr>
+<td>Per-shot results</td>
+<td><code>result.get_memory()</code> (with <code>memory=True</code>)</td>
+<td><code>result[i].data.&lt;register&gt;.get_bitstrings()</code></td>
+</tr>
+<tr>
+<td>Use it for</td>
+<td>Existing code, tutorials, tools that take a backend</td>
+<td>Qiskit primitives workflows, parameter sweeps</td>
 </tr>
 </tbody>
 </table>
 <h2 id="getting-the-results-of-an-earlier-job">Getting the results of an earlier job<a class="headerlink" href="#getting-the-results-of-an-earlier-job" title="Permanent link">&para;</a></h2>
 <p>You can attach to a job submitted earlier using its HEAppE job ID:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QJob</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">job</span> <span class="o">=</span> <span class="n">QJob</span><span class="p">(</span><span class="n">backend</span><span class="p">,</span> <span class="mi">12345</span><span class="p">)</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">counts</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">qiskit_legacy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">get_counts</span><span class="p">()</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QJob</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">job</span> <span class="o">=</span> <span class="n">QJob</span><span class="p">(</span><span class="n">backend</span><span class="p">,</span> <span class="mi">12345</span><span class="p">)</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">counts</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_counts</span><span class="p">()</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="c1"># with per-shot results</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="n">memory</span> <span class="o">=</span> <span class="n">QJob</span><span class="p">(</span><span class="n">backend</span><span class="p">,</span> <span class="mi">12345</span><span class="p">,</span> <span class="n">memory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_memory</span><span class="p">()</span>
 </span></code></pre></div>
 <h2 id="full-example">Full example<a class="headerlink" href="#full-example" title="Permanent link">&para;</a></h2>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QProvider</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qiskit</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuantumCircuit</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">provider</span> <span class="o">=</span> <span class="n">QProvider</span><span class="p">(</span><span class="n">lexis_project</span><span class="o">=</span><span class="s2">"YOUR_LEXIS_PROJECT"</span><span class="p">)</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">backend</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">get_backend</span><span class="p">(</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="n">lexis_resource</span><span class="o">=</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">,</span> <span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="p">)</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="n">qc</span> <span class="o">=</span> <span class="n">QuantumCircuit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">qc</span><span class="o">.</span><span class="n">h</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="n">qc</span><span class="o">.</span><span class="n">cx</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="n">qc</span><span class="o">.</span><span class="n">measure_all</span><span class="p">()</span>
-</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>
-</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="n">job</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">),</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">job_name</span><span class="o">=</span><span class="s2">"bell_state"</span><span class="p">)</span>
-</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="n">counts</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">qiskit_legacy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">get_counts</span><span class="p">()</span>
-</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>
-</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="k">for</span> <span class="n">state</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">counts</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
-</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"|</span><span class="si">{</span><span class="n">state</span><span class="si">}</span><span class="s2">⟩: </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QProvider</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qiskit</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuantumCircuit</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="n">provider</span> <span class="o">=</span> <span class="n">QProvider</span><span class="p">(</span><span class="n">lexis_project</span><span class="o">=</span><span class="s2">"YOUR_LEXIS_PROJECT"</span><span class="p">)</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="n">backend</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">get_backend</span><span class="p">(</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="n">lexis_resource</span><span class="o">=</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">,</span> <span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="p">)</span>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="n">qc</span> <span class="o">=</span> <span class="n">QuantumCircuit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="n">qc</span><span class="o">.</span><span class="n">h</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="n">qc</span><span class="o">.</span><span class="n">cx</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="n">qc</span><span class="o">.</span><span class="n">measure_all</span><span class="p">()</span>
+</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>
+</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="n">job</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">),</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">job_name</span><span class="o">=</span><span class="s2">"bell_state"</span><span class="p">)</span>
+</span><span id="__span-13-15"><a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="n">counts</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_counts</span><span class="p">()</span>
+</span><span id="__span-13-16"><a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a>
+</span><span id="__span-13-17"><a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="k">for</span> <span class="n">state</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">counts</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+</span><span id="__span-13-18"><a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"|</span><span class="si">{</span><span class="n">state</span><span class="si">}</span><span class="s2">⟩: </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </span></code></pre></div>
 <h2 id="pulse-level-access-pulla">Pulse-level access (Pulla)<a class="headerlink" href="#pulse-level-access-pulla" title="Permanent link">&para;</a></h2>
 <p><code>get_pulla()</code> gives an IQM pulse-level client (<code>QPulla</code>, an <code>iqm.iqm_client.IQMClient</code>) for a backend. Compile circuits on your machine with IQM's compiler, then run the compiled job through HEAppE:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">pulla</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">get_pulla</span><span class="p">(</span><span class="n">lexis_resource</span><span class="o">=</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">,</span> <span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span><span class="p">)</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">qc</span> <span class="o">=</span> <span class="n">QuantumCircuit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">qc</span><span class="o">.</span><span class="n">h</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">qc</span><span class="o">.</span><span class="n">cx</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">qc</span><span class="o">.</span><span class="n">measure_all</span><span class="p">()</span>
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="c1"># Qiskit circuit -&gt; IQM circuit + compiler for this backend</span>
-</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="n">circuits</span><span class="p">,</span> <span class="n">compiler</span> <span class="o">=</span> <span class="n">pulla</span><span class="o">.</span><span class="n">qiskit_to_iqm</span><span class="p">(</span><span class="n">pulla</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">))</span>
-</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>
-</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="n">settings</span> <span class="o">=</span> <span class="n">compiler</span><span class="o">.</span><span class="n">get_settings</span><span class="p">(</span><span class="n">circuits</span><span class="o">=</span><span class="n">circuits</span><span class="p">)</span>
-</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="n">settings</span><span class="o">.</span><span class="n">set_shots</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span>
-</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="n">run_definition</span><span class="p">,</span> <span class="n">context</span> <span class="o">=</span> <span class="n">compiler</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">circuits</span><span class="p">,</span> <span class="n">settings</span><span class="o">=</span><span class="n">settings</span><span class="p">)</span>
-</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>
-</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="n">job</span> <span class="o">=</span> <span class="n">pulla</span><span class="o">.</span><span class="n">submit_playlist</span><span class="p">(</span><span class="n">run_definition</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">)</span>
-</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="n">job</span><span class="o">.</span><span class="n">wait_for_completion</span><span class="p">()</span>
-</span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">pulla</span><span class="o">.</span><span class="n">sweep_job_to_qiskit</span><span class="p">(</span><span class="n">job</span><span class="p">,</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span><span class="o">.</span><span class="n">get_counts</span><span class="p">())</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">pulla</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">get_pulla</span><span class="p">(</span><span class="n">lexis_resource</span><span class="o">=</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">,</span> <span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span><span class="p">)</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="n">qc</span> <span class="o">=</span> <span class="n">QuantumCircuit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="n">qc</span><span class="o">.</span><span class="n">h</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="n">qc</span><span class="o">.</span><span class="n">cx</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="n">qc</span><span class="o">.</span><span class="n">measure_all</span><span class="p">()</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="c1"># Qiskit circuit -&gt; IQM circuit + compiler for this backend</span>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="n">circuits</span><span class="p">,</span> <span class="n">compiler</span> <span class="o">=</span> <span class="n">pulla</span><span class="o">.</span><span class="n">qiskit_to_iqm</span><span class="p">(</span><span class="n">pulla</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">))</span>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="n">settings</span> <span class="o">=</span> <span class="n">compiler</span><span class="o">.</span><span class="n">get_settings</span><span class="p">(</span><span class="n">circuits</span><span class="o">=</span><span class="n">circuits</span><span class="p">)</span>
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="n">settings</span><span class="o">.</span><span class="n">set_shots</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="n">run_definition</span><span class="p">,</span> <span class="n">context</span> <span class="o">=</span> <span class="n">compiler</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">circuits</span><span class="p">,</span> <span class="n">settings</span><span class="o">=</span><span class="n">settings</span><span class="p">)</span>
+</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>
+</span><span id="__span-14-15"><a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a><span class="n">job</span> <span class="o">=</span> <span class="n">pulla</span><span class="o">.</span><span class="n">submit_playlist</span><span class="p">(</span><span class="n">run_definition</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">)</span>
+</span><span id="__span-14-16"><a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a><span class="n">job</span><span class="o">.</span><span class="n">wait_for_completion</span><span class="p">()</span>
+</span><span id="__span-14-17"><a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">pulla</span><span class="o">.</span><span class="n">sweep_job_to_qiskit</span><span class="p">(</span><span class="n">job</span><span class="p">,</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span><span class="o">.</span><span class="n">get_counts</span><span class="p">())</span>
 </span></code></pre></div>
 <p>Between <code>get_settings()</code> and <code>compile()</code> you can change pulse-level settings, or build schedules yourself with <code>compiler.get_schedule_builder()</code>; see IQM's Pulla documentation.</p>
 <p>Example: <a href="https://github.com/It4innovations/quantum-as-a-service/blob/main/examples/qheappe_client/pulse_level_custom_x_gate.ipynb"><code>examples/qheappe_client/pulse_level_custom_x_gate.ipynb</code></a> defines a custom pulse shape for the <code>prx</code> gate, calibrates its amplitude with Rabi sweeps (<code>Sweep</code> over gate parameters), and compares X and X·X with the native gate. It follows the calibration workflow of <a href="https://github.com/Filippos-Dakis/Experimental_results_IQM">Filippos Dakis, Experimental_results_IQM</a>.</p>
@@ -1043,17 +1113,17 @@
 </ul>
 <h2 id="error-handling">Error handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
 <p>All client errors derive from <code>QException</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">QAuthException</span><span class="p">,</span> <span class="n">QException</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="k">try</span><span class="p">:</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="n">backend</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">get_backend</span><span class="p">(</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>        <span class="n">lexis_resource</span><span class="o">=</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">,</span> <span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="p">)</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">),</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
-</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="k">except</span> <span class="n">QAuthException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"Authentication / access problem:"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="k">except</span> <span class="n">QException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"QHEAppE Client error:"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">QAuthException</span><span class="p">,</span> <span class="n">QException</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    <span class="n">backend</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">get_backend</span><span class="p">(</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>        <span class="n">lexis_resource</span><span class="o">=</span><span class="s2">"YOUR_QUANTUM_RESOURCE"</span><span class="p">,</span> <span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    <span class="p">)</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">transpile</span><span class="p">(</span><span class="n">qc</span><span class="p">),</span> <span class="n">shots</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="k">except</span> <span class="n">QAuthException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"Authentication / access problem:"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+</span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="k">except</span> <span class="n">QException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-15-11"><a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"QHEAppE Client error:"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Common causes:</p>
 <ul>
@@ -1065,20 +1135,20 @@
 </ul>
 <h2 id="async-api">Async API<a class="headerlink" href="#async-api" title="Permanent link">&para;</a></h2>
 <p><code>QProvider</code> and the backends use a synchronous API that also works inside Jupyter. For async code, <code>QClient</code> offers the same operations as coroutines:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client.qclient</span><span class="w"> </span><span class="kn">import</span> <span class="n">QClient</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="k">async</span> <span class="k">with</span> <span class="k">await</span> <span class="n">QClient</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
-</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>        <span class="n">TOKEN</span><span class="p">,</span> <span class="s2">"YOUR_LEXIS_PROJECT"</span><span class="p">,</span> <span class="s2">"YOUR_QUANTUM_RESOURCE"</span>
-</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>    <span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
-</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>        <span class="n">md</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get_backend</span><span class="p">(</span><span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span><span class="p">)</span>
-</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">md</span><span class="o">.</span><span class="n">backend_name</span><span class="p">,</span> <span class="n">md</span><span class="o">.</span><span class="n">available</span><span class="p">)</span>
-</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>        <span class="n">metrics</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">machine_metrics</span><span class="p">()</span>
-</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>
-</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>
-</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client.qclient</span><span class="w"> </span><span class="kn">import</span> <span class="n">QClient</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>    <span class="k">async</span> <span class="k">with</span> <span class="k">await</span> <span class="n">QClient</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>        <span class="n">TOKEN</span><span class="p">,</span> <span class="s2">"YOUR_LEXIS_PROJECT"</span><span class="p">,</span> <span class="s2">"YOUR_QUANTUM_RESOURCE"</span>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>    <span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>        <span class="n">md</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get_backend</span><span class="p">(</span><span class="n">backend_name</span><span class="o">=</span><span class="s2">"VLQ"</span><span class="p">)</span>
+</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">md</span><span class="o">.</span><span class="n">backend_name</span><span class="p">,</span> <span class="n">md</span><span class="o">.</span><span class="n">available</span><span class="p">)</span>
+</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>        <span class="n">metrics</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">machine_metrics</span><span class="p">()</span>
+</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>
+</span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>
+</span><span id="__span-16-14"><a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </span></code></pre></div>
 
 

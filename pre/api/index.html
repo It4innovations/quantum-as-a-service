@@ -603,10 +603,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#resultwith_measurementsnone-key_order_left_to_rightfalse-qiskit_legacyfalse-primitiveresult-result" class="md-nav__link">
+  <a href="#result-result" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>result(with_measurements=None, key_order_left_to_right=False, qiskit_legacy=False) -&gt; PrimitiveResult | Result</code>
+        <code>result() -&gt; Result</code>
       </span>
     </span>
   </a>
@@ -624,8 +624,30 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#wait_for_final_statetimeoutnone-wait5-callbacknone" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>wait_for_final_state(timeout=None, wait=5, callback=None)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qsamplerv2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QSamplerV2
+      </span>
+    </span>
+  </a>
   
 </li>
       
@@ -928,10 +950,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#resultwith_measurementsnone-key_order_left_to_rightfalse-qiskit_legacyfalse-primitiveresult-result" class="md-nav__link">
+  <a href="#result-result" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>result(with_measurements=None, key_order_left_to_right=False, qiskit_legacy=False) -&gt; PrimitiveResult | Result</code>
+        <code>result() -&gt; Result</code>
       </span>
     </span>
   </a>
@@ -949,8 +971,30 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#wait_for_final_statetimeoutnone-wait5-callbacknone" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>wait_for_final_state(timeout=None, wait=5, callback=None)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qsamplerv2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        QSamplerV2
+      </span>
+    </span>
+  </a>
   
 </li>
       
@@ -1260,8 +1304,23 @@
 <p>A submitted job. Returned by <code>QBackendIQM.run()</code>, or created from an existing HEAppE job ID with <code>QJob(backend, job_id)</code>.</p>
 <h3 id="job_id"><code>job_id</code><a class="headerlink" href="#job_id" title="Permanent link">&para;</a></h3>
 <p>HEAppE job ID as an <code>int</code>. <code>job.job_id()</code> returns it as a string (Qiskit style).</p>
-<h3 id="resultwith_measurementsnone-key_order_left_to_rightfalse-qiskit_legacyfalse-primitiveresult-result"><code>result(with_measurements=None, key_order_left_to_right=False, qiskit_legacy=False) -&gt; PrimitiveResult | Result</code><a class="headerlink" href="#resultwith_measurementsnone-key_order_left_to_rightfalse-qiskit_legacyfalse-primitiveresult-result" title="Permanent link">&para;</a></h3>
-<p>Waits until the job finishes and returns the results.</p>
+<h3 id="result-result"><code>result() -&gt; Result</code><a class="headerlink" href="#result-result" title="Permanent link">&para;</a></h3>
+<p>Waits until the job finishes and returns the results as a Qiskit <code>Result</code>. Per-shot results are included if the job was submitted with <code>backend.run(..., memory=True)</code>, or created with <code>QJob(backend, job_id, memory=True)</code>.</p>
+<p>Accessing the results: <code>res.get_counts()</code>, <code>res.get_memory()</code> (per-shot results); <code>res.get_counts(i)</code> or <code>res.get_counts(circuit)</code> for one circuit. Results are named after their circuits and carry the circuit metadata; for a job created with <code>QJob(backend, job_id)</code>, they are named <code>circuit-&lt;i&gt;</code> with empty metadata. For a <code>PrimitiveResult</code>, use <a href="#qsamplerv2"><code>QSamplerV2</code></a>.</p>
+<p>Raises <code>RuntimeError</code> if the job failed or was cancelled.</p>
+<h3 id="status-jobstatus"><code>status() -&gt; JobStatus</code><a class="headerlink" href="#status-jobstatus" title="Permanent link">&para;</a></h3>
+<p>Current job state as a Qiskit <code>JobStatus</code>. Queries HEAppE on each call until the job reaches a final state.</p>
+<h3 id="wait_for_final_statetimeoutnone-wait5-callbacknone"><code>wait_for_final_state(timeout=None, wait=5, callback=None)</code><a class="headerlink" href="#wait_for_final_statetimeoutnone-wait5-callbacknone" title="Permanent link">&para;</a></h3>
+<p>Waits until the job is <code>DONE</code>, <code>ERROR</code> or <code>CANCELLED</code>. Same interface as Qiskit's <code>JobV1.wait_for_final_state</code>, but follows HEAppE's event websocket instead of polling. The job info is still fetched every <code>wait</code> seconds as a backup, since the websocket only reports changes made after it connects. <code>callback(job_id, status, job)</code> is called with the current status and on each later status change before the final one. Raises <code>JobTimeoutError</code> after <code>timeout</code> seconds.</p>
+<hr />
+<h2 id="qsamplerv2">QSamplerV2<a class="headerlink" href="#qsamplerv2" title="Permanent link">&para;</a></h2>
+<p>Qiskit <code>SamplerV2</code> primitive (<code>BaseSamplerV2</code>) for a QaaS backend.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QSamplerV2</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">sampler</span> <span class="o">=</span> <span class="n">QSamplerV2</span><span class="p">(</span><span class="n">backend</span><span class="p">,</span> <span class="n">default_shots</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">run_options</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">job</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">pubs</span><span class="p">,</span> <span class="n">shots</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">result</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>  <span class="c1"># PrimitiveResult</span>
+</span></code></pre></div>
 <table>
 <thead>
 <tr>
@@ -1272,47 +1331,58 @@
 </thead>
 <tbody>
 <tr>
-<td><code>with_measurements</code></td>
+<td><code>backend</code></td>
+<td></td>
+<td><code>QBackendIQM</code> to run on</td>
+</tr>
+<tr>
+<td><code>default_shots</code></td>
 <td><code>None</code></td>
-<td>Include per-shot results. <code>None</code> follows the <code>memory</code> option given to <code>backend.run()</code> (default <code>False</code>)</td>
+<td>Shots for PUBs that set none; the backend's <code>shots</code> option if <code>None</code></td>
 </tr>
 <tr>
-<td><code>key_order_left_to_right</code></td>
-<td><code>False</code></td>
-<td>Bit order of bitstrings; <code>False</code> = Qiskit's right-to-left order</td>
-</tr>
-<tr>
-<td><code>qiskit_legacy</code></td>
-<td><code>False</code></td>
-<td>Return a legacy <code>Result</code> instead of a <code>PrimitiveResult</code></td>
+<td><code>run_options</code></td>
+<td><code>None</code></td>
+<td>Extra <code>backend.run()</code> options, e.g. <code>job_name</code></td>
 </tr>
 </tbody>
 </table>
-<p>Accessing the results:</p>
+<p><code>run(pubs, shots=None)</code> takes transpiled circuits or <code>(circuit, parameter_values[, shots])</code> tuples and returns a <code>QSamplerJob</code>. All PUBs with the same shot count go into one HEAppE job.</p>
+<p><code>QSamplerJob</code>:</p>
 <table>
 <thead>
 <tr>
-<th>Result type</th>
-<th>Counts</th>
-<th>Per-shot results</th>
+<th>Member</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>PrimitiveResult</code></td>
-<td><code>res[i].data.meas.get_counts()</code></td>
-<td><code>res[i].data.meas.get_bitstrings()</code></td>
+<td><code>result()</code></td>
+<td><code>PrimitiveResult</code>: per PUB, a <code>DataBin</code> with one <code>BitArray</code> per classical register, shaped like the PUB</td>
 </tr>
 <tr>
-<td><code>Result</code> (legacy)</td>
-<td><code>res.get_counts()</code></td>
-<td><code>res.get_memory()</code></td>
+<td><code>status()</code>, <code>done()</code>, <code>running()</code>, <code>cancelled()</code>, <code>in_final_state()</code></td>
+<td>State of the HEAppE jobs (the least advanced one wins)</td>
+</tr>
+<tr>
+<td><code>wait_for_final_state(timeout=None, wait=5, callback=None)</code></td>
+<td>Wait for all HEAppE jobs (see <code>QJob.wait_for_final_state</code>); <code>timeout</code> is shared, <code>callback</code> gets this job's combined status</td>
+</tr>
+<tr>
+<td><code>cancel()</code></td>
+<td>Cancel all HEAppE jobs</td>
+</tr>
+<tr>
+<td><code>jobs</code></td>
+<td>The underlying <code>QJob</code>s</td>
+</tr>
+<tr>
+<td><code>job_id()</code></td>
+<td>HEAppE job IDs, comma-separated</td>
 </tr>
 </tbody>
 </table>
-<p>Raises <code>RuntimeError</code> if the job failed or was cancelled.</p>
-<h3 id="status-jobstatus"><code>status() -&gt; JobStatus</code><a class="headerlink" href="#status-jobstatus" title="Permanent link">&para;</a></h3>
-<p>Current job state as a Qiskit <code>JobStatus</code>.</p>
 <hr />
 <h2 id="qbackendmetadata">QBackendMetadata<a class="headerlink" href="#qbackendmetadata" title="Permanent link">&para;</a></h2>
 <p>Describes one backend of a quantum resource (returned by <code>available_backends()</code> and <code>get_backend_info()</code>).</p>
@@ -1378,12 +1448,12 @@
 </tr>
 </tbody>
 </table>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">QException</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">try</span><span class="p">:</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="o">...</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">except</span> <span class="n">QException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">qheappe_client.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">QException</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="o">...</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">except</span> <span class="n">QException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
 </span></code></pre></div>
 
 
