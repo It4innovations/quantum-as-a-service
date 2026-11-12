@@ -307,12 +307,13 @@ toggle.name = "Switch to light mode"
 # ----------------------------------------------------------------------------
 # The "extra" section contains miscellaneous settings.
 # ----------------------------------------------------------------------------
-# Version selector. The site is published as stable/ and pre/ folders with a
+# Version selector. The site is published as latest/ (latest stable release) and
+# pre/ folders, plus one folder per tagged release (e.g. 1.1.0a1/), with a
 # versions.json next to them (see scripts/publish_docs.py). Pages outside the
 # default version show the banner from overrides/main.html.
 [project.extra.version]
 provider = "mike"
-default = "stable"
+default = "latest"
 
 #[[project.extra.social]]
 #icon = "fontawesome/brands/github"
