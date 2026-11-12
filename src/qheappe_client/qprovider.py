@@ -215,14 +215,15 @@ class QProvider:
         Returns:
             dict: Dictionary mapping backend names to their metadata objects.
         """
-        client = QClient(
+        # ``with`` connects (authenticates) the client and closes it afterwards.
+        with QClient(
             token,
             lexis_project,
             lexis_resource,
             provider_token=provider_access_token,
             lexis_api_url=lexis_api_url,
-        )
-        return client.get_available_backends()
+        ) as client:
+            return client.get_available_backends()
 
     def available_backends(
         self, lexis_resource: str | None = None, **client_kwargs: Any

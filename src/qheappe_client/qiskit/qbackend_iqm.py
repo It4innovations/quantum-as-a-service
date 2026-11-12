@@ -10,6 +10,7 @@ installed stack and the server.
 
 from __future__ import annotations
 
+import re
 import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -56,6 +57,100 @@ if TYPE_CHECKING:
 __all__ = ["CircuitJobDefinition", "QBackendIQM", "transpile_to_IQM"]
 
 CircuitJobDefinition = PostJobsRequest
+
+# IQM measurement key: "<creg name>_<creg size>_<creg index>_<clbit index>"
+# (see iqm.qiskit_iqm.qiskit_to_iqm.MeasurementKey).
+_IQM_MEAS_KEY = re.compile(r"^(.*)_(\d+)_(\d+)_(\d+)$")
+_QISKIT_ORDER_KEY = "__qiskit_order__"
+
+
+def _to_qiskit_order(
+    item: dict[str, Any], measurements: dict[str, Any] | None
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Reorder one circuit's results into a single Qiskit-ordered bitstring.
+
+    The server returns one bit per IQM measurement key, in key order. Each key names
+    its classical register and bit, so the bits are placed where Qiskit expects them:
+    registers in circuit order, clbit 0 rightmost (as ``IQMJob`` does). Returns the
+    inputs unchanged if the keys are not IQM measurement keys.
+
+    Args:
+        item: ``{"measurement_keys": [...], "counts": {bitstring: n}}`` of one circuit.
+        measurements: ``{key: [[bit], ...shots]}`` of the same circuit, or ``None``.
+
+    Returns:
+        ``(item, measurements)`` with a single key whose bitstrings read most
+        significant clbit first, or the inputs unchanged.
+    """
+    keys = item["measurement_keys"]
+    parsed = [_IQM_MEAS_KEY.match(k) for k in keys]
+    if not keys or not all(parsed):
+        return item, measurements
+
+    sizes = {int(m.group(3)): int(m.group(2)) for m in parsed}
+    offsets, width = {}, 0
+    for creg_idx in sorted(sizes):
+        offsets[creg_idx] = width
+        width += sizes[creg_idx]
+    clbits = [offsets[int(m.group(3))] + int(m.group(4)) for m in parsed]
+    cols = [width - 1 - c for c in clbits]  # string position, MSB first
+    counts = item.get("counts", {})
+    if (
+        any(int(m.group(4)) >= int(m.group(2)) for m in parsed)
+        or len(set(cols)) != len(cols)
+        or any(len(bs) != len(keys) for bs in counts)
+    ):
+        return item, measurements
+
+    def reorder(bits: str) -> str:
+        out = ["0"] * width
+        for col, bit in zip(cols, bits, strict=True):
+            out[col] = bit
+        return "".join(out)
+
+    new_counts: dict[str, int] = {}
+    for bs, n in counts.items():
+        key = reorder(bs)
+        new_counts[key] = new_counts.get(key, 0) + n
+
+    new_measurements = None
+    if measurements is not None:
+        arrays = [
+            np.asarray(measurements[k], dtype=int).reshape(len(measurements[k]), -1)
+            for k in keys
+        ]
+        if any(a.shape[1] != 1 for a in arrays) or len({len(a) for a in arrays}) != 1:
+            return item, measurements
+        full = np.zeros((len(arrays[0]), width), dtype=int)
+        for col, a in zip(cols, arrays, strict=True):
+            full[:, col] = a[:, 0]
+        new_measurements = {_QISKIT_ORDER_KEY: full.tolist()}
+
+    return {
+        **item,
+        "measurement_keys": [_QISKIT_ORDER_KEY],
+        "counts": new_counts,
+    }, new_measurements
+
+
+def _iqm_creg_sizes(keys: list[str]) -> list[list[str | int]] | None:
+    """Classical registers named by IQM measurement keys, in circuit order.
+
+    Args:
+        keys: IQM measurement keys, ``<creg>_<size>_<creg index>_<clbit index>``.
+
+    Returns:
+        ``[[name, size], ...]`` ordered by register index, as Qiskit's ``creg_sizes``
+        result header; ``None`` if a key is not an IQM measurement key. Registers that
+        no measurement writes to are not listed (their keys never reach the server).
+    """
+    regs: dict[int, list[str | int]] = {}
+    for key in keys:
+        m = _IQM_MEAS_KEY.match(key)
+        if m is None:
+            return None
+        regs[int(m.group(3))] = [m.group(1), int(m.group(2))]
+    return [regs[i] for i in sorted(regs)] or None
 
 
 class QBackendIQM(QBackend, IQMBackend):
@@ -145,7 +240,6 @@ class QBackendIQM(QBackend, IQMBackend):
         raw: list[dict],
         measurements_raw: list[dict] | None = None,
         reg_name: str = "meas",
-        key_order_left_to_right: bool = True,
     ) -> PrimitiveResult:
         """
         Convert raw results to a Qiskit PrimitiveResult object.
@@ -158,7 +252,10 @@ class QBackendIQM(QBackend, IQMBackend):
                               If provided, used instead of counts to preserve shot order.
                               Format: {key: [[bit, ...], ...shots]}
             reg_name: The name of the classical register to use for measurement results.
-            key_order_left_to_right: If True, measurement_keys[0] corresponds to clbit 0.
+
+        Bitstrings follow the Qiskit order (registers in circuit order, clbit 0
+        rightmost), using the IQM measurement keys. Results with other keys are
+        read as given, most significant bit first.
 
         Returns:
             A PrimitiveResult object containing the processed measurement results.
@@ -172,20 +269,23 @@ class QBackendIQM(QBackend, IQMBackend):
                 f"{len(raw)} results but {len(measurements_raw)} measurement sets"
             )
 
-        order = "little" if key_order_left_to_right else "big"
         pubs = []
         for i, item in enumerate(raw):
             keys = item["measurement_keys"]
+            item, m = _to_qiskit_order(
+                item, measurements_raw[i] if measurements_raw is not None else None
+            )
+            read_keys = item["measurement_keys"]
 
-            if measurements_raw is not None:
-                m = measurements_raw[i]
+            if m is not None:
                 cols = [
-                    np.asarray(m[k], dtype=bool).reshape(len(m[k]), -1) for k in keys
+                    np.asarray(m[k], dtype=bool).reshape(len(m[k]), -1)
+                    for k in read_keys
                 ]
                 if len({c.shape[0] for c in cols}) != 1:
                     raise ValueError(f"PUB {i}: keys have different shot counts")
                 bitarray = BitArray.from_bool_array(
-                    np.concatenate(cols, axis=1), order=order
+                    np.concatenate(cols, axis=1), order="big"
                 )
 
                 if "counts" in item and bitarray.num_shots != sum(
@@ -194,10 +294,7 @@ class QBackendIQM(QBackend, IQMBackend):
                     raise ValueError(f"PUB {i}: shots in measurements != sum of counts")
             else:
                 n = len(next(iter(item["counts"])))
-                int_counts = {
-                    int(bs[::-1] if key_order_left_to_right else bs, 2): c
-                    for bs, c in item["counts"].items()
-                }
+                int_counts = {int(bs, 2): c for bs, c in item["counts"].items()}
                 bitarray = BitArray.from_counts(int_counts, num_bits=n)
 
             data = DataBin(**{reg_name: bitarray}, shape=bitarray.shape)
@@ -209,9 +306,9 @@ class QBackendIQM(QBackend, IQMBackend):
         raw: list[dict],
         measurements_raw: list[dict] | None = None,
         reg_name: str = "meas",
-        key_order_left_to_right: bool = True,
         backend_name: str = "my_backend",
         job_id: str = "",
+        circuit_headers: list[dict[str, Any]] | None = None,
     ) -> Result:
         """
         Convert raw results to a Qiskit Result object in legacy format.
@@ -224,9 +321,17 @@ class QBackendIQM(QBackend, IQMBackend):
                           If provided, used instead of counts to preserve shot order.
                           Format: {key: [[bit, ...], ...shots]}
             reg_name: The name of the classical register to use for measurement results.
-            key_order_left_to_right: If True, measurement_keys[0] corresponds to clbit 0.
             backend_name: The name of the backend used for the execution.
             job_id: The ID of the job that produced the results.
+            circuit_headers: Optional, one ``{"name": ..., "metadata": ...}`` per circuit,
+                copied into each experiment's header (so ``get_counts(circuit)`` works).
+                Experiments are named ``circuit-<i>`` without it.
+
+        Bitstrings follow the Qiskit order (registers in circuit order, clbit 0
+        rightmost), using the IQM measurement keys. The IQM keys also give the
+        classical registers, so counts read e.g. ``"0 01"`` for registers ``a`` (2 bits)
+        and ``b`` (1 bit), as in Qiskit. Results with other keys are read as given,
+        most significant bit first, as one register ``reg_name``.
 
         Returns:
             A Result object containing the processed measurement results.
@@ -235,34 +340,29 @@ class QBackendIQM(QBackend, IQMBackend):
             ValueError: If the number of raw results does not match the number of measurement sets.
         """
 
-        def to_int(bits: str) -> int:
-            """
-            Convert a bit string to an integer.
-
-            Args:
-                bits: A string of bits.
-
-            Returns:
-                An integer representation of the bit string, with clbit 0 as the least significant bit if key_order_left_to_right is True.
-            """
-            return int(bits[::-1] if key_order_left_to_right else bits, 2)
+        if circuit_headers is not None and len(circuit_headers) != len(raw):
+            circuit_headers = None  # e.g. a job re-created with different circuits
 
         exps = []
         for i, item in enumerate(raw):
             keys = item["measurement_keys"]
-            counts = {hex(to_int(bs)): c for bs, c in item["counts"].items()}
+            creg_sizes = _iqm_creg_sizes(keys)
+            info = circuit_headers[i] if circuit_headers else {}
+            item, m = _to_qiskit_order(
+                item, measurements_raw[i] if measurements_raw is not None else None
+            )
+            counts = {hex(int(bs, 2)): c for bs, c in item["counts"].items()}
             n = len(next(iter(item["counts"])))
 
             memory = None
-            if measurements_raw is not None:
-                m = measurements_raw[i]
-                per_key = [m[k] for k in keys]  # [key][shot][bit]
+            if m is not None:
+                per_key = [m[k] for k in item["measurement_keys"]]  # [key][shot][bit]
                 shots = len(per_key[0])
                 bitstrs = [
                     "".join(str(int(b)) for k in per_key for b in k[s])
                     for s in range(shots)
                 ]
-                memory = [hex(to_int(s)) for s in bitstrs]
+                memory = [hex(int(s, 2)) for s in bitstrs]
 
             exps.append(
                 ExperimentResult(
@@ -270,9 +370,10 @@ class QBackendIQM(QBackend, IQMBackend):
                     success=True,
                     data=ExperimentResultData(counts=counts, memory=memory),
                     header={
-                        "name": f"circuit-{i}",
-                        "creg_sizes": [[reg_name, n]],
+                        "name": info.get("name") or f"circuit-{i}",
+                        "creg_sizes": creg_sizes or [[reg_name, n]],
                         "memory_slots": n,
+                        "metadata": info.get("metadata") or {},
                         "measurement_keys": keys,
                     },
                 )
@@ -490,8 +591,24 @@ class QBackendIQM(QBackend, IQMBackend):
         return run_request
 
     def run(
-        self, run_input: QuantumCircuit | list[QuantumCircuit], shots: int, **options
+        self,
+        run_input: QuantumCircuit | list[QuantumCircuit],
+        shots: int | None = None,
+        **options,
     ):
+        """Submit circuit(s) for execution through HEAppE.
+
+        Args:
+            run_input: Transpiled circuit(s) to run.
+            shots: Shots per circuit; ``backend.options.shots`` if ``None``.
+            **options: ``memory``, ``job_name``, ``walltime_limit_secs``, ``use_sessions``,
+                ``circuit_compilation_options``, ``circuit_callback``, ``qubit_index_to_name``.
+
+        Returns:
+            QJob: The submitted job.
+        """
+        if shots is None:
+            shots = int(self.options.shots)
         circuits = (
             [run_input] if isinstance(run_input, QuantumCircuit) else list(run_input)
         )
@@ -510,15 +627,28 @@ class QBackendIQM(QBackend, IQMBackend):
 
         payloads = {"run_request": serialized_run_request}
 
-        return self._submit(payloads, shots=shots, **options)
+        circuit_headers = [
+            {"name": c.name, "metadata": dict(c.metadata or {})} for c in circuits
+        ]
+        return self._submit(
+            payloads, shots=shots, circuit_headers=circuit_headers, **options
+        )
 
     def transpile(
         self, circuits: list[QuantumCircuit] | QuantumCircuit, **kwargs
     ) -> list[QuantumCircuit] | QuantumCircuit:
-        """Transpile the given circuits to the IQM backend's native gate set and qubit mapping."""
+        """Transpile the given circuits to the IQM backend's native gate set and qubit mapping.
+
+        Keeps each circuit's name and metadata, as ``qiskit.transpile`` does
+        (``transpile_to_IQM`` drops the metadata on backends with a resonator).
+        """
         if isinstance(circuits, list):
-            return [
-                transpile_to_IQM(circuit=circuit, backend=self, **kwargs)
-                for circuit in circuits
-            ]
-        return transpile_to_IQM(circuit=circuits, backend=self, **kwargs)
+            return [self._transpile_one(circuit, **kwargs) for circuit in circuits]
+        return self._transpile_one(circuits, **kwargs)
+
+    def _transpile_one(self, circuit: QuantumCircuit, **kwargs) -> QuantumCircuit:
+        """Transpile one circuit and restore its name and metadata."""
+        transpiled = transpile_to_IQM(circuit=circuit, backend=self, **kwargs)
+        transpiled.name = circuit.name
+        transpiled.metadata = dict(circuit.metadata or {})
+        return transpiled

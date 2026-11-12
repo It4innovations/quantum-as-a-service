@@ -116,46 +116,96 @@ job = backend.run(qc_transpiled, shots=1000, job_name="bell_state")
 print("HEAppE job ID:", job.job_id)
 ```
 
-- `shots` is required.
+- `shots` defaults to `backend.options.shots` (1024).
 - Pass a list of transpiled circuits to run several circuits in one job.
 - `job_name` sets the name of the job in HEAppE.
 
-## Reading results
+### Waiting for a job
 
-`job.result()` waits until the job finishes. It returns a Qiskit `PrimitiveResult` by default, or a legacy Qiskit `Result` with `qiskit_legacy=True`:
+To wait until a job finishes without reading its results yet, use `job.wait_for_final_state()` instead of calling `job.status()` in a loop:
 
 ```python
-# PrimitiveResult: one entry per circuit
-result = job.result(with_measurements=True)
-meas = result[0].data.meas
-print(meas.get_counts())
-print(meas.get_bitstrings()[:10])  # per-shot results
+import time
 
-# Legacy Result
-legacy = job.result(qiskit_legacy=True, with_measurements=True)
-print(legacy.get_counts())
-print(legacy.get_memory()[:10])  # per-shot results
+from qiskit.providers.jobstatus import JobStatus
+
+# Recommended: returns as soon as HEAppE reports the job finished
+job.wait_for_final_state(timeout=600)
+
+# Avoid: one HEAppE request per loop, and up to 10 s late
+while job.status() not in (JobStatus.DONE, JobStatus.ERROR, JobStatus.CANCELLED):
+    time.sleep(10)
 ```
 
-### PrimitiveResult vs. legacy Result
+`wait_for_final_state()` listens to HEAppE's event stream (a websocket), so:
 
-Both contain the same measurement data; they differ in shape and in which Qiskit code expects them.
+- It returns as soon as the job finishes, not at the next poll.
+- A `job.status()` loop reads HEAppE's job information, which can still say the job is queued for a few seconds after it finished. The event stream reports the finish first.
+- It needs fewer requests for the same response time. Polling only notices the finish faster if you poll more often.
 
-| | `PrimitiveResult` (default) | Legacy `Result` (`qiskit_legacy=True`) |
-|---|---|---|
-| Qiskit API | Current Qiskit primitives format (as returned by `SamplerV2`) | Older `backend.run()` format (`qiskit.result.Result`) |
-| Several circuits | One entry per circuit: `result[i]` | One experiment per circuit: `result.get_counts(i)` |
-| Counts | `result[i].data.meas.get_counts()` | `result.get_counts()` |
-| Per-shot results | `result[i].data.meas.get_bitstrings()` | `result.get_memory()` |
-| Use it for | New code, Qiskit primitives-based workflows | Existing code and tutorials that call `get_counts()` on the result |
-
-The measurements are always in the `meas` register of a `PrimitiveResult`.
+The event stream only reports changes that happen after it connects. So `wait_for_final_state()` also asks HEAppE for the job's state every `wait` seconds (default 5) as a backup. You can raise `wait` (e.g. `wait=60`) to send fewer requests: the event stream still ends the wait as soon as the job finishes.
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `with_measurements` | `None` | Include per-shot results (bitstrings / memory). `None` follows `backend.run(..., memory=True)`; an explicit `True`/`False` always wins |
-| `key_order_left_to_right` | `False` | Bit order of the bitstrings; `False` matches Qiskit's right-to-left order |
-| `qiskit_legacy` | `False` | Return a legacy `Result` instead of a `PrimitiveResult` |
+| `timeout` | `None` | Seconds to wait before raising `JobTimeoutError`; `None` waits indefinitely |
+| `wait` | `5` | Seconds between backup status requests |
+| `callback` | `None` | Called as `callback(job_id, status, job)` with the current status and on each status change before the final one |
+
+To follow progress:
+
+```python
+job.wait_for_final_state(
+    callback=lambda job_id, status, job: print(job_id, status.name)
+)
+```
+
+`job.result()` waits the same way, so you don't need `wait_for_final_state()` before `result()`. Sampler jobs from `QSamplerV2` have the same method.
+
+## Reading results
+
+`job.result()` waits until the job finishes and returns a Qiskit `Result`, as `backend.run()` does in Qiskit:
+
+```python
+job = backend.run(qc_transpiled, shots=1000, memory=True)
+result = job.result()
+print(result.get_counts())
+print(result.get_memory()[:10])  # per-shot results (needs memory=True)
+```
+
+With several circuits in one job, use `result.get_counts(i)` and `result.get_memory(i)`.
+
+Bitstrings follow the Qiskit order: classical registers in circuit order, bit 0 rightmost. With several classical registers, they are separated by a space (e.g. `"0 01"`), as in Qiskit.
+
+Each result is named after its circuit and carries the circuit's metadata, so `result.get_counts(circuit)` works. A job re-created from its ID (below) has no access to the circuits: its results are named `circuit-0`, `circuit-1`, … with empty metadata, but keep the classical registers.
+
+Because `job.result()` returns a `Result`, Qiskit tools that take a backend work unchanged, e.g. `qiskit.primitives.BackendSamplerV2(backend=backend)`, `BackendEstimatorV2` and `qiskit-experiments`.
+
+### Sampler primitive (PrimitiveResult)
+
+For results in the Qiskit primitives format, use `QSamplerV2`. It takes sampler PUBs (circuits, optionally with parameter values and shots) and returns a `PrimitiveResult` with one entry per PUB and one `BitArray` per classical register:
+
+```python
+from qheappe_client import QSamplerV2
+
+sampler = QSamplerV2(backend)
+job = sampler.run([backend.transpile(qc)], shots=1000)
+result = job.result()
+meas = result[0].data.meas  # register name, "meas" for measure_all()
+print(meas.get_counts())
+print(meas.get_bitstrings()[:10])  # per-shot results
+```
+
+- Circuits must be transpiled first (`backend.transpile(qc)`).
+- Parameterized circuits: `sampler.run([(circuit, parameter_values)])`. The result keeps the shape of `parameter_values`.
+- PUBs with different shot counts are submitted as separate HEAppE jobs; `job.jobs` lists them.
+- `QSamplerV2(backend, default_shots=..., run_options={...})` sets the default shots and extra `backend.run()` options such as `job_name`.
+
+| | Legacy `Result` (`job.result()`) | `PrimitiveResult` (`QSamplerV2`) |
+|---|---|---|
+| Several circuits | `result.get_counts(i)` | `result[i]` |
+| Counts | `result.get_counts()` | `result[i].data.<register>.get_counts()` |
+| Per-shot results | `result.get_memory()` (with `memory=True`) | `result[i].data.<register>.get_bitstrings()` |
+| Use it for | Existing code, tutorials, tools that take a backend | Qiskit primitives workflows, parameter sweeps |
 
 ## Getting the results of an earlier job
 
@@ -165,7 +215,10 @@ You can attach to a job submitted earlier using its HEAppE job ID:
 from qheappe_client import QJob
 
 job = QJob(backend, 12345)
-counts = job.result(qiskit_legacy=True).get_counts()
+counts = job.result().get_counts()
+
+# with per-shot results
+memory = QJob(backend, 12345, memory=True).result().get_memory()
 ```
 
 ## Full example
@@ -185,7 +238,7 @@ qc.cx(0, 1)
 qc.measure_all()
 
 job = backend.run(backend.transpile(qc), shots=1000, job_name="bell_state")
-counts = job.result(qiskit_legacy=True).get_counts()
+counts = job.result().get_counts()
 
 for state, count in sorted(counts.items()):
     print(f"|{state}⟩: {count}")
@@ -196,9 +249,7 @@ for state, count in sorted(counts.items()):
 `get_pulla()` gives an IQM pulse-level client (`QPulla`, an `iqm.iqm_client.IQMClient`) for a backend. Compile circuits on your machine with IQM's compiler, then run the compiled job through HEAppE:
 
 ```python
-pulla = provider.get_pulla(
-    lexis_resource="YOUR_QUANTUM_RESOURCE", backend_name="VLQ"
-)
+pulla = provider.get_pulla(lexis_resource="YOUR_QUANTUM_RESOURCE", backend_name="VLQ")
 
 qc = QuantumCircuit(2)
 qc.h(0)

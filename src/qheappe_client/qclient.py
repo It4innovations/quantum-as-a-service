@@ -1227,10 +1227,11 @@ class QClient:
                 )
             ).json()
         except Exception as e:
-            raise QAuthException.from_cause(
+            raise QAuthException(
                 reason=f"Failed to authorize LEXIS resource: {e!s}",
                 user_id=self._username,
                 resource=self._lexis_project,
+                cause=e,
             ) from e
 
         # A resource is quantum if any of its assignments is a quantum location.
