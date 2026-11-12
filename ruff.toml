@@ -1,0 +1,15 @@
+# Ruff configuration for linting (`ruff check .`) and formatting (`ruff format .`).
+# CI runs the latest ruff (`uvx ruff`); the lint rules are ruff's defaults since 0.17.
+required-version = ">=0.17"
+
+line-length = 88
+target-version = "py312"
+
+[lint.per-file-ignores]
+# Notebooks import in later cells.
+"*.ipynb" = ["E402"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = false

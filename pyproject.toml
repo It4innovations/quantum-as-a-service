@@ -98,9 +98,6 @@ show_missing = false
 skip_empty = true
 precision = 1
 
-[tool.ruff.lint.per-file-ignores]
-"*.ipynb" = ["E402"]
-
 [tool.uv]
 conflicts = [
     [{ extra = "iqm_qiskit" }, { extra = "iqm35_qiskit" }],
