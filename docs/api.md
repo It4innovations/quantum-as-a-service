@@ -24,34 +24,54 @@ provider = QProvider(lexis_project, token=None, lexis_api_url="https://api.lexis
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `lexis_project` | `str` | LEXIS project short name |
-| `token` | `str \| None` | LEXIS access token; if `None`, an interactive `py4lexis` login is started |
+| `token` | `str` \| `None` | LEXIS access token; if `None`, an interactive `py4lexis` login is started |
 | `lexis_api_url` | `str` | LEXIS API base URL |
 
-### `get_backend(lexis_resource, backend_name=None, calibration_set_id=None, *, use_metrics=False, strict_iqm_version=True) -> QBackendIQM`
+### `get_backend()`
+
+```python
+get_backend(lexis_resource, backend_name=None, calibration_set_id=None, *, use_metrics=False, strict_iqm_version=True) -> QBackendIQM
+```
 
 Creates a backend for a quantum resource. Checks that the installed IQM libraries work with the backend's station-control version.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `lexis_resource` | `str \| QBackendMetadata` | — | Quantum resource name, or metadata from `available_backends()` |
-| `backend_name` | `str \| None` | `None` | Backend (cluster) name; required if the resource has several |
-| `calibration_set_id` | `UUID \| None` | `None` | Calibration set; `None` = current default |
+| `lexis_resource` | `str` \| `QBackendMetadata` | — | Quantum resource name, or metadata from `available_backends()` |
+| `backend_name` | `str` \| `None` | `None` | Backend (cluster) name; required if the resource has several |
+| `calibration_set_id` | `UUID` \| `None` | `None` | Calibration set; `None` = current default |
 | `use_metrics` | `bool` | `False` | Load calibration metrics into the transpiler target |
 | `strict_iqm_version` | `bool` | `True` | Raise `QException` on an IQM version mismatch; `False` only warns |
 
-### `available_backends(lexis_resource) -> dict[str, QBackendMetadata]`
+### `available_backends()`
+
+```python
+available_backends(lexis_resource) -> dict[str, QBackendMetadata]
+```
 
 All backends of a resource, including unavailable ones (check `.available` and `.error`).
 
-### `get_backend_info(lexis_resource, backend_name=None, calibration_set_id=None) -> QBackendMetadata`
+### `get_backend_info()`
+
+```python
+get_backend_info(lexis_resource, backend_name=None, calibration_set_id=None) -> QBackendMetadata
+```
 
 Metadata of one backend, including its architecture, without creating a backend.
 
-### `get_client(lexis_resource, backend_name=None) -> QClient`
+### `get_client()`
+
+```python
+get_client(lexis_resource, backend_name=None) -> QClient
+```
 
 Low-level client bound to a resource or backend (machine metrics, job info, sessions).
 
-### `get_pulla(lexis_resource, backend_name=None, calibration_set_id=None, *, strict_iqm_version=True, walltime_limit_secs=3600, job_name="qpulla_job", use_sessions=False) -> QPulla`
+### `get_pulla()`
+
+```python
+get_pulla(lexis_resource, backend_name=None, calibration_set_id=None, *, strict_iqm_version=True, walltime_limit_secs=3600, job_name="qpulla_job", use_sessions=False) -> QPulla
+```
 
 Pulse-level access to a backend, see [QPulla](#qpulla). Needs `qaas[iqm_qiskit]` (iqm-client 36) and QScheduler v0.2.2+ with pulse access enabled for the machine; raises `NotImplementedError` with another IQM stack.
 
@@ -83,23 +103,35 @@ The backend's dynamic quantum architecture (from the active calibration set).
 
 `num_qubits` and `target` are the standard Qiskit backend properties.
 
-### `transpile(circuits, **kwargs) -> QuantumCircuit | list[QuantumCircuit]`
+### `transpile()`
+
+```python
+transpile(circuits, **kwargs) -> QuantumCircuit | list[QuantumCircuit]
+```
 
 Transpiles one circuit or a list of circuits to the native gate set and connectivity. Keyword arguments go to IQM's `transpile_to_IQM` (e.g. `optimize_single_qubits`, `initial_layout`, `restrict_to_qubits`).
 
-### `run(run_input, shots, **options) -> QJob`
+### `run()`
+
+```python
+run(run_input, shots, **options) -> QJob
+```
 
 Submits one transpiled circuit or a list of them as one job.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `run_input` | `QuantumCircuit \| list[QuantumCircuit]` | — | Transpiled circuit(s) |
+| `run_input` | `QuantumCircuit` \| `list[QuantumCircuit]` | — | Transpiled circuit(s) |
 | `shots` | `int` | — | Number of shots (required) |
 | `job_name` | `str` | `"qiskit_qasm_job"` | Job name in HEAppE |
 | `walltime_limit_secs` | `int` | `3600` | Walltime limit of the job |
 | `circuit_compilation_options` | `CircuitCompilationOptions` | IQM default | IQM server-side compilation options |
 
-### `create_circuit_job_definition(run_input, shots=1024, ...) -> CircuitJobDefinition`
+### `create_circuit_job_definition()`
+
+```python
+create_circuit_job_definition(run_input, shots=1024, ...) -> CircuitJobDefinition
+```
 
 Builds the IQM job definition without submitting it. `create_run_request` is an alias (iqm-client 35 name).
 
@@ -144,7 +176,11 @@ A submitted job. Returned by `QBackendIQM.run()`, or created from an existing HE
 
 HEAppE job ID as an `int`. `job.job_id()` returns it as a string (Qiskit style).
 
-### `result(with_measurements=None, key_order_left_to_right=False, qiskit_legacy=False) -> PrimitiveResult | Result`
+### `result()`
+
+```python
+result(with_measurements=None, key_order_left_to_right=False, qiskit_legacy=False) -> PrimitiveResult | Result
+```
 
 Waits until the job finishes and returns the results.
 
@@ -163,7 +199,11 @@ Accessing the results:
 
 Raises `RuntimeError` if the job failed or was cancelled.
 
-### `status() -> JobStatus`
+### `status()`
+
+```python
+status() -> JobStatus
+```
 
 Current job state as a Qiskit `JobStatus`.
 
