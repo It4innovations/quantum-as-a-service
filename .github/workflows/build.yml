@@ -5,15 +5,23 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
-  # Publish docs by hand, e.g. a docs fix for the current stable release.
-  # Pick the branch/tag in "Use workflow from"; its docs go to the chosen channel.
+  # Publish docs by hand:
+  #  - a docs fix for the current release: run from the branch, pick the channel;
+  #  - docs of an existing tag (also tags from before versioned docs): set "tag",
+  #    e.g. v1.0.0. That tag's sources are built with this workflow and published
+  #    to its own release folder (and to the channel, unless "none").
+  #    Docs exist for v1.0.0a1 and later only (the qheappe_client API).
   workflow_dispatch:
     inputs:
       docs_channel:
-        description: 'Docs channel to publish to'
+        description: 'Docs channel to publish to (none = release folder only, needs a tag)'
         type: choice
-        options: [stable, pre]
-        default: stable
+        options: [latest, pre, none]
+        default: latest
+      tag:
+        description: 'Tag to build and publish docs for, e.g. v1.0.0 (empty = the selected branch/tag)'
+        type: string
+        default: ''
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -28,8 +36,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
+      # Manual runs only publish docs, possibly of an older tag: skip the checks
+      # its sources were never held to (they ran when the tag was pushed).
       - name: Check spelling (typos)
+        if: github.event_name != 'workflow_dispatch'
         uses: crate-ci/typos@v1
 
       - uses: astral-sh/setup-uv@v5
@@ -38,9 +51,11 @@ jobs:
           enable-cache: false
 
       - name: Lint with ruff
+        if: github.event_name != 'workflow_dispatch'
         run: uvx ruff check .
 
       - name: Check formatting with ruff
+        if: github.event_name != 'workflow_dispatch'
         run: uvx ruff format --check .
 
       - name: Build package
@@ -64,6 +79,8 @@ jobs:
     needs: check-and-build
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-python@v5
         with:
@@ -89,10 +106,12 @@ jobs:
   # ---------------------------------------------------------------------------
   # 3) Build Documentation — depends on check-and-build
   #    Also decides where the docs go (published by deploy-doc):
-  #      v* tag, stable version (v1.2.0)       -> stable/  (default page)
-  #      v* tag, pre-release (v1.2.0a1, rc1)   -> pre/
-  #      manual run (workflow_dispatch)        -> chosen channel
+  #      v* tag, stable version (v1.2.0)       -> 1.2.0/   + latest/ (default page)
+  #      v* tag, pre-release (v1.2.0a1, rc1)   -> 1.2.0a1/ + pre/
+  #      manual run with a tag                 -> <release>/ + chosen channel (or none)
+  #      manual run without a tag              -> chosen channel
   #      push to main / PR                     -> build only, not published
+  #    Only versions from 1.0 on are published; earlier tags have no qheappe_client.
   # ---------------------------------------------------------------------------
   build-doc:
     name: Build Documentation
@@ -101,8 +120,11 @@ jobs:
     outputs:
       channel: ${{ steps.channel.outputs.channel }}
       release: ${{ steps.channel.outputs.release }}
+      versioned: ${{ steps.channel.outputs.versioned }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-python@v5
         with:
@@ -125,29 +147,63 @@ jobs:
           EVENT: ${{ github.event_name }}
           REF: ${{ github.ref }}
           DISPATCH_CHANNEL: ${{ inputs.docs_channel }}
+          DISPATCH_TAG: ${{ inputs.tag }}
         run: |
           release=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           prerelease=$(python -c "from packaging.version import Version; print(str(Version('$release').is_prerelease).lower())")
+
+          # The tag being built, if any: a pushed tag, the "tag" input, or a manual
+          # run started from a tag. Every tag gets its own release folder.
+          tag=""
+          if [[ "$REF" == refs/tags/v* ]]; then tag="${REF#refs/tags/}"; fi
+          if [ -n "$DISPATCH_TAG" ]; then tag="$DISPATCH_TAG"; fi
+          major=$(python -c "from packaging.version import Version; print(Version('$release').major)")
+          if [ -n "$tag" ] && [ "$major" -lt 1 ]; then
+            if [ "$EVENT" = "workflow_dispatch" ]; then
+              echo "::error::Docs are published for v1.0.0a1 and later only; $tag is older."
+              exit 1
+            fi
+            echo "::notice::$tag is older than v1; its docs are not published."
+            tag=""
+          fi
+          versioned=false
+          if [ -n "$tag" ]; then
+            versioned=true
+            if [ "$(python -c "from packaging.version import Version; print(Version('${tag#v}'))")" != "$(python -c "from packaging.version import Version; print(Version('$release'))")" ]; then
+              echo "::error::Tag $tag does not match the package version $release in pyproject.toml."
+              exit 1
+            fi
+          fi
+
           channel=""
           if [ "$EVENT" = "workflow_dispatch" ]; then
             channel="$DISPATCH_CHANNEL"
-          elif [ "$EVENT" = "push" ] && [[ "$REF" == refs/tags/v* ]]; then
-            if [ "$prerelease" = "true" ]; then channel=pre; else channel=stable; fi
+            if [ "$channel" = "none" ]; then channel=""; fi
+          elif [ "$EVENT" = "push" ] && [ -n "$tag" ]; then
+            if [ "$prerelease" = "true" ]; then channel=pre; else channel=latest; fi
           fi
-          if [ "$channel" = "stable" ] && [ "$prerelease" = "true" ]; then
-            echo "::error::Version $release is a pre-release; it cannot be published as stable docs."
+          if [ "$channel" = "latest" ] && [ "$prerelease" = "true" ]; then
+            echo "::error::Version $release is a pre-release; it cannot be published as latest (stable) docs."
             exit 1
           fi
-          echo "Docs for $release -> ${channel:-not published}"
+          if [ "$EVENT" = "workflow_dispatch" ] && [ -z "$channel" ] && [ "$versioned" = "false" ]; then
+            echo "::error::Channel 'none' needs a tag: set the 'tag' input or run from a tag."
+            exit 1
+          fi
+
+          targets="${channel:+$channel/}"
+          if [ "$versioned" = "true" ]; then targets="$release/ ${targets}"; fi
+          echo "Docs for $release -> ${targets:-not published}"
           echo "channel=$channel" >> "$GITHUB_OUTPUT"
           echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "versioned=$versioned" >> "$GITHUB_OUTPUT"
 
       - name: Build Zensical documentation
         # MIKE_DOCS_VERSION makes canonical URLs and the sitemap point into the
-        # channel folder (e.g. .../stable/).
+        # channel folder (e.g. .../latest/).
         run: zensical build --clean
         env:
-          MIKE_DOCS_VERSION: ${{ steps.channel.outputs.channel }}
+          MIKE_DOCS_VERSION: ${{ steps.channel.outputs.channel || steps.channel.outputs.release }}
 
       - name: Build pdoc API reference
         # Generates HTML into site/api_reference/ alongside the Zensical output.
@@ -166,15 +222,16 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # 4) Deploy Documentation — depends on tests + build-doc
-  #    Runs only when build-doc picked a channel. The gh-pages branch keeps
-  #    every channel (stable/, pre/); this job replaces one of them and
-  #    deploys the whole tree. See scripts/publish_docs.py.
+  #    Runs when build-doc picked a channel or a release folder. The gh-pages
+  #    branch keeps the channels (latest/, pre/) and one folder per tagged
+  #    release (1.1.0a1/, ...); this job updates them and deploys the whole
+  #    tree. See scripts/publish_docs.py.
   # ---------------------------------------------------------------------------
   deploy-doc:
     name: Deploy Documentation
     runs-on: ubuntu-latest
     needs: [tests, build-doc]
-    if: needs.build-doc.outputs.channel != ''
+    if: needs.build-doc.outputs.channel != '' || needs.build-doc.outputs.versioned == 'true'
     # Only one Pages deployment at a time, so gh-pages updates never race.
     concurrency:
       group: github-pages
@@ -185,7 +242,7 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}stable/
+      url: ${{ steps.deployment.outputs.page_url }}latest/
     steps:
       - uses: actions/checkout@v4
 
@@ -214,8 +271,9 @@ jobs:
           pip install packaging
           python scripts/publish_docs.py \
             --site site --pages gh-pages \
-            --channel "${{ needs.build-doc.outputs.channel }}" \
+            --channel "${{ needs.build-doc.outputs.channel || 'none' }}" \
             --release "${{ needs.build-doc.outputs.release }}" \
+            ${{ needs.build-doc.outputs.versioned == 'true' && '--versioned' || '' }} \
             --base-path "/${{ github.event.repository.name }}/"
 
       - name: Push gh-pages branch
@@ -224,7 +282,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -q -m "docs: publish ${{ needs.build-doc.outputs.release }} to ${{ needs.build-doc.outputs.channel }}/ (${{ github.sha }})" || echo "No changes"
+          git commit -q -m "docs: publish ${{ needs.build-doc.outputs.release }} (channel: ${{ needs.build-doc.outputs.channel || 'none' }}, release folder: ${{ needs.build-doc.outputs.versioned }}) (${{ github.sha }})" || echo "No changes"
           git push origin HEAD:refs/heads/gh-pages
 
       - name: Upload Pages artifact
@@ -238,13 +296,13 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # 5) Release — depends on deploy-doc
-  #    Runs only on a v* tag
+  #    Runs only when a v* tag is pushed (not for manual docs runs from a tag)
   # ---------------------------------------------------------------------------
   release:
     name: Release
     runs-on: ubuntu-latest
     needs: deploy-doc
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write   # needed to create a GitHub Release
       id-token: write   # needed for PyPI trusted publishing (OIDC)
