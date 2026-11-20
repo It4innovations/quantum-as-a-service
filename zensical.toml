@@ -54,6 +54,7 @@ nav = [
   { "Usage" = "usage.md" },
   { "API Reference" = "api.md" },
   { "Architecture" = "architecture.md" },
+  { "Changelog" = "changelog.md" },
 ]
 
 # With the "extra_css" option you can add your own CSS styling to customize
@@ -352,6 +353,12 @@ pygments_lang_class = true
 [project.markdown_extensions.pymdownx.magiclink]
 [project.markdown_extensions.pymdownx.mark]
 [project.markdown_extensions.pymdownx.smartsymbols]
+
+# Includes files from outside docs/, e.g. CHANGELOG.md on the Changelog page.
+# check_paths fails the build if an included file is missing.
+[project.markdown_extensions.pymdownx.snippets]
+base_path = ["."]
+check_paths = true
 [project.markdown_extensions.pymdownx.superfences]
 custom_fences = [
   { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }
