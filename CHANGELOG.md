@@ -6,7 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with
 [PEP 440](https://peps.python.org/pep-0440/) pre-release suffixes (`a1`, `b1`, `rc1`).
 
-## [1.1.0a1] - Unreleased
+## [1.1.0] - 2026-11-20
 
 Makes `qheappe_client` backends follow the Qiskit `BackendV2` / `JobV1` contract, so
 `BackendSamplerV2`, `BackendEstimatorV2`, `qiskit-experiments` and other tools that take
@@ -34,6 +34,16 @@ a backend work unchanged ([#49]).
   or when it fails. `QJob.result()` waits the same way.
 - `QSamplerJob.wait_for_final_state(...)`, the same for all backend jobs of a sampler
   job, with a shared timeout.
+- Example notebooks `backend_QBackend_qheappe.ipynb` (`backend.run()`, `memory=True`,
+  several registers and circuits, `cancel()`, `BackendEstimatorV2`) and
+  `sampler_QSamplerV2_qheappe.ipynb` (`QSamplerV2`, parameter sweeps, `BackendSamplerV2`).
+  The random number example uses per-shot results and checks uniformity.
+- Live integration tests for pulse-level parameter sweeps with `iqm-exa-common`: hard
+  sweeps over gate parameters, soft sweeps over controller settings (drive frequency),
+  and both combined ([#20]).
+- The documentation of every release from 1.0.0a1 on is kept in its own folder (e.g.
+  `1.1.0/`). The default channel `stable/` is renamed `latest/` (the latest stable
+  release); old `/stable/...` links redirect to it. The docs have a Changelog page.
 
 ### Fixed
 
@@ -111,8 +121,9 @@ a backend work unchanged ([#49]).
 
 First stable release.
 
+[#20]: https://github.com/It4innovations/quantum-as-a-service/issues/20
 [#49]: https://github.com/It4innovations/quantum-as-a-service/issues/49
 [#50]: https://github.com/It4innovations/quantum-as-a-service/issues/50
-[1.1.0a1]: https://github.com/It4innovations/quantum-as-a-service/compare/v1.0.1...HEAD
+[1.1.0]: https://github.com/It4innovations/quantum-as-a-service/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/It4innovations/quantum-as-a-service/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/It4innovations/quantum-as-a-service/releases/tag/v1.0.0

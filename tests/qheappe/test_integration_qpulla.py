@@ -171,6 +171,22 @@ def amplitude_sweep(gate: CustomGate, settings) -> tuple[np.ndarray, list]:
     return amplitudes, [sweep]
 
 
+FREQ_POINTS = 3
+FREQ_SPAN_HZ = 2e6
+
+
+def drive_frequency_sweep(gate: CustomGate, settings) -> tuple[np.ndarray, list]:
+    """Soft sweep: a ``controllers`` setting, applied by the station per sweep spot."""
+    param = settings.controllers[gate.qubit].drive.frequency
+    center = float(param.value)
+    frequencies = center + np.linspace(-FREQ_SPAN_HZ, FREQ_SPAN_HZ, FREQ_POINTS)
+    return frequencies, [(Sweep(parameter=param.parameter, data=frequencies),)]
+
+
+def swept_names(nd_sweep) -> list[str]:
+    return [str(sw.parameter.name) for parallel in nd_sweep for sw in parallel]
+
+
 def compile_custom(gate: CustomGate, circuit, settings, sweeps=None):
     return gate.compiler.compile(
         circuits=[circuit],
@@ -234,6 +250,44 @@ class TestCustomGateCompile:
             )
         assert serialize_run_definition(run_definition).SerializeToString()
 
+    def test_compile_drive_frequency_soft_sweep(self, custom_gate):
+        circuit = x_circuit()
+        s = custom_settings(custom_gate, circuit, custom_gate.amplitude)
+        frequencies, sweeps = drive_frequency_sweep(custom_gate, s)
+        run_definition, _ = compile_custom(custom_gate, circuit, s, sweeps)
+
+        # Controller settings are soft sweeps: they travel in SweepDefinition.sweeps
+        # (sent to the backend with the payload), not in the compiled playlist.
+        soft = run_definition.sweep_definition.sweeps
+        assert len(soft) == 1 and len(soft[0]) == 1
+        assert "drive.frequency" in str(soft[0][0].parameter.name)
+        np.testing.assert_allclose(
+            np.asarray(soft[0][0].data, dtype=float), frequencies
+        )
+        for nd_sweep in run_definition.hard_sweeps.values():
+            assert not any("drive.frequency" in n for n in swept_names(nd_sweep))
+        assert serialize_run_definition(run_definition).SerializeToString()
+
+    def test_compile_hard_and_soft_sweep(self, custom_gate):
+        circuit = x_circuit()
+        s = custom_settings(custom_gate, circuit, custom_gate.amplitude)
+        _, amp_sweeps = amplitude_sweep(custom_gate, s)
+        _, freq_sweeps = drive_frequency_sweep(custom_gate, s)
+        run_definition, _ = compile_custom(
+            custom_gate, circuit, s, amp_sweeps + freq_sweeps
+        )
+
+        # The compiler splits the 2D sweep: amplitude -> hard, frequency -> soft.
+        assert swept_names(run_definition.sweep_definition.sweeps) == [
+            str(freq_sweeps[0][0].parameter.name)
+        ]
+        assert run_definition.hard_sweeps
+        for nd_sweep in run_definition.hard_sweeps.values():
+            names = swept_names(nd_sweep)
+            assert any("amplitude_i" in n for n in names), names
+            assert not any("drive.frequency" in n for n in names), names
+        assert serialize_run_definition(run_definition).SerializeToString()
+
 
 @pytest.mark.qpu
 @pytest.mark.timeout(JOB_TIMEOUT)
@@ -252,4 +306,47 @@ class TestCustomGateJob:
             job.result_exa(compiler=custom_gate.compiler), custom_gate.qubit
         )
         assert p1.shape == (SWEEP_POINTS,)
+        assert np.all((p1 >= 0) & (p1 <= 1))
+
+    def test_drive_frequency_soft_sweep(self, pulla, custom_gate):
+        circuit = x_circuit()
+        s = custom_settings(custom_gate, circuit, custom_gate.amplitude)
+        _, sweeps = drive_frequency_sweep(custom_gate, s)
+        run_definition, context = compile_custom(custom_gate, circuit, s, sweeps)
+
+        job = pulla.submit_playlist(run_definition, context=context)
+        status = job.wait_for_completion(timeout_secs=JOB_TIMEOUT, polling_interval=2)
+        assert status is JobStatus.COMPLETED, job.job_data.messages
+
+        # one result per soft sweep spot
+        assert all(len(spots) == FREQ_POINTS for spots in job.result_sweep().values())
+        p1 = excited_probability(
+            job.result_exa(compiler=custom_gate.compiler), custom_gate.qubit
+        )
+        assert p1.shape == (FREQ_POINTS,)
+        assert np.all((p1 >= 0) & (p1 <= 1))
+
+    def test_hard_and_soft_sweep(self, pulla, custom_gate):
+        circuit = x_circuit()
+        s = custom_settings(custom_gate, circuit, custom_gate.amplitude)
+        _, amp_sweeps = amplitude_sweep(custom_gate, s)
+        _, freq_sweeps = drive_frequency_sweep(custom_gate, s)
+        run_definition, context = compile_custom(
+            custom_gate, circuit, s, amp_sweeps + freq_sweeps
+        )
+
+        job = pulla.submit_playlist(run_definition, context=context)
+        status = job.wait_for_completion(timeout_secs=JOB_TIMEOUT, polling_interval=2)
+        assert status is JobStatus.COMPLETED, job.job_data.messages
+
+        ds = job.result_exa(compiler=custom_gate.compiler).dataset
+        names = [
+            n
+            for n in ds.data_vars
+            if n.startswith(f"{custom_gate.qubit}__")
+            and n.endswith("excited_state_probability")
+        ]
+        assert names, list(ds.data_vars)
+        p1 = np.asarray(ds[names[0]].values, dtype=float)
+        assert sorted(p1.shape) == sorted((SWEEP_POINTS, FREQ_POINTS))
         assert np.all((p1 >= 0) & (p1 <= 1))

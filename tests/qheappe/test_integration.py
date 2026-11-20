@@ -3,11 +3,12 @@
 Public surface exercised:
   QProvider(lexis_project, token, lexis_api_url).get_backend / get_client / ...
   QBackendIQM.architecture / .transpile() / .create_run_request() / .run()
-  QJob.result() (PrimitiveResult and legacy Result), QJob.status(), QJob.cancel()
+  QJob.result() (qiskit Result), QJob.status(), QJob.cancel()
+  QSamplerV2, and qiskit BackendSamplerV2 on a QaaS backend
   QClient sync and async API
 
-Tests marked `qpu` submit jobs and consume allocation. Tests marked `known_issue`
-document confirmed defects (xfail); deselect them with  -m "not known_issue".
+Tests marked `qpu` submit jobs and consume allocation. TestFixedIssues keeps
+regression tests for defects that were fixed.
 QPulla is covered in test_integration_qpulla.py.
 
 Run: pytest -m integration -v
@@ -21,10 +22,12 @@ from collections import Counter
 import numpy as np
 import pytest
 from conftest import close_provider, make_provider
-from qiskit import QuantumCircuit
+from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
 from qiskit.circuit import Parameter
 from qiskit.compiler import transpile as qiskit_transpile
+from qiskit.primitives import BackendSamplerV2, PrimitiveResult
 from qiskit.providers.jobstatus import JobStatus
+from qiskit.result import Result
 from qiskit.transpiler.exceptions import TranspilerError
 from settings import (
     BACKEND_NAME,
@@ -40,7 +43,7 @@ from settings import (
     TOKEN,
 )
 
-from qheappe_client import QBackendIQM, QBackendMetadata
+from qheappe_client import QBackendIQM, QBackendMetadata, QSamplerV2
 from qheappe_client.qclient import QClient
 from qheappe_client.qiskit.qbackend import QJob
 from qheappe_client.utils import HEAppEJobState, QAuthException, QException
@@ -53,7 +56,7 @@ NATIVE_OPS = {"r", "cz", "move", "measure", "barrier", "delay", "reset", "id"}
 
 
 def legacy_counts(job: QJob) -> dict[str, int]:
-    return job.result(qiskit_legacy=True).get_counts()
+    return job.result().get_counts()
 
 
 def fraction(counts: dict[str, int], keys) -> float:
@@ -283,13 +286,9 @@ class TestRunRequest:
     def test_default_shots_option(self, backend):
         assert backend.options.shots == 1024
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=TypeError,
-        reason="run() requires shots; Options(shots=...) is not used as default",
-    )
     def test_run_without_shots_uses_default(self, backend, bell_circuit):
-        backend.run(backend.transpile(bell_circuit))
+        job = backend.run(backend.transpile(bell_circuit))
+        assert sum(job.result().get_counts().values()) == backend.options.shots
 
 
 # ---------- 8. Job lifecycle and results ----------
@@ -322,7 +321,18 @@ class TestJob:
         assert bell_job.status() == JobStatus.DONE
 
     def test_server_state_finished(self, client, bell_job):
-        assert heappe_state(client, bell_job.job_id) == "FINISHED"
+        """HEAppE job info reaches FINISHED. It can lag behind the event stream,
+        which result() waits on, so allow a short delay."""
+        deadline = time.monotonic() + 60
+        seen = []
+        while (state := heappe_state(client, bell_job.job_id)) != "FINISHED":
+            seen.append(state)
+            assert time.monotonic() < deadline, f"job info stuck in {seen[-1]}"
+            time.sleep(2)
+        if seen:
+            warnings.warn(
+                f"HEAppE job info lagged behind the event stream: {seen}", stacklevel=1
+            )
 
     def test_result_cached(self, bell_job):
         assert bell_job.result() is bell_job.result()
@@ -332,39 +342,11 @@ class TestJob:
         assert sum(counts.values()) == BELL_SHOTS
         assert all(set(k) <= {"0", "1"} and len(k) == 2 for k in counts)
 
-    def test_primitive_result_shape(self, backend, bell_job):
-        res = reattach(backend, bell_job).result()
-        meas = res[0].data.meas
-        assert meas.num_shots == BELL_SHOTS
-        assert sum(meas.get_counts().values()) == BELL_SHOTS
-
     def test_legacy_memory_matches_counts(self, backend, bell_job):
-        res = reattach(backend, bell_job).result(
-            qiskit_legacy=True, with_measurements=True
-        )
+        res = QJob(backend, int(bell_job.job_id), memory=True).result()
         memory = res.get_memory()
         assert len(memory) == BELL_SHOTS
         assert Counter(memory) == res.get_counts()
-
-    def test_primitive_bitstrings_match_counts(self, backend, bell_job):
-        meas = reattach(backend, bell_job).result(with_measurements=True)[0].data.meas
-        bitstrings = meas.get_bitstrings()
-        assert len(bitstrings) == BELL_SHOTS
-        assert Counter(bitstrings) == meas.get_counts()
-
-    def test_key_order_reverses_bitstrings(self, backend, bell_job):
-        rtl = reattach(backend, bell_job).result(qiskit_legacy=True).get_counts()
-        ltr = (
-            reattach(backend, bell_job)
-            .result(qiskit_legacy=True, key_order_left_to_right=True)
-            .get_counts()
-        )
-        assert ltr == {k[::-1]: v for k, v in rtl.items()}
-
-    def test_counts_identical_across_formats(self, backend, bell_job):
-        legacy = legacy_counts(reattach(backend, bell_job))
-        primitive = reattach(backend, bell_job).result()[0].data.meas.get_counts()
-        assert legacy == primitive
 
     def test_bell_correlation(self, backend, bell_job):
         counts = legacy_counts(reattach(backend, bell_job))
@@ -411,36 +393,26 @@ class TestRunMemory:
     def test_job_remembers_memory_option(self, memory_job):
         assert memory_job._memory is True
 
-    def test_legacy_memory_without_with_measurements(self, backend, memory_job):
-        res = reattach_memory(backend, memory_job).result(qiskit_legacy=True)
+    def test_result_includes_memory(self, backend, memory_job):
+        res = reattach_memory(backend, memory_job).result()
         memory = res.get_memory()
         assert len(memory) == MEMORY_SHOTS
         assert Counter(memory) == res.get_counts()
         # what BackendSamplerV2 reads
         assert res.results[0].data.memory is not None
 
-    def test_primitive_bitstrings_without_with_measurements(self, backend, memory_job):
-        meas = reattach_memory(backend, memory_job).result()[0].data.meas
-        bitstrings = meas.get_bitstrings()
-        assert len(bitstrings) == MEMORY_SHOTS
-        assert Counter(bitstrings) == meas.get_counts()
-
     def test_memory_shows_bell_correlation(self, backend, memory_job):
-        memory = (
-            reattach_memory(backend, memory_job).result(qiskit_legacy=True).get_memory()
-        )
+        memory = reattach_memory(backend, memory_job).result().get_memory()
         assert fraction(Counter(memory), ("00", "11")) > MIN_FIDELITY
 
-    def test_explicit_with_measurements_false_wins(self, backend, memory_job):
-        res = reattach_memory(backend, memory_job).result(
-            qiskit_legacy=True, with_measurements=False
-        )
+    def test_reattach_without_memory_gives_counts_only(self, backend, memory_job):
+        res = reattach_memory(backend, memory_job, memory=False).result()
         assert getattr(res.results[0].data, "memory", None) is None
         assert sum(res.get_counts().values()) == MEMORY_SHOTS
 
     def test_default_run_has_no_memory(self, backend, bell_job):
         """run() without memory keeps the old behavior: counts only."""
-        res = reattach(backend, bell_job).result(qiskit_legacy=True)
+        res = reattach(backend, bell_job).result()
         assert getattr(res.results[0].data, "memory", None) is None
 
 
@@ -475,6 +447,26 @@ class TestLiveStatus:
         job.wait_for_final_state(timeout=JOB_TIMEOUT - 30, wait=STATUS_POLL)
         assert job.status() == JobStatus.DONE
 
+    def test_wait_for_final_state_follows_events(self, backend, bell_circuit):
+        """Event websocket drives the wait; job-info backup only every 5 minutes."""
+        job = backend.run(backend.transpile(bell_circuit), shots=STATUS_SHOTS)
+        seen = []
+        start = time.monotonic()
+        job.wait_for_final_state(
+            timeout=JOB_TIMEOUT - 30, wait=300, callback=lambda *a: seen.append(a[1])
+        )
+        assert time.monotonic() - start < 300, "finished only via the backup query"
+        assert job.done()
+        assert JobStatus.ERROR not in seen and JobStatus.DONE not in seen, seen
+        assert sum(job.result().get_counts().values()) == STATUS_SHOTS
+
+    def test_sampler_job_wait_for_final_state(self, backend, bell_circuit):
+        tc = backend.transpile(bell_circuit)
+        job = QSamplerV2(backend).run([(tc, None, 50), (tc, None, 80)])
+        job.wait_for_final_state(timeout=JOB_TIMEOUT - 30, wait=300)
+        assert job.done()
+        assert [r.data.meas.num_shots for r in job.result()] == [50, 80]
+
     def test_reattached_finished_job_is_done(self, backend, bell_job):
         """A fresh QJob for a finished job reports DONE without result()."""
         job = reattach(backend, bell_job)
@@ -493,8 +485,8 @@ class TestCircuits:
     def test_multiple_circuits_in_one_job(self, backend, bell_circuit, ghz_circuit):
         job = backend.run(backend.transpile([bell_circuit, ghz_circuit]), shots=100)
         res = job.result()
-        assert len(res) == 2
-        assert [r.data.meas.num_bits for r in res] == [2, 3]
+        assert len(res.results) == 2
+        assert [len(next(iter(res.get_counts(i)))) for i in range(2)] == [2, 3]
 
     def test_sequential_jobs_are_independent(self, backend, bell_circuit):
         tc = backend.transpile(bell_circuit)
@@ -535,6 +527,115 @@ class TestCircuits:
         assert time.monotonic() - start < 300
 
 
+# ---------- 8d. 1.1.0: Result by default, QSamplerV2 (issue #49) ----------
+
+SAMPLER_SHOTS = 200
+
+
+def one_hot_circuit():
+    """x on qubit 0 only; two registers so bit order and register split both matter.
+
+    Expected (Qiskit convention, clbit 0 rightmost): a = "01", b = "0",
+    Result counts key = "0 01" (registers separated by a space).
+    """
+    a, b = ClassicalRegister(2, "a"), ClassicalRegister(1, "b")
+    qc = QuantumCircuit(QuantumRegister(3), a, b, name="onehot", metadata={"tag": 1})
+    qc.x(0)
+    qc.measure([0, 1], a)
+    qc.measure(2, b)
+    return qc
+
+
+def top(counts: dict[str, int]) -> tuple[str, float]:
+    key = max(counts, key=counts.get)
+    return key, counts[key] / sum(counts.values())
+
+
+@pytest.mark.qpu
+@pytest.mark.timeout(JOB_TIMEOUT)
+class TestQSamplerV2:
+    def test_result_is_legacy_by_default(self, bell_job):
+        assert isinstance(bell_job.result(), Result)
+
+    def test_bell(self, backend, bell_circuit):
+        res = (
+            QSamplerV2(backend)
+            .run([backend.transpile(bell_circuit)], shots=SAMPLER_SHOTS)
+            .result()
+        )
+        assert isinstance(res, PrimitiveResult)
+        meas = res[0].data.meas
+        assert meas.num_shots == SAMPLER_SHOTS and meas.num_bits == 2
+        assert fraction(meas.get_counts(), ("00", "11")) > MIN_FIDELITY
+
+    def test_registers_and_bit_order(self, backend):
+        res = (
+            QSamplerV2(backend)
+            .run([backend.transpile(one_hot_circuit())], shots=SAMPLER_SHOTS)
+            .result()
+        )
+        a, pa = top(res[0].data.a.get_counts())
+        b, pb = top(res[0].data.b.get_counts())
+        assert (a, b) == ("01", "0"), res[0].data
+        assert min(pa, pb) > MIN_FIDELITY - 0.1
+
+    def test_legacy_result_bit_order(self, backend):
+        """Result follows the Qiskit convention: clbit 0 rightmost, registers split."""
+        job = backend.run(backend.transpile(one_hot_circuit()), shots=SAMPLER_SHOTS)
+        key, p = top(legacy_counts(job))
+        assert key == "0 01", legacy_counts(job)
+        assert p > MIN_FIDELITY - 0.1
+
+    def test_result_header_matches_circuit(self, backend):
+        """Result is named after the circuit and carries its metadata, as in Qiskit."""
+        tc = backend.transpile(one_hot_circuit())
+        res = backend.run(tc, shots=SAMPLER_SHOTS).result()
+        header = res.results[0].header
+        assert header["name"] == tc.name
+        assert header["metadata"] == {"tag": 1}
+        assert header["creg_sizes"] == [["a", 2], ["b", 1]]
+        assert res.get_counts(tc) == res.get_counts()
+
+    def test_reattached_job_keeps_registers(self, backend):
+        """A job re-created from its id gets the registers, but not the name or metadata."""
+        job = backend.run(backend.transpile(one_hot_circuit()), shots=SAMPLER_SHOTS)
+        job.result()
+        res = QJob(backend, int(job.job_id)).result()
+        assert res.results[0].header["creg_sizes"] == [["a", 2], ["b", 1]]
+        assert top(res.get_counts())[0] == "0 01"
+        assert res.results[0].header["name"] == "circuit-0"
+
+    def test_parameter_sweep_shape(self, backend):
+        theta = Parameter("theta")
+        qc = QuantumCircuit(1)
+        qc.rx(theta, 0)
+        qc.measure_all()
+        values = [[0.0], [np.pi]]
+        res = (
+            QSamplerV2(backend)
+            .run([(backend.transpile(qc), values)], shots=SAMPLER_SHOTS)
+            .result()
+        )
+        meas = res[0].data.meas
+        assert meas.shape == (2,)
+        assert top(meas[0].get_counts())[0] == "0"
+        assert top(meas[1].get_counts())[0] == "1"
+
+    def test_pubs_with_different_shots(self, backend, bell_circuit):
+        tc = backend.transpile(bell_circuit)
+        job = QSamplerV2(backend).run([(tc, None, 50), (tc, None, 80)])
+        assert len(job.jobs) == 2
+        assert [r.data.meas.num_shots for r in job.result()] == [50, 80]
+        assert job.done()
+
+    def test_backend_sampler_v2_agrees(self, backend):
+        """qiskit BackendSamplerV2 works on a QaaS backend and reads the same bits."""
+        tc = backend.transpile(one_hot_circuit())
+        res = BackendSamplerV2(backend=backend).run([tc], shots=SAMPLER_SHOTS).result()
+        assert top(res[0].data.a.get_counts())[0] == "01"
+        assert top(res[0].data.b.get_counts())[0] == "0"
+
+
 # ---------- 9. Exceptions ----------
 
 
@@ -549,50 +650,39 @@ class TestQExceptionContract:
         assert INVALID_RESOURCE in str(exc.value) and "Available" in str(exc.value)
 
 
-# ---------- 10. Known issues (document defects; xfail) ----------
-
-# TODO: Verify following issues. Some of them may be already solved.
+# ---------- 10. Former known issues (regression tests) ----------
 
 
-@pytest.mark.known_issue
-class TestKnownIssues:
-    @pytest.mark.xfail(
-        strict=True,
-        raises=QAuthException,
-        reason="list_available_backends never connects the QClient",
-    )
+class TestFixedIssues:
     def test_provider_list_available_backends(self):
         QProvider_ = type(make_provider(token="x"))
-        QProvider_.list_available_backends(
+        backends = QProvider_.list_available_backends(
             TOKEN, PROJECT, lexis_resource=RESOURCE, lexis_api_url=LEXIS_API_URL
         )
+        assert BACKEND_NAME in backends
 
     @pytest.mark.qpu
     @pytest.mark.timeout(JOB_TIMEOUT)
-    @pytest.mark.xfail(
-        strict=True,
-        reason="QJob._submitted_job keeps the submit-time State, so a second "
-        "result() with another format waits on the event stream forever",
-    )
-    def test_submitted_job_state_refreshed_after_result(self, bell_job):
-        state = HEAppEJobState.readable(bell_job._submitted_job["State"])
-        assert state in TERMINAL
+    def test_second_wait_does_not_hang(self, bell_job, monkeypatch):
+        """Once the job is known to be finished, waiting again must not reopen the
+        event stream (it never reports a state reached before it opened)."""
+        assert bell_job._last_known_status in TERMINAL
+
+        def no_stream(*args, **kwargs):
+            raise AssertionError("waited on the event stream again")
+
+        monkeypatch.setattr(bell_job._qclient, "iter_events", no_stream)
+        assert bell_job._wait_for_terminal_state() == "FINISHED"
+        assert bell_job._finished_artifacts(with_measurements=False)
 
     @pytest.mark.qpu
     @pytest.mark.timeout(JOB_TIMEOUT)
-    @pytest.mark.xfail(
-        strict=False,
-        reason="QJob.cancel() does not await QClient.cancel_job; "
-        "status() references JobStatus.CANCELED",
-    )
     def test_cancel_reaches_server(self, backend, client, ghz_circuit):
         job = backend.run(
             backend.transpile(ghz_circuit), shots=20000, job_name="qheappe_test_cancel"
         )
         try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", RuntimeWarning)
-                job.cancel()
+            assert job.cancel() is True
             assert job.status() == JobStatus.CANCELLED
             deadline = time.monotonic() + 60
             while (state := heappe_state(client, job.job_id)) not in TERMINAL:

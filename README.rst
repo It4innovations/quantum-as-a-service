@@ -127,29 +127,28 @@ The following example demonstrates the basic usage of the QProvider and QBackend
    qc_transpiled = backend.transpile(qc)
 
    # 5. Submit the circuit job
-   job = backend.run(qc_transpiled, shots=1024, job_name="demo_bell_state")
+   job = backend.run(
+       qc_transpiled, shots=1024, memory=True, job_name="demo_bell_state"
+   )
    print(f"Job submitted successfully. Job ID: {job.job_id()}")
 
-   # 6. Retrieve results
-   result_legacy = job.result(qiskit_legacy=True, with_measurements=True)
-   counts_legacy = result_legacy.get_counts()
-   bitstring_legacy = result_legacy.get_memory()
+   # 6. Retrieve results (qiskit.result.Result)
+   result = job.result()
+   print("Counts:", result.get_counts())
+   print(f"Bitstrings: {result.get_memory()!s:.20s}")
 
-   result = job.result(with_measurements=True)
-   counts = result[0].data.meas.get_counts()
-   bitstrings = result[0].data.meas.get_bitstrings()
+   # 7. Or use the sampler primitive for a PrimitiveResult
+   from qheappe_client import QSamplerV2
 
-   print("Legacy Execution Results:")
-   print("Counts:", counts_legacy)
-   print(f"Bitstring: {bitstring_legacy!s:.20s}")
+   sampler_result = QSamplerV2(backend).run([qc_transpiled], shots=1024).result()
+   meas = sampler_result[0].data.meas
+   print("Counts:", meas.get_counts())
+   print(f"Bitstrings: {meas.get_bitstrings()!s:.20s}")
 
-   print("Primitive Execution Results:")
-   print("Counts:", counts)
-   print(f"Bitstring: {bitstrings!s:.20s}")
-
-``job.result()`` returns a Qiskit ``PrimitiveResult`` by default, or a legacy ``Result``
-with ``qiskit_legacy=True``. The difference is explained in
-`PrimitiveResult vs. legacy Result <https://it4innovations.github.io/quantum-as-a-service/usage/#primitiveresult-vs-legacy-result>`_.
+``job.result()`` returns a Qiskit ``Result``, as ``backend.run()`` does in Qiskit, so
+tools that take a backend (``BackendSamplerV2``, ``BackendEstimatorV2``,
+``qiskit-experiments``) work unchanged. For ``PrimitiveResult`` output, use ``QSamplerV2``;
+see `Reading results <https://it4innovations.github.io/quantum-as-a-service/usage/#reading-results>`_.
 
 How to Fetch Calibration Data
 ------------------------------

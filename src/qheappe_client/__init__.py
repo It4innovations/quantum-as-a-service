@@ -9,6 +9,7 @@ from .iqm_compat.stack import iqm_import_error_message, is_iqm_extra_import_erro
 try:
     from .qiskit.qbackend import QBackend, QJob
     from .qiskit.qbackend_iqm import QBackendIQM
+    from .qiskit.qsampler import QSamplerJob, QSamplerV2
     from .qprovider import QProvider
 except ImportError as e:
     if not is_iqm_extra_import_error(e):
@@ -38,4 +39,6 @@ __all__ = [
     "QJob",
     "QProvider",
     "QPulla",
+    "QSamplerJob",
+    "QSamplerV2",
 ]
