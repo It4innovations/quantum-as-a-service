@@ -15,3 +15,5 @@ site/*
 .env
 .continue
 .qaas/
+.claude/
+.specify/
