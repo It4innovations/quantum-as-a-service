@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qaas"
-version = "1.0.1"
+version = "1.1.0"
 description = "Quantum-as-a-Service utilizing IQMProvider, IQMBackend, IQMJob and HEAppE. Developed by IT4Innovations."
 authors = [
     { name="Jan Swiatkowski", email="jan.swiatkowski@vsb.cz" },
@@ -97,9 +97,6 @@ branch = true
 show_missing = false
 skip_empty = true
 precision = 1
-
-[tool.ruff.lint.per-file-ignores]
-"*.ipynb" = ["E402"]
 
 [tool.uv]
 conflicts = [

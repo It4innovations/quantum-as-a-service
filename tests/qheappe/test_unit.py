@@ -493,17 +493,11 @@ class TestResourceSelection:
         with pytest.raises(QAuthException):
             run(QClient("tok", "proj")._authorize_lexis_resource(None))
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=TypeError,
-        reason="QAuthException.from_cause() is called with reason=..., "
-        "which it does not accept",
-    )
     def test_request_failure_maps_to_auth_exception(self):
         c = QClient("tok", "proj")
         c._authenticated = True
         fake_routes(c, {"/userorg/api/ProjectResource": QException("HTTP 503")})
-        with pytest.raises(QAuthException):
+        with pytest.raises(QAuthException, match="Failed to authorize LEXIS resource"):
             run(c._authorize_lexis_resource(None))
 
 
@@ -1017,14 +1011,6 @@ def test_every_heappe_state_is_mapped():
     assert not missing, missing
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="QJob.status() uses JobStatus.CANCELED; Qiskit only has CANCELLED",
-)
-def test_qiskit_has_canceled_alias():
-    assert hasattr(JobStatus, "CANCELED")
-
-
 # ---------- result conversion ----------
 # Raw artifact formats as consumed by QJob.result():
 #   measurement_counts: [{"measurement_keys": [...], "counts": {"01": n, ...}}]
@@ -1034,41 +1020,28 @@ RAW = [{"measurement_keys": ["m"], "counts": {"01": 2, "10": 1}}]
 MEAS = [{"m": [[0, 1], [0, 1], [1, 0]]}]
 
 
-def _expected(left_to_right: bool):
-    flip = (lambda s: s[::-1]) if left_to_right else (lambda s: s)
-    counts = {flip(k): v for k, v in RAW[0]["counts"].items()}
-    memory = [flip(s) for s in ("01", "01", "10")]
-    return counts, memory
+def _expected():
+    """Non-IQM keys are read as given (most significant bit first)."""
+    return dict(RAW[0]["counts"]), ["01", "01", "10"]
 
 
-@pytest.mark.parametrize("left_to_right", [False, True])
 class TestResultConversion:
-    def test_primitive_counts_path(self, left_to_right):
-        res = QBackendIQM.result_to_qiskit(
-            None, RAW, key_order_left_to_right=left_to_right
-        )
-        counts, _ = _expected(left_to_right)
-        assert res[0].data.meas.get_counts() == counts
+    def test_primitive_counts_path(self):
+        res = QBackendIQM.result_to_qiskit(None, RAW)
+        assert res[0].data.meas.get_counts() == _expected()[0]
         assert res[0].metadata["measurement_keys"] == ["m"]
 
-    def test_primitive_measurement_path_agrees(self, left_to_right):
-        res = QBackendIQM.result_to_qiskit(
-            None, RAW, measurements_raw=MEAS, key_order_left_to_right=left_to_right
-        )
-        counts, memory = _expected(left_to_right)
+    def test_primitive_measurement_path_agrees(self):
+        res = QBackendIQM.result_to_qiskit(None, RAW, measurements_raw=MEAS)
+        counts, memory = _expected()
         assert res[0].data.meas.get_counts() == counts
         assert res[0].data.meas.get_bitstrings() == memory
 
-    def test_legacy(self, left_to_right):
+    def test_legacy(self):
         res = QBackendIQM.result_to_qiskit_legacy(
-            None,
-            RAW,
-            measurements_raw=MEAS,
-            key_order_left_to_right=left_to_right,
-            backend_name="b",
-            job_id="1",
+            None, RAW, measurements_raw=MEAS, backend_name="b", job_id="1"
         )
-        counts, memory = _expected(left_to_right)
+        counts, memory = _expected()
         assert res.get_counts() == counts
         assert res.get_memory() == memory
 
@@ -1090,7 +1063,7 @@ class TestResultConversionErrors:
             )
 
 
-# --- run(memory=...) -> QJob.result(with_measurements=...) (issue #49) ---
+# --- run(memory=...) -> per-shot data in QJob.result() (issue #49) ---
 
 
 class _FakeJobClient:
@@ -1109,6 +1082,17 @@ class _FakeJobClient:
 
     def _run(self, coro):
         return asyncio.run(coro)
+
+    def get_job_info(self, job_id, backend_name=None):
+        return {"Id": int(job_id), "Tasks": [], "State": HEAppEJobState.Finished.value}
+
+    async def aget_job_info(self, job_id, backend_name=None):
+        return self.get_job_info(job_id, backend_name)
+
+    async def iter_events(self, backend_name=None, heartbeat=30.0):
+        """Event websocket that closes without events (subclasses add some)."""
+        for event in getattr(self, "events", []):
+            yield event
 
     def get_job_results(self, submitted_job, artifact_names):
         self.requested_artifacts.append(list(artifact_names))
@@ -1149,8 +1133,8 @@ class TestRunMemory:
 
     def test_memory_true_returns_per_shot_data(self):
         job = _finished_job(memory=True)
-        res = job.result(qiskit_legacy=True)
-        assert res.get_memory() == _expected(False)[1]
+        res = job.result()
+        assert res.get_memory() == _expected()[1]
         assert job._backend._qclient.requested_artifacts[-1] == [
             QJob._COUNTS_ARTIFACT,
             QJob._MEAS_ARTIFACT,
@@ -1158,22 +1142,22 @@ class TestRunMemory:
 
     def test_memory_false_skips_measurements(self):
         job = _finished_job()
-        job.result(qiskit_legacy=True)
+        job.result()
         assert job._backend._qclient.requested_artifacts == [[QJob._COUNTS_ARTIFACT]]
 
-    def test_explicit_with_measurements_overrides_memory(self):
+    def test_result_is_cached(self):
         job = _finished_job(memory=True)
-        job.result(with_measurements=False, qiskit_legacy=True)
-        assert job._backend._qclient.requested_artifacts == [[QJob._COUNTS_ARTIFACT]]
+        assert job.result() is job.result()
+        assert len(job._backend._qclient.requested_artifacts) == 1
 
-        job = _finished_job(memory=False)
-        res = job.result(with_measurements=True, qiskit_legacy=True)
-        assert res.get_memory() == _expected(False)[1]
+    def test_result_takes_no_arguments(self):
+        with pytest.raises(TypeError, match="with_measurements"):
+            _finished_job().result(with_measurements=True)
 
     def test_backend_sampler_v2_gets_per_shot_data(self):
         """Mirrors what BackendSamplerV2 does: run(memory=True), then read Result memory."""
         job = _finished_job(memory=True)
-        res = job.result(qiskit_legacy=True)
+        res = job.result()
         assert res.results[0].data.memory is not None
 
 
@@ -1224,3 +1208,601 @@ class TestLiveStatus:
         job = _status_job([])
         job._qclient.get_job_info = lambda job_id, backend_name=None: {"Id": 7}
         assert job.status() == JobStatus.QUEUED
+
+
+# ---------- 1.1.0: Result by default, QSamplerV2 (issue #49) ----------
+
+
+class TestResultType:
+    def test_result_is_qiskit_result(self):
+        from qiskit.result import Result
+
+        res = _finished_job().result()
+        assert isinstance(res, Result)
+        assert res.get_counts() == _expected()[0]
+
+    def test_qiskit_legacy_argument_removed(self):
+        with pytest.raises(TypeError, match="qiskit_legacy"):
+            _finished_job().result(qiskit_legacy=False)
+
+
+def _iqm_measurements(circuit, shots):
+    """Fake IQM per-shot data for ``circuit``: one key per clbit, as qiskit-iqm names them.
+
+    A clbit reads 1 if ``circuit.metadata["ones"]`` lists it as ``(creg, bit)``, or, for a
+    circuit whose first instruction is an rx gate, if every bit of the circuit is set
+    when the angle is above 1. Keys are emitted in reverse order on purpose.
+    """
+    ones = {tuple(x) for x in (circuit.metadata or {}).get("ones", [])}
+    first = circuit.data[0].operation if circuit.data else None
+    all_one = first is not None and first.name == "rx" and float(first.params[0]) > 1
+    keys = {}
+    for idx, creg in enumerate(circuit.cregs):
+        for bit in range(creg.size):
+            value = int(all_one or (creg.name, bit) in ones)
+            keys[f"{creg.name}_{creg.size}_{idx}_{bit}"] = [[value]] * shots
+    return dict(reversed(keys.items()))
+
+
+class _SamplerClient(_FakeJobClient):
+    def __init__(self):
+        super().__init__()
+        self.artifacts = {}
+
+    def get_job_results(self, submitted_job, artifact_names):
+        self.requested_artifacts.append(list(artifact_names))
+        job_id = submitted_job["Id"]
+        return {job_id: {"artifacts": self.artifacts[job_id]}}
+
+    def get_job_info(self, job_id, backend_name=None):
+        return {"Id": int(job_id), "State": HEAppEJobState.Finished.value}
+
+
+class _SamplerBackend:
+    """Backend stand-in whose run() returns finished QJobs with fake IQM data."""
+
+    name = "fake"
+
+    def __init__(self, shots=64):
+        self._qclient = _SamplerClient()
+        self.options = SimpleNamespace(shots=shots, memory=False)
+        self.runs = []
+
+    def run(self, circuits, shots, **options):
+        job_id = 100 + len(self.runs)
+        self.runs.append({"circuits": circuits, "shots": shots, **options})
+        self._qclient.artifacts[job_id] = {
+            QJob._COUNTS_ARTIFACT: [],
+            QJob._MEAS_ARTIFACT: [_iqm_measurements(c, shots) for c in circuits],
+        }
+        submitted = {"Id": job_id, "Tasks": [], "State": HEAppEJobState.Finished.value}
+        return QJob(self, job_id, submitted_job=submitted, shots=shots, memory=True)
+
+
+def _two_register_circuit(ones):
+    from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
+
+    a, b = ClassicalRegister(2, "a"), ClassicalRegister(1, "b")
+    qc = QuantumCircuit(QuantumRegister(3), a, b, metadata={"ones": ones})
+    qc.measure([0, 1], a)
+    qc.measure(2, b)
+    return qc
+
+
+class TestQSamplerV2:
+    def test_registers_and_bit_order(self):
+        from qheappe_client import QSamplerV2
+
+        backend = _SamplerBackend()
+        qc = _two_register_circuit(ones=[("a", 0), ("b", 0)])
+        res = QSamplerV2(backend).run([qc], shots=10).result()
+        data = res[0].data
+        assert data.a.get_counts() == {"01": 10}  # clbit 0 is rightmost
+        assert data.b.get_counts() == {"1": 10}
+        assert res[0].metadata["shots"] == 10
+
+    def test_runs_with_memory_and_run_options(self):
+        from qheappe_client import QSamplerV2
+
+        backend = _SamplerBackend()
+        qc = _two_register_circuit(ones=[])
+        QSamplerV2(backend, run_options={"job_name": "s"}).run([qc]).result()
+        run = backend.runs[0]
+        assert run["memory"] is True and run["job_name"] == "s"
+        assert run["shots"] == 64  # backend default
+        assert backend._qclient.requested_artifacts == [
+            [QJob._COUNTS_ARTIFACT, QJob._MEAS_ARTIFACT]
+        ]
+
+    def test_default_shots_override(self):
+        from qheappe_client import QSamplerV2
+
+        backend = _SamplerBackend()
+        sampler = QSamplerV2(backend, default_shots=7)
+        assert (
+            sampler.run([_two_register_circuit([])]).result()[0].data.a.num_shots == 7
+        )
+
+    def test_parameter_sweep_keeps_pub_shape(self):
+        from qiskit import QuantumCircuit
+        from qiskit.circuit import Parameter
+
+        from qheappe_client import QSamplerV2
+
+        theta = Parameter("t")
+        qc = QuantumCircuit(1)
+        qc.rx(theta, 0)
+        qc.measure_all()
+        backend = _SamplerBackend()
+        res = QSamplerV2(backend).run([(qc, [[0.0], [3.0], [0.5]])], shots=5).result()
+        meas = res[0].data.meas
+        assert meas.shape == (3,)
+        assert [meas[i].get_counts() for i in range(3)] == [
+            {"0": 5},
+            {"1": 5},
+            {"0": 5},
+        ]
+        assert len(backend.runs) == 1 and len(backend.runs[0]["circuits"]) == 3
+
+    def test_one_backend_job_per_shot_count(self):
+        from qheappe_client import QSamplerV2
+
+        backend = _SamplerBackend()
+        qa = _two_register_circuit(ones=[("a", 1)])
+        qb = _two_register_circuit(ones=[("b", 0)])
+        job = QSamplerV2(backend).run([(qa, None, 10), (qb, None, 20), (qa, None, 10)])
+        assert [r["shots"] for r in backend.runs] == [10, 20]
+        assert job.job_id() == "100,101"
+        res = job.result()
+        assert [r.data.a.num_shots for r in res] == [10, 20, 10]
+        assert res[0].data.a.get_counts() == {"10": 10}
+        assert res[1].data.b.get_counts() == {"1": 20}
+        assert job.result() is res
+
+    def test_status_and_final_state(self):
+        from qheappe_client import QSamplerV2
+
+        job = QSamplerV2(_SamplerBackend()).run([_two_register_circuit([])])
+        assert job.status() == JobStatus.DONE
+        assert job.done() and job.in_final_state()
+        assert not job.running() and not job.cancelled()
+
+    def test_status_reports_least_advanced_job(self):
+        from qheappe_client.qiskit.qsampler import QSamplerJob
+
+        done = SimpleNamespace(status=lambda: JobStatus.DONE, job_id=lambda: "1")
+        queued = SimpleNamespace(status=lambda: JobStatus.QUEUED, job_id=lambda: "2")
+        job = QSamplerJob([], [(done, []), (queued, [])])
+        assert job.status() == JobStatus.QUEUED and not job.in_final_state()
+
+    def test_circuit_without_registers_rejected(self):
+        from qiskit import QuantumCircuit
+
+        from qheappe_client import QSamplerV2
+
+        with pytest.raises(ValueError, match="no classical registers"):
+            QSamplerV2(_SamplerBackend()).run([QuantumCircuit(1)])
+
+    def test_unknown_measurement_key_rejected(self):
+        from qheappe_client import QSamplerV2
+
+        backend = _SamplerBackend()
+        job = QSamplerV2(backend).run([_two_register_circuit([])], shots=2)
+        backend._qclient.artifacts[100][QJob._MEAS_ARTIFACT] = [
+            {"zz_1_5_0": [[0], [1]]}
+        ]
+        with pytest.raises(ValueError, match="does not match"):
+            job.result()
+
+
+# Live data for x(0) measured into a(2) + b(1): the server sends bits in key order,
+# so clbit 0 comes first ("100"); Qiskit expects clbit 0 rightmost ("001").
+IQM_RAW = [
+    {"measurement_keys": ["a_2_0_0", "a_2_0_1", "b_1_1_0"], "counts": {"100": 3}}
+]
+IQM_MEAS = [{"a_2_0_0": [[1]] * 3, "a_2_0_1": [[0]] * 3, "b_1_1_0": [[0]] * 3}]
+
+
+class TestIQMKeyBitOrder:
+    def test_legacy_counts_follow_qiskit_order(self):
+        res = QBackendIQM.result_to_qiskit_legacy(None, IQM_RAW)
+        assert res.get_counts() == {"0 01": 3}
+
+    def test_legacy_memory_follows_qiskit_order(self):
+        res = QBackendIQM.result_to_qiskit_legacy(
+            None, IQM_RAW, measurements_raw=IQM_MEAS
+        )
+        assert res.get_memory() == ["0 01"] * 3
+        assert (
+            res.results[0].header["measurement_keys"] == IQM_RAW[0]["measurement_keys"]
+        )
+
+    def test_key_order_does_not_matter(self):
+        raw = [
+            {
+                "measurement_keys": ["b_1_1_0", "a_2_0_1", "a_2_0_0"],
+                "counts": {"001": 3},
+            }
+        ]
+        res = QBackendIQM.result_to_qiskit_legacy(None, raw)
+        assert res.get_counts() == {"0 01": 3}
+
+    def test_primitive_bit_order(self):
+        for meas in (None, IQM_MEAS):
+            res = QBackendIQM.result_to_qiskit(None, IQM_RAW, measurements_raw=meas)
+            assert res[0].data.meas.get_counts() == {"001": 3}
+            assert res[0].metadata["measurement_keys"] == IQM_RAW[0]["measurement_keys"]
+
+    def test_unused_register_bits_are_zero(self):
+        raw = [{"measurement_keys": ["c_3_0_2"], "counts": {"1": 4}}]
+        res = QBackendIQM.result_to_qiskit_legacy(None, raw)
+        assert res.get_counts() == {"100": 4}
+
+
+def test_result_has_no_key_order_argument():
+    with pytest.raises(TypeError, match="key_order_left_to_right"):
+        _finished_job().result(key_order_left_to_right=True)
+
+
+# ---------- Qiskit interface: cancel, default shots ----------
+
+
+class _CancelClient(_FakeJobClient):
+    def __init__(self, accept):
+        super().__init__()
+        self.accept = accept
+        self.cancelled = []
+
+    async def cancel_job(self, job_id, backend_name=None):
+        self.cancelled.append(job_id)
+        return self.accept
+
+    def get_job_info(self, job_id, backend_name=None):
+        return {"Id": int(job_id), "State": HEAppEJobState.Running.value}
+
+
+def _running_job(accept):
+    backend = _FakeBackend()
+    backend._qclient = _CancelClient(accept)
+    return backend._submit({"run_request": "{}"}, shots=4)
+
+
+class TestCancel:
+    def test_cancel_reaches_client_and_reports_cancelled(self):
+        job = _running_job(accept=True)
+        assert job.cancel() is True
+        assert job._qclient.cancelled == [7]
+        assert job.status() == JobStatus.CANCELLED
+        assert job.cancelled() and job.in_final_state()
+
+    def test_refused_cancel_keeps_server_status(self):
+        job = _running_job(accept=False)
+        assert job.cancel() is False
+        assert job.status() == JobStatus.RUNNING
+
+    def test_failed_after_cancel_maps_to_cancelled(self):
+        job = _running_job(accept=True)
+        job.cancel()
+        assert job._to_qiskit_status("FAILED") == JobStatus.CANCELLED
+
+
+class TestRunDefaultShots:
+    def _backend(self):
+        from qiskit.providers.options import Options
+
+        calls = {}
+        fake = SimpleNamespace(
+            options=Options(shots=321, memory=False),
+            create_circuit_job_definition=lambda **kw: (
+                calls.setdefault("def", kw)
+                and SimpleNamespace(model_dump_json=lambda: "{}")
+            ),
+            _submit=lambda payloads, shots, **opts: calls.setdefault("shots", shots),
+        )
+        return fake, calls
+
+    def test_shots_default_to_backend_option(self):
+        from qiskit import QuantumCircuit
+
+        fake, calls = self._backend()
+        QBackendIQM.run(fake, QuantumCircuit(1))
+        assert calls["shots"] == 321 and calls["def"]["shots"] == 321
+
+    def test_explicit_shots_win(self):
+        from qiskit import QuantumCircuit
+
+        fake, calls = self._backend()
+        QBackendIQM.run(fake, QuantumCircuit(1), shots=5)
+        assert calls["shots"] == 5
+
+
+# ---------- Result header: registers, circuit name and metadata ----------
+
+
+def _one_hot():
+    from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
+
+    a, b = ClassicalRegister(2, "a"), ClassicalRegister(1, "b")
+    qc = QuantumCircuit(QuantumRegister(3), a, b, name="onehot", metadata={"tag": 1})
+    qc.x(0)
+    qc.measure([0, 1], a)
+    qc.measure(2, b)
+    return qc
+
+
+class TestResultHeader:
+    def test_matches_qiskit_basic_simulator(self):
+        from qiskit.providers.basic_provider import BasicSimulator
+
+        qc = _one_hot()
+        ref = BasicSimulator().run(qc, shots=3, memory=True).result()
+        ours = QBackendIQM.result_to_qiskit_legacy(
+            None,
+            IQM_RAW,
+            measurements_raw=IQM_MEAS,
+            circuit_headers=[{"name": qc.name, "metadata": qc.metadata}],
+        )
+        assert ours.get_counts() == ref.get_counts() == {"0 01": 3}
+        assert ours.get_memory() == ref.get_memory()
+        for field in ("name", "creg_sizes", "memory_slots", "metadata"):
+            assert ours.results[0].header[field] == ref.results[0].header[field], field
+        assert ours.get_counts(qc) == ref.get_counts(qc)
+
+    def test_without_circuit_headers(self):
+        res = QBackendIQM.result_to_qiskit_legacy(None, IQM_RAW)
+        header = res.results[0].header
+        assert header["name"] == "circuit-0" and header["metadata"] == {}
+        assert header["creg_sizes"] == [["a", 2], ["b", 1]]
+
+    def test_mismatched_circuit_headers_are_ignored(self):
+        res = QBackendIQM.result_to_qiskit_legacy(
+            None, IQM_RAW, circuit_headers=[{"name": "x"}, {"name": "y"}]
+        )
+        assert res.results[0].header["name"] == "circuit-0"
+
+    def test_non_iqm_keys_use_one_register(self):
+        res = QBackendIQM.result_to_qiskit_legacy(None, RAW)
+        assert res.results[0].header["creg_sizes"] == [["meas", 2]]
+
+    def test_run_passes_circuit_headers_to_job(self):
+        from qiskit.providers.options import Options
+
+        calls = {}
+        fake = SimpleNamespace(
+            options=Options(shots=10, memory=False),
+            create_circuit_job_definition=lambda **kw: SimpleNamespace(
+                model_dump_json=lambda: "{}"
+            ),
+            _submit=lambda payloads, shots, **opts: calls.update(opts),
+        )
+        qc = _one_hot()
+        QBackendIQM.run(fake, [qc])
+        assert calls["circuit_headers"] == [{"name": "onehot", "metadata": {"tag": 1}}]
+
+    def test_job_result_uses_circuit_headers(self):
+        job = _finished_job()
+        job._circuit_headers = [{"name": "bell", "metadata": {"k": "v"}}]
+        header = job.result().results[0].header
+        assert header["name"] == "bell" and header["metadata"] == {"k": "v"}
+
+
+# ---------- waiting for the terminal state (stale submit-time State) ----------
+
+
+class _WaitClient(_FakeJobClient):
+    """HEAppE stand-in whose job info returns ``states`` in turn (last one repeats)."""
+
+    def __init__(self, states):
+        super().__init__()
+        self.states = list(states)
+        self.info_calls = 0
+        self.waits = 0
+
+    def get_job_info(self, job_id, backend_name=None):
+        self.info_calls += 1
+        state = self.states.pop(0) if len(self.states) > 1 else self.states[0]
+        return {"Id": int(job_id), "Tasks": [{"Id": 1}], "State": state.value}
+
+    async def iter_events(self, backend_name=None, heartbeat=30.0):
+        self.waits += 1  # one websocket opened per wait
+        yield {"data": {"jobId": "999", "state": "Running"}}  # another job
+        yield {"data": {"jobId": "7", "state": "Finished"}}  # mixed case, as HEAppE
+
+
+def _job_with(states):
+    backend = _FakeBackend()
+    backend._qclient = _WaitClient(states)
+    job = backend._submit({"run_request": "{}"}, shots=4)
+    # submit-time info: State is stale (Configuring) although the job has moved on
+    job._submitted_job = {
+        "Id": 7,
+        "Tasks": [],
+        "State": HEAppEJobState.Configuring.value,
+    }
+    return job
+
+
+class TestWaitForTerminalState:
+    def test_finished_job_is_not_waited_on(self):
+        job = _job_with([HEAppEJobState.Finished])
+        job.result()
+        assert job._qclient.waits == 0
+        assert job._submitted_job["State"] == HEAppEJobState.Finished.value
+
+    def test_running_job_waits_then_refreshes_info(self):
+        S = HEAppEJobState
+        job = _job_with([S.Running, S.Finished])
+        job.result()
+        assert job._qclient.waits == 1
+        assert job._submitted_job["State"] == S.Finished.value
+        assert job._submitted_job["Tasks"] == [{"Id": 1}]
+
+    def test_state_seen_by_status_is_reused(self):
+        job = _job_with([HEAppEJobState.Finished])
+        assert job.status() == JobStatus.DONE
+        calls = job._qclient.info_calls
+        job.result()
+        assert job._qclient.info_calls == calls and job._qclient.waits == 0
+        assert job._submitted_job["State"] == HEAppEJobState.Finished.value
+
+    def test_streamed_state_used_when_info_has_none(self):
+        job = _job_with([HEAppEJobState.Running])
+        job._qclient.get_job_info = lambda job_id, backend_name=None: (
+            {"Id": 7} if job._qclient.waits else {"Id": 7, "State": 2}
+        )
+        job.result()
+        assert job._last_known_status == "FINISHED"
+
+    def test_failed_job_raises(self):
+        job = _job_with([HEAppEJobState.Failed])
+        with pytest.raises(RuntimeError, match="FAILED"):
+            job.result()
+
+
+def test_list_available_backends_connects_and_closes(monkeypatch):
+    from qheappe_client import qprovider
+
+    events = []
+
+    class _Client:
+        def __init__(self, *args, **kwargs):
+            events.append("init")
+
+        def __enter__(self):
+            events.append("connect")
+            return self
+
+        def __exit__(self, *exc):
+            events.append("close")
+
+        def get_available_backends(self):
+            events.append("list")
+            return {"VLQ": "metadata"}
+
+    monkeypatch.setattr(qprovider, "QClient", _Client)
+    result = qprovider.QProvider.list_available_backends("t", "p", lexis_resource="r")
+    assert result == {"VLQ": "metadata"}
+    assert events == ["init", "connect", "list", "close"]
+
+
+# ---------- wait_for_final_state over the event websocket ----------
+
+
+class _EventClient(_FakeJobClient):
+    """Job info stays SUBMITTED; only the websocket reports progress."""
+
+    def __init__(
+        self, events=(), fail_stream=False, info_state=HEAppEJobState.Submitted
+    ):
+        super().__init__()
+        self.events = list(events)
+        self.fail_stream = fail_stream
+        self.info_state = info_state
+        self.streams = 0
+
+    def get_job_info(self, job_id, backend_name=None):
+        return {"Id": int(job_id), "Tasks": [], "State": self.info_state.value}
+
+    async def iter_events(self, backend_name=None, heartbeat=30.0):
+        self.streams += 1
+        if self.fail_stream:
+            raise QException("websocket refused")
+        for event in self.events:
+            await asyncio.sleep(0)
+            yield event
+        await asyncio.Event().wait()  # stays open, like a live websocket
+
+
+def _event_job(**kwargs):
+    backend = _FakeBackend()
+    backend._qclient = _EventClient(**kwargs)
+    return backend._submit({"run_request": "{}"}, shots=4)
+
+
+def _ev(state, job_id="7"):
+    return {"data": {"jobId": job_id, "state": state}}
+
+
+class TestWaitForFinalStateEvents:
+    def test_follows_events_and_reports_changes(self):
+        job = _event_job(
+            events=[_ev("Queued"), _ev("Running"), _ev("Running"), _ev("Finished")]
+        )
+        seen = []
+        job.wait_for_final_state(wait=60, callback=lambda *a: seen.append(a[1]))
+        assert seen == [JobStatus.QUEUED, JobStatus.RUNNING]  # start, then each change
+        assert job.status() == JobStatus.DONE
+        assert job._qclient.streams == 1
+
+    def test_ignores_other_jobs(self):
+        job = _event_job(events=[_ev("Finished", job_id="8"), _ev("Failed")])
+        job.wait_for_final_state(wait=60)
+        assert job.status() == JobStatus.ERROR
+
+    def test_finished_job_opens_no_stream(self):
+        job = _event_job(info_state=HEAppEJobState.Finished)
+        job.wait_for_final_state()
+        assert job._qclient.streams == 0
+
+    def test_job_info_catches_missed_events(self):
+        job = _event_job()  # websocket silent, e.g. job finished before it connected
+        job._qclient.info_state = HEAppEJobState.Submitted
+        calls = []
+
+        def info(job_id, backend_name=None):
+            calls.append(1)
+            state = (
+                HEAppEJobState.Submitted if len(calls) == 1 else HEAppEJobState.Finished
+            )
+            return {"Id": 7, "Tasks": [], "State": state.value}
+
+        job._qclient.get_job_info = info
+        job.wait_for_final_state(wait=0.01, timeout=5)
+        assert job.status() == JobStatus.DONE
+
+    def test_stream_failure_falls_back_to_job_info(self):
+        job = _event_job(fail_stream=True)
+        states = iter([HEAppEJobState.Submitted, HEAppEJobState.Finished])
+        last = [HEAppEJobState.Submitted]
+
+        def info(job_id, backend_name=None):
+            last[0] = next(states, last[0])
+            return {"Id": 7, "Tasks": [], "State": last[0].value}
+
+        job._qclient.get_job_info = info
+        job.wait_for_final_state(wait=0.01, timeout=5)
+        assert job.status() == JobStatus.DONE
+
+    def test_timeout_raises_job_timeout_error(self):
+        from qiskit.providers.exceptions import JobTimeoutError
+
+        job = _event_job()
+        with pytest.raises(JobTimeoutError):
+            job.wait_for_final_state(timeout=0.05, wait=60)
+
+    def test_result_waits_on_events(self):
+        job = _event_job(events=[_ev("Finished")])
+        assert sum(job.result().get_counts().values()) == 3
+        assert job._qclient.streams == 1
+
+
+class TestSamplerJobWait:
+    def test_waits_for_all_jobs_and_reports_combined_status(self):
+        from qheappe_client.qiskit.qsampler import QSamplerJob
+
+        jobs = [_event_job(events=[_ev("Running"), _ev("Finished")]) for _ in range(2)]
+        sampler_job = QSamplerJob([], [(j, []) for j in jobs])
+        seen = []
+        sampler_job.wait_for_final_state(wait=60, callback=lambda *a: seen.append(a))
+        assert sampler_job.done()
+        assert all(a[0] == sampler_job.job_id() and a[2] is sampler_job for a in seen)
+        assert seen
+
+    def test_timeout_is_shared(self):
+        from qiskit.providers.exceptions import JobTimeoutError
+
+        from qheappe_client.qiskit.qsampler import QSamplerJob
+
+        sampler_job = QSamplerJob([], [(_event_job(), [])])
+        with pytest.raises(JobTimeoutError):
+            sampler_job.wait_for_final_state(timeout=0.05, wait=60)

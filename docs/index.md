@@ -40,11 +40,11 @@ qc.cx(0, 1)
 qc.measure_all()
 
 job = backend.run(backend.transpile(qc), shots=1000)
-counts = job.result(qiskit_legacy=True).get_counts()
+counts = job.result().get_counts()
 print(counts)  # e.g. {'00': 497, '11': 489, '01': 8, '10': 6}
 ```
 
-`job.result()` returns a Qiskit `PrimitiveResult` by default, or a legacy `Result` with `qiskit_legacy=True`. See [PrimitiveResult vs. legacy Result](usage.md#primitiveresult-vs-legacy-result) for the difference.
+`job.result()` returns a Qiskit `Result`, as `backend.run()` does in Qiskit. For `PrimitiveResult` output, use the sampler primitive `QSamplerV2`. See [Reading results](usage.md#reading-results).
 
 ## Pages
 
@@ -52,7 +52,7 @@ print(counts)  # e.g. {'00': 497, '11': 489, '01': 8, '10': 6}
 |------|-------------|
 | [Installation](installation.md) | Requirements, IQM extras, backend compatibility |
 | [Usage](usage.md) | Authentication, backends, running circuits, reading results |
-| [API Reference](api.md) | `QProvider`, `QBackendIQM`, `QJob`, `QBackendMetadata`, exceptions |
+| [API Reference](api.md) | `QProvider`, `QBackendIQM`, `QJob`, `QSamplerV2`, `QBackendMetadata`, exceptions |
 | [Architecture](architecture.md) | Components and the job flow through LEXIS and HEAppE QScheduler |
 
 ## Authors

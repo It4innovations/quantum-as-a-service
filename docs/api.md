@@ -114,7 +114,7 @@ Transpiles one circuit or a list of circuits to the native gate set and connecti
 ### `run()`
 
 ```python
-run(run_input, shots, **options) -> QJob
+run(run_input, shots=None, **options) -> QJob
 ```
 
 Submits one transpiled circuit or a list of them as one job.
@@ -122,7 +122,8 @@ Submits one transpiled circuit or a list of them as one job.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `run_input` | `QuantumCircuit` \| `list[QuantumCircuit]` | — | Transpiled circuit(s) |
-| `shots` | `int` | — | Number of shots (required) |
+| `shots` | `int` | `backend.options.shots` (1024) | Number of shots |
+| `memory` | `bool` | `False` | Include per-shot results (`result().get_memory()`) |
 | `job_name` | `str` | `"qiskit_qasm_job"` | Job name in HEAppE |
 | `walltime_limit_secs` | `int` | `3600` | Walltime limit of the job |
 | `circuit_compilation_options` | `CircuitCompilationOptions` | IQM default | IQM server-side compilation options |
@@ -179,23 +180,12 @@ HEAppE job ID as an `int`. `job.job_id()` returns it as a string (Qiskit style).
 ### `result()`
 
 ```python
-result(with_measurements=None, key_order_left_to_right=False, qiskit_legacy=False) -> PrimitiveResult | Result
+result() -> Result
 ```
 
-Waits until the job finishes and returns the results.
+Waits until the job finishes and returns the results as a Qiskit `Result`. Per-shot results are included if the job was submitted with `backend.run(..., memory=True)`, or created with `QJob(backend, job_id, memory=True)`.
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `with_measurements` | `None` | Include per-shot results. `None` follows the `memory` option given to `backend.run()` (default `False`) |
-| `key_order_left_to_right` | `False` | Bit order of bitstrings; `False` = Qiskit's right-to-left order |
-| `qiskit_legacy` | `False` | Return a legacy `Result` instead of a `PrimitiveResult` |
-
-Accessing the results:
-
-| Result type | Counts | Per-shot results |
-|-------------|--------|------------------|
-| `PrimitiveResult` | `res[i].data.meas.get_counts()` | `res[i].data.meas.get_bitstrings()` |
-| `Result` (legacy) | `res.get_counts()` | `res.get_memory()` |
+Accessing the results: `res.get_counts()`, `res.get_memory()` (per-shot results); `res.get_counts(i)` or `res.get_counts(circuit)` for one circuit. Results are named after their circuits and carry the circuit metadata; for a job created with `QJob(backend, job_id)`, they are named `circuit-<i>` with empty metadata. For a `PrimitiveResult`, use [`QSamplerV2`](#qsamplerv2).
 
 Raises `RuntimeError` if the job failed or was cancelled.
 
@@ -205,7 +195,48 @@ Raises `RuntimeError` if the job failed or was cancelled.
 status() -> JobStatus
 ```
 
-Current job state as a Qiskit `JobStatus`.
+Current job state as a Qiskit `JobStatus`. Queries HEAppE on each call until the job reaches a final state.
+
+### `wait_for_final_state()`
+
+```python
+wait_for_final_state(timeout=None, wait=5, callback=None) -> None
+```
+
+Waits until the job is `DONE`, `ERROR` or `CANCELLED`. Same interface as Qiskit's `JobV1.wait_for_final_state`, but follows HEAppE's event websocket instead of polling. The job info is still fetched every `wait` seconds as a backup, since the websocket only reports changes made after it connects. `callback(job_id, status, job)` is called with the current status and on each later status change before the final one. Raises `JobTimeoutError` after `timeout` seconds.
+
+---
+
+## QSamplerV2
+
+Qiskit `SamplerV2` primitive (`BaseSamplerV2`) for a QaaS backend.
+
+```python
+from qheappe_client import QSamplerV2
+
+sampler = QSamplerV2(backend, default_shots=None, run_options=None)
+job = sampler.run(pubs, shots=None)
+result = job.result()  # PrimitiveResult
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `backend` | | `QBackendIQM` to run on |
+| `default_shots` | `None` | Shots for PUBs that set none; the backend's `shots` option if `None` |
+| `run_options` | `None` | Extra `backend.run()` options, e.g. `job_name` |
+
+`run(pubs, shots=None)` takes transpiled circuits or `(circuit, parameter_values[, shots])` tuples and returns a `QSamplerJob`. All PUBs with the same shot count go into one HEAppE job.
+
+`QSamplerJob`:
+
+| Member | Description |
+|--------|-------------|
+| `result()` | `PrimitiveResult`: per PUB, a `DataBin` with one `BitArray` per classical register, shaped like the PUB |
+| `status()`, `done()`, `running()`, `cancelled()`, `in_final_state()` | State of the HEAppE jobs (the least advanced one wins) |
+| `wait_for_final_state(timeout=None, wait=5, callback=None)` | Wait for all HEAppE jobs (see `QJob.wait_for_final_state`); `timeout` is shared, `callback` gets this job's combined status |
+| `cancel()` | Cancel all HEAppE jobs |
+| `jobs` | The underlying `QJob`s |
+| `job_id()` | HEAppE job IDs, comma-separated |
 
 ---
 
