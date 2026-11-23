@@ -3,8 +3,11 @@ anc = "anc"
 aer = "aer"
 arange = "arange"
 
+# Whole identifiers only; "nd" alone is still flagged.
+[default.extend-identifiers]
+nd_sweep = "nd_sweep"  # n-dimensional sweep (IQM NdSweep)
+
 [default]
 extend-ignore-re = [
     "(?s)-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----"
 ]
-

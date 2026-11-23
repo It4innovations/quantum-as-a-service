@@ -1,7 +1,15 @@
 QHEAppE — Quantum-as-a-Service through HEAppE
 ==============================================
 
-.. image:: https://img.shields.io/badge/docs-GitHub%20Pages-blue
+|version| |python| |docs|
+
+.. |version| image:: https://img.shields.io/pypi/v/qaas
+   :target: https://pypi.org/project/qaas/
+   :alt: PyPI version
+.. |python| image:: https://img.shields.io/pypi/pyversions/qaas
+   :target: https://pypi.org/project/qaas/
+   :alt: Python versions
+.. |docs| image:: https://img.shields.io/badge/docs-GitHub%20Pages-blue
    :target: https://it4innovations.github.io/quantum-as-a-service/
    :alt: Documentation
 
@@ -13,118 +21,134 @@ Requirements
 ------------
 
 - Python 3.12
-- required Python packages: see `dependencies` in `pyproject.toml <pyproject.toml>`_
+- Required Python packages: see `dependencies` in `pyproject.toml <pyproject.toml>`_
+- Server side: HEAppE and QScheduler, see `Compatibility`_
+
+Compatibility
+-------------
+
+Install **one** IQM extra:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Extra
+     - iqm-client
+     - Backends (station-control)
+     - Used by
+   * - ``iqm_qiskit`` (recommended), ``iqm36_qiskit``
+     - 36.0
+     - 49.x, 50.x
+     - QHEAppE Client, pulse-level access (QPulla)
+   * - ``iqm35_qiskit``
+     - 35.0
+     - 49.x
+     - legacy ``qaas.client``
+
+Minimum server versions:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Feature
+     - HEAppE
+     - QScheduler
+   * - Circuit jobs
+     - 6.6+
+     - 0.2+
+   * - Pulse-level access (QPulla)
+     - 6.7.0+
+     - 0.2.2+, with pulse access enabled for the machine
+
+Installation
+------------
+
+QHEAppE can be installed using pip. To install the package along with optional dependencies for IQM integration:
+
+.. code-block:: bash
+
+   pip install qaas[iqm_qiskit] --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
+
+For the other extras see `Compatibility`_. ``QProvider.get_backend()`` checks the version
+the backend reports and raises an error that names the extra to install if it does not match.
+
+.. note::
+
+   **Pulse-level access (Pulla)**: ``QProvider.get_pulla()`` returns a ``QPulla``, an
+   ``iqm.iqm_client.IQMClient`` connected through HEAppE. See the
+   `usage documentation <https://it4innovations.github.io/quantum-as-a-service/usage/#pulse-level-access-pulla>`_.
 
 Architecture
 -------------
 
 .. image:: https://github.com/It4innovations/quantum-as-a-service/blob/main/img/qaas-architecture-diagram-qheappe_1080p.png
    :target: https://github.com/It4innovations/quantum-as-a-service/blob/main/img/qaas-architecture-diagram-qheappe_1080p.png
-   :alt: QHEAppE Architecture Disagram
+   :alt: QHEAppE Architecture Diagram
 
 Quick start
 -----------
 
-QHEAppE is available on `PyPI <https://pypi.org/project/qaas>`_, so you can install it easily using `pip`.
-
-.. code-block:: bash
-
-   pip install qaas --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
-
-Alternatively, you can install the latest (development) version using:
-
-.. code-block:: bash
-
-   pip install git+https://github.com/It4innovations/quantum-as-a-service.git@main --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
-
-Example usage:
+The following example demonstrates the basic usage of the QProvider and QBackend interfaces:
 
 .. code-block:: python
 
-   from qaas import QProvider
+   from qheappe_client.qprovider import QProvider
    from qiskit import QuantumCircuit
 
-   backend  = QProvider("my_project").get_backend("EQE1-CZ-P0001")
-   # Argument 'token' is optional 
+   # 1. Build a Qiskit circuit (Bell state)
+   qc = QuantumCircuit(2, 3)
+   qc.h(0)
+   qc.cx(0, 1)
+   qc.measure([0, 1], [0, 1])
+   qc.h(0)
+   qc.measure(0, 2)
+
+   # 2. Instantiate QProvider with your LEXIS authentication details
+   lexis_project = "your_project_name"
+   resource_name = "your_resource_name"
+
+   provider = QProvider(
+       lexis_project=lexis_project,
+       # Without passing token, an interactive login flow through the browser will happen
+       # token=os.getenv("LEXIS_TOKEN"),
+   )
+
+   # Alternatively, you can log in via py4lexis and then pass the session (recommended for remote scripts executed on remote HW via terminal, etc.)
    # from py4lexis.session import LexisSession
-   # token = LexisSession().get_access_token()
-   # backend  = QProvider("my_project", token=lexis_access_token).get_backend("EQE1-CZ-P0001")
+   # session = LexisSession()  # Interactive login flow
+   # token = session.get_access_token()
 
-   qc = QuantumCircuit(2, 2)
-   qc.h(0); qc.cx(0, 1); qc.measure_all()
-
-   counts = backend.run(backend.transpile(qc), shots=1000).result().get_counts()
-   print(counts)
-
-
-Also OpenQASM is supported on input:
-
-.. code-block:: python
-
-   from qaas import export_qasm3_with_custom_move as qasm3dumps
-
-   qc = QuantumCircuit(2, 2)
-   qc.h(0); qc.cx(0, 1); qc.measure_all()
-
-   qasm_transpiled_qc:str = qasm3dumps(backend.transpile(qc))
-
-   counts = backend.run([qasm_transpiled_qc], shots=1000).result().get_counts()
-   print(counts)
-
-
-
-IQM Pulla
-----------
-
-.. code-block:: python
-
-   from qiskit import QuantumCircuit, visualization
-   from qiskit.compiler import transpile
-   from iqm.qiskit_iqm.iqm_transpilation import optimize_single_qubit_gates
-   from iqm.pulla.utils_qiskit import sweep_job_to_qiskit
-   from qaas.client import QProvider, QBackend
-   from qaas.client.qpulla import qiskit_to_pulla, QPullaBackendIQM
-
-   SHOTS = 100
-
-   provider = QProvider("my_project")
-   client = provider.get_client(lexis_resource_name)
-   dqa = client.get_dynamic_architecture()
-   compiler = p.get_standard_compiler()
-   # Create Pulla instance
-   p = provider.get_pulla(lexis_resource_name)
-   pulla_backend: QPullaBackendIQM = QPullaBackendIQM(dqa,p,compiler)
-
-   qc_transpiled = backend.transpile(
-      qc,
-      layout_method='sabre',
-      optimization_level=0
+   # 3. Initialize the QBackend with the client
+   backend = provider.get_backend(
+       lexis_resource=resource_name, backend_name="VLQ"
    )
-   # Optimize single-qubit gates
-   qc_optimized = optimize_single_qubit_gates(qc_transpiled)
 
-   circuits, compiler = qiskit_to_pulla(p, pulla_backend, [qc_optimized])
-   
-   # Build settings for execution
-   settings = compiler.get_settings(circuits[0])
-   settings.set_shots(SHOTS) # optional
-   # Compile to playlist
-   run_definition, context = compiler.compile(circuits, settings=settings)
-   
-   # Submit playlist returns SweepJob
-   job = p.submit_playlist(run_definition, context=context)
-   job.wait_for_completion()
-   
-   # Get raw results
-   raw_results = job.result()
-   
-   # Convert to Qiskit result format
-   qiskit_result = sweep_job_to_qiskit(
-      job,
-      shots=SHOTS
+   # 4. Transpile the circuit
+   qc_transpiled = backend.transpile(qc)
+
+   # 5. Submit the circuit job
+   job = backend.run(
+       qc_transpiled, shots=1024, memory=True, job_name="demo_bell_state"
    )
-   # Qiskit Counts
-   counts = qiskit_result.get_counts()
+   print(f"Job submitted successfully. Job ID: {job.job_id()}")
+
+   # 6. Retrieve results (qiskit.result.Result)
+   result = job.result()
+   print("Counts:", result.get_counts())
+   print(f"Bitstrings: {result.get_memory()!s:.20s}")
+
+   # 7. Or use the sampler primitive for a PrimitiveResult
+   from qheappe_client import QSamplerV2
+
+   sampler_result = QSamplerV2(backend).run([qc_transpiled], shots=1024).result()
+   meas = sampler_result[0].data.meas
+   print("Counts:", meas.get_counts())
+   print(f"Bitstrings: {meas.get_bitstrings()!s:.20s}")
+
+``job.result()`` returns a Qiskit ``Result``, as ``backend.run()`` does in Qiskit, so
+tools that take a backend (``BackendSamplerV2``, ``BackendEstimatorV2``,
+``qiskit-experiments``) work unchanged. For ``PrimitiveResult`` output, use ``QSamplerV2``;
+see `Reading results <https://it4innovations.github.io/quantum-as-a-service/usage/#reading-results>`_.
 
 How to Fetch Calibration Data
 ------------------------------
@@ -135,18 +159,14 @@ default calibration set, pass ``None`` instead.
 .. code-block:: python
 
    from uuid import UUID
+   from qheappe_client.qprovider import QProvider
 
-   from qaas.client import QProvider
-
-   provider = QProvider("my_project")
-   client = provider.get_client(lexis_resource_name)
-
-   calibration_set = client.get_calibration_set(
-       UUID("3a83e2f3-c5a8-43b7-9aa1-e9738ca3204b")
-   )
-
-   default_calibration_set = client.get_calibration_set(None)
-
+   provider = QProvider("your_project_name")
+   calibration_set = provider.get_backend(
+       lexis_resource="your_resource_name",
+       backend_name="VLQ",
+       calibration_set_id=UUID("3a83e2f3-c5a8-43b7-9aa1-e9738ca3204b")
+   ).get_backend_info().calibration_set_id
 
 Authors
 -------
