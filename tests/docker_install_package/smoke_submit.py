@@ -1,11 +1,11 @@
 """Smoke test of a qaas installation (qheappe_client, qaas >= 1.1).
 
-Env vars (from .env_install_test; the names of the live test suite also work):
-  ACCESS_TOKEN   (or LEXIS_TOKEN)       LEXIS access token
-  LEXIS_PROJECT  (or QHEAPPE_PROJECT)   LEXIS project short name
-  RESOURCE_NAME  (or QHEAPPE_RESOURCE)  LEXIS quantum resource
-  BACKEND_NAME   (or QHEAPPE_BACKEND)   optional, backend (cluster) name, e.g. VLQ
-  LEXIS_API_URL  (or QHEAPPE_LEXIS_API_URL) optional, LEXIS API base URL
+Env vars (from the repo .env, the file pytest reads; the older names in brackets also work):
+  LEXIS_TOKEN            (ACCESS_TOKEN)   LEXIS access token
+  QHEAPPE_PROJECT        (LEXIS_PROJECT)  LEXIS project short name
+  QHEAPPE_RESOURCE       (RESOURCE_NAME)  LEXIS quantum resource
+  QHEAPPE_BACKEND        (BACKEND_NAME)   optional, backend (cluster) name, e.g. VLQ
+  QHEAPPE_LEXIS_API_URL  (LEXIS_API_URL)  optional, LEXIS API base URL
   SHOTS          optional, default 100
   SKIP_QPU       optional, 1 = install, import and connect only; submit no jobs
 """
@@ -27,11 +27,11 @@ def env(*names: str, required: bool = True) -> str | None:
     return None
 
 
-token = env("ACCESS_TOKEN", "LEXIS_TOKEN")
-lexis_project = env("LEXIS_PROJECT", "QHEAPPE_PROJECT")
-resource_name = env("RESOURCE_NAME", "QHEAPPE_RESOURCE")
-backend_name = env("BACKEND_NAME", "QHEAPPE_BACKEND", required=False)
-lexis_api_url = env("LEXIS_API_URL", "QHEAPPE_LEXIS_API_URL", required=False)
+token = env("LEXIS_TOKEN", "ACCESS_TOKEN")
+lexis_project = env("QHEAPPE_PROJECT", "LEXIS_PROJECT")
+resource_name = env("QHEAPPE_RESOURCE", "RESOURCE_NAME")
+backend_name = env("QHEAPPE_BACKEND", "BACKEND_NAME", required=False)
+lexis_api_url = env("QHEAPPE_LEXIS_API_URL", "LEXIS_API_URL", required=False)
 shots = int(os.environ.get("SHOTS", "100"))
 skip_qpu = os.environ.get("SKIP_QPU", "") not in ("", "0", "false", "False")
 

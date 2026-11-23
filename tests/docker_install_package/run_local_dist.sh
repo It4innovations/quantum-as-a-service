@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # Build a qaas wheel from the local repo, install it in a clean image and run the smoke test.
-# Usage: tests/docker_install_package/run_local_dist.sh [env-file]   (default: <repo>/.env_install_test)
+# Usage: tests/docker_install_package/run_local_dist.sh [env-file]   (default: <repo>/.env, the file pytest reads)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
-ENV_FILE="${1:-$REPO/.env_install_test}"
+ENV_FILE="${1:-$REPO/.env}"
 PYTHON="${PYTHON:-python3}"
 IMAGE="qaas-local-dist-smoke:latest"
 
-[[ -f "$ENV_FILE" ]] || { echo "Env file not found: $ENV_FILE" >&2; exit 1; }
+source "$HERE/env.sh"
+load_env "$ENV_FILE"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -25,4 +26,4 @@ echo "Built: $(ls "$WORK/ctx/dist")"
 
 cp "$HERE/smoke_submit.py" "$WORK/ctx/"
 docker build -f "$HERE/Dockerfile.local" -t "$IMAGE" "$WORK/ctx"
-docker run --rm --env-file "$ENV_FILE" ${SKIP_QPU:+-e SKIP_QPU} "$IMAGE"
+docker run --rm ${DOCKER_ENV[@]+"${DOCKER_ENV[@]}"} "$IMAGE"

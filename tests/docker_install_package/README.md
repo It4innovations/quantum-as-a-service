@@ -37,29 +37,26 @@ It prints `SMOKE TEST PASSED` at the end; any failure exits non-zero.
 
 ## Configuration
 
-Copy the example env file in the repository root and fill it in:
-
-```bash
-cp .env_install_test.example .env_install_test
-```
+The scripts read the repository `.env`, the same file the pytest live tests use
+(see `tests/qheappe/settings.py`). Pass another file as the last argument if needed.
 
 | Variable | Required | Description |
 |---|---|---|
-| `ACCESS_TOKEN` (or `LEXIS_TOKEN`) | yes | LEXIS access token |
-| `LEXIS_PROJECT` (or `QHEAPPE_PROJECT`) | yes | LEXIS project short name |
-| `RESOURCE_NAME` (or `QHEAPPE_RESOURCE`) | yes | LEXIS quantum resource, e.g. `VLQ-EU` |
-| `BACKEND_NAME` (or `QHEAPPE_BACKEND`) | no | backend (cluster) name, e.g. `VLQ` |
-| `LEXIS_API_URL` (or `QHEAPPE_LEXIS_API_URL`) | no | LEXIS API base URL |
+| `LEXIS_TOKEN` | yes | LEXIS access token |
+| `QHEAPPE_PROJECT` | yes | LEXIS project short name |
+| `QHEAPPE_RESOURCE` | yes | LEXIS quantum resource, e.g. `VLQ-EU` |
+| `QHEAPPE_BACKEND` | no | backend (cluster) name, e.g. `VLQ` |
+| `QHEAPPE_LEXIS_API_URL` | no | LEXIS API base URL |
 | `SHOTS` | no | shots per job, default `100` |
-| `SKIP_QPU` | no | `1`: submit no jobs (also read from the shell by the run scripts) |
+| `SKIP_QPU` | no | `1`: submit no jobs |
 
-The names in brackets are those of the live test suite (`tests/qheappe/settings.py`).
+The older names `ACCESS_TOKEN`, `LEXIS_PROJECT`, `RESOURCE_NAME`, `BACKEND_NAME` and
+`LEXIS_API_URL` still work as fallbacks. `SHOTS` and `SKIP_QPU` set in the shell override
+the file.
 
-Write values without quotes - `docker --env-file` passes them literally, so a quoted
-token fails with `JWT token decode error`. (The repository `.env` read by pytest may use
-quotes, so it cannot always be passed to these scripts as is.)
-`.env_install_test` is git-ignored; never commit it. The token is passed to the container
-only at runtime (not baked into the image), and the container is removed after the run.
+The file is parsed by [env.sh](env.sh) (quoted values are fine) and only the variables
+above are passed into the container, as `docker run -e NAME`. Nothing is written to the
+image, and the container is removed after the run.
 
 ## Usage
 
@@ -97,5 +94,5 @@ can't leak into it.
 
 ## Troubleshooting
 
-- **`Env file not found`** - create `.env_install_test` (see Configuration) or pass a path.
-- **`JWT token has expired`** - get a new LEXIS token and update the env file.
+- **`Env file not found`** - create the repository `.env` (see Configuration) or pass a path.
+- **`JWT token has expired`** - get a new LEXIS token and update `LEXIS_TOKEN` in `.env`.

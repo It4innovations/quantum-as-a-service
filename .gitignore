@@ -15,4 +15,4 @@ site/*
 .env
 .continue
 .qaas/
-.env_install_test
+.claude/

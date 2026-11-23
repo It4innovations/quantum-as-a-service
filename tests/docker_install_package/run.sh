@@ -2,13 +2,13 @@
 # Build a clean image with qaas installed from the package index and run the smoke test.
 # Usage: tests/docker_install_package/run.sh [-v|--version X.Y.Z|latest] [env-file]
 #   version   qaas version to install (default: latest = newest release)
-#   env-file  defaults to <repo>/.env_install_test
+#   env-file  defaults to <repo>/.env (the file pytest reads)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 VERSION="${QAAS_VERSION:-latest}"
-ENV_FILE="$REPO/.env_install_test"
+ENV_FILE="$REPO/.env"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -18,10 +18,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -f "$ENV_FILE" ]] || { echo "Env file not found: $ENV_FILE" >&2; exit 1; }
+source "$HERE/env.sh"
+load_env "$ENV_FILE"
 [[ "$VERSION" == "latest" ]] && SPEC="" || SPEC="$VERSION"
 IMAGE="qaas-pypi-smoke:$VERSION"
 
 echo "Installing qaas ${VERSION} from the package index"
 docker build --build-arg QAAS_VERSION="$SPEC" -t "$IMAGE" "$HERE"
-docker run --rm --env-file "$ENV_FILE" ${SKIP_QPU:+-e SKIP_QPU} "$IMAGE"
+docker run --rm ${DOCKER_ENV[@]+"${DOCKER_ENV[@]}"} "$IMAGE"
