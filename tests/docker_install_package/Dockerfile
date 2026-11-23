@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git \
 ARG QAAS_VERSION=
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONUNBUFFERED=1
 
-RUN pip install "qaas${QAAS_VERSION:+==$QAAS_VERSION}" \
+RUN pip install "qaas[iqm_qiskit]${QAAS_VERSION:+==$QAAS_VERSION}" \
     --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
 
 WORKDIR /app

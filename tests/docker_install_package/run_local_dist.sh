@@ -25,4 +25,4 @@ echo "Built: $(ls "$WORK/ctx/dist")"
 
 cp "$HERE/smoke_submit.py" "$WORK/ctx/"
 docker build -f "$HERE/Dockerfile.local" -t "$IMAGE" "$WORK/ctx"
-docker run --rm --env-file "$ENV_FILE" "$IMAGE"
+docker run --rm --env-file "$ENV_FILE" ${SKIP_QPU:+-e SKIP_QPU} "$IMAGE"

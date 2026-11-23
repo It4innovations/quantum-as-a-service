@@ -24,4 +24,4 @@ IMAGE="qaas-pypi-smoke:$VERSION"
 
 echo "Installing qaas ${VERSION} from the package index"
 docker build --build-arg QAAS_VERSION="$SPEC" -t "$IMAGE" "$HERE"
-docker run --rm --env-file "$ENV_FILE" "$IMAGE"
+docker run --rm --env-file "$ENV_FILE" ${SKIP_QPU:+-e SKIP_QPU} "$IMAGE"

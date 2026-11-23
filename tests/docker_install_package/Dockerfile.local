@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git \
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONUNBUFFERED=1
 
 COPY dist/ /tmp/dist/
-RUN pip install /tmp/dist/*.whl \
+RUN pip install "$(ls /tmp/dist/*.whl)[iqm_qiskit]" \
     --extra-index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple \
     && rm -rf /tmp/dist
 
