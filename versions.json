@@ -1,18 +1,18 @@
 [
   {
     "version": "latest",
-    "title": "1.0.1 (latest stable)",
+    "title": "1.1.0 (latest stable)",
     "aliases": [],
     "properties": {
-      "release": "1.0.1"
+      "release": "1.1.0"
     }
   },
   {
-    "version": "pre",
-    "title": "1.1.0a1 (pre-release)",
+    "version": "1.1.0",
+    "title": "1.1.0",
     "aliases": [],
     "properties": {
-      "release": "1.1.0a1"
+      "release": "1.1.0"
     }
   },
   {
